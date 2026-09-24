@@ -144,7 +144,7 @@ cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>
 cxc loop --help
 ```
 
-Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch.
+Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch. Every value flag also accepts `--flag=value`; use that form for a value that starts with `--`.
 `cxc goalplan <verb>` is a deprecated alias that dispatches to the same component and parser.
 
 ## map sub-grammar

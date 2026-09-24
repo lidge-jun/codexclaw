@@ -172,27 +172,33 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
   for (let i = 1; i < argv.length; i++) {
     const token = argv[i];
     if (!token.startsWith("--")) return reject(`unexpected positional argument '${token}'`);
-    const isSurfaceEquals = token.startsWith("--surface=");
-    const flag = (isSurfaceEquals ? "--surface" : token)                ;
+    // Every value flag also takes `--flag=value`, the only way to pass a value
+    // that itself starts with `--` (the space form treats that as a missing value).
+    const eq = token.indexOf("=");
+    const flag = (eq > 0 ? token.slice(0, eq) : token)                ;
+    const inlineValue = eq > 0 ? token.slice(eq + 1) : undefined;
     if (!rule.allowed.has(flag)) {
-      if (selected === "init" && (token === "--surface" || isSurfaceEquals)) {
+      if (selected === "init" && flag === "--surface") {
         return reject("--surface is not applied at init; use add-criterion --surface <logic|web|tui|desktop>. Nothing was written.");
       }
       return reject(`unknown flag '${token}'`);
     }
     if (seen.has(flag) && !rule.repeatable.has(flag)) return reject(`${flag} may be provided only once`);
     seen.add(flag);
-    if (flag === "--json") { out.json = true; continue; }
-    if (isSurfaceEquals) {
-      const value = token.slice("--surface=".length);
-      if (!value) return reject("--surface needs a value (logic|web|tui|desktop)");
-      out.surfaceGiven = true;
-      out.surface = value;
+    if (flag === "--json") {
+      if (inlineValue !== undefined) return reject("--json takes no value");
+      out.json = true;
       continue;
     }
-    const value = argv[++i];
-    if (value === undefined || value.startsWith("--")) {
-      return reject(flag === "--surface" ? "--surface needs a value (logic|web|tui|desktop)" : `${flag} requires a value`);
+    const value = inlineValue !== undefined ? inlineValue : argv[++i];
+    const missing = inlineValue !== undefined
+      ? inlineValue.length === 0
+      : value === undefined || value.startsWith("--");
+    if (missing) {
+      if (flag === "--surface") return reject("--surface needs a value (logic|web|tui|desktop)");
+      return reject(inlineValue !== undefined
+        ? `${flag} requires a value`
+        : `${flag} requires a value (use ${flag}=<value> for a value that starts with --)`);
     }
     switch (flag) {
       case "--objective": out.objective = value; break;
@@ -617,6 +623,7 @@ export function renderGoalplanHelp()         {
     "Notes:",
     "  Mutating verbs require --session <id>; show, validate, and ready are read-only.",
     "  Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch.",
+    "  Every value flag also accepts --flag=value; use it for a value that starts with --.",
     "  The goalplan lives at <cwd>/.codexclaw/goalplans/<slug>/goalplan.json, so --cwd",
     "  matters when the process cwd is not the workspace you are planning in.",
     "  Repeat --depends-on once per prerequisite; add-task accepts only existing task ids",

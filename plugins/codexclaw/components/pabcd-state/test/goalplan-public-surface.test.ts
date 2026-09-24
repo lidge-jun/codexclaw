@@ -3,7 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   advanceWorkPhase, buildGoalplan, goalplanDir, readGoalplan, readyTasks,
   readyWorkPhases, writeGoalplan, type Goalplan,
@@ -563,3 +565,50 @@ test("comma dependency is rejected while repeated flags persist dependencies", (
   assert.deepEqual(readGoalplan(cwd, plan.slug)?.workPhases.at(-1)?.dependsOn, ["wp-base", "wp-live"]);
   assert.match(ledgerText(cwd, plan.slug), /"event":"dependency_registered"/);
 });
+
+test("value flags accept the equals form, including values that start with --", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const title = parseGoalplanCliArgs(["add-task", "--session", session, "--work-phase", "wp-live", "--id", "dash", "--title=--x"], cwd);
+  assert.ok(!("error" in title), JSON.stringify(title));
+  assert.equal((title as GoalplanCliArgs).title, "--x");
+  const evidence = parseGoalplanCliArgs(["meet-criterion", "--session=" + session, "--id=c-1", "--evidence=--flag proof"], cwd);
+  assert.ok(!("error" in evidence), JSON.stringify(evidence));
+  assert.equal((evidence as GoalplanCliArgs).evidence, "--flag proof");
+  assert.equal((evidence as GoalplanCliArgs).session, session);
+  const spaced = parseGoalplanCliArgs(["add-task", "--session", session, "--work-phase", "wp-live", "--id", "dash", "--title", "--x"], cwd);
+  assert.ok("error" in spaced);
+  assert.match(spaced.error, /--title requires a value \(use --title=<value> for a value that starts with --\)/);
+  const emptyEquals = parseGoalplanCliArgs(["add-task", "--session", session, "--work-phase", "wp-live", "--id", "dash", "--title="], cwd);
+  assert.ok("error" in emptyEquals);
+  assert.match(emptyEquals.error, /--title requires a value$/);
+  const jsonValue = parseGoalplanCliArgs(["ready", "--session", session, "--json=1"], cwd);
+  assert.ok("error" in jsonValue);
+  assert.match(jsonValue.error, /--json takes no value/);
+  const initSurface = parseGoalplanCliArgs(["init", "--objective", "x", "--surface=web"], cwd);
+  assert.ok("error" in initSurface);
+  assert.match(initSurface.error, /--surface is not applied at init/);
+});
+
+test("the built CLI rejects a misplaced or misspelled flag before any write", () => {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");
+  for (const entry of [join(root, "bin", "codexclaw.mjs"), join(root, "plugins", "codexclaw", "bin", "cxc.mjs")]) {
+    for (const kind of ["loop", "goalplan"]) {
+      const plan = fixture();
+      const { cwd, session } = workspace(plan);
+      const beforePlan = planText(cwd, plan.slug);
+      const beforeLedger = ledgerText(cwd, plan.slug);
+      for (const argv of [
+        [kind, "add-task", "--session", session, "--work-phase", "wp-live", "--id", "n", "--title", "N", "--surface", "web"],
+        [kind, "add-task", "--session", session, "--work-phse", "wp-live", "--id", "n", "--title", "N"],
+      ]) {
+        const res = spawnSync(process.execPath, [entry, ...argv, "--cwd", cwd], { cwd, encoding: "utf8" });
+        assert.equal(res.status, 1, entry + " " + argv.join(" ") + ": " + res.stdout + res.stderr);
+        assert.match(res.stderr + res.stdout, /add-task: unknown flag/);
+        assert.equal(planText(cwd, plan.slug), beforePlan);
+        assert.equal(ledgerText(cwd, plan.slug), beforeLedger);
+      }
+    }
+  }
+});
+

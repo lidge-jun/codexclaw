@@ -96,7 +96,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   a generated `c-N` id; read it from `cxc loop show` or the goalplan file.
 - `cxc goalplan *` — deprecated alias for the same behavior during migration.
 
-The parser rejects unknown flags, stray positionals, missing values, and flags belonging to another verb before dispatch; `--presented` is reserved for the follow-up wp5 change.
+The parser rejects unknown flags, stray positionals, missing values, and flags belonging to another verb before dispatch. Every value flag also accepts `--flag=value`, which is the way to pass a value that starts with `--`; `--presented` is reserved for the follow-up wp5 change.
 
 Repeat `--depends-on` once per prerequisite; comma-separated values are one id. Existing dependencies are
 not edited after creation. `complete-task` and `meet-criterion` require non-empty proof text.
