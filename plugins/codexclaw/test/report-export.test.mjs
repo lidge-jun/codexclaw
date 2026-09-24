@@ -801,12 +801,14 @@ test("locale QA reads only source-owned @page literals", () => {
     { name: "English with dotted date", lang: ' lang="en-US"', content: '"2026. 9. 9."', body: "English", p2: true, note: false },
     { name: "English with page counter", lang: ' lang="en"', content: 'counter(page)', body: "한국어 body only", p2: false, note: false },
     { name: "missing language", lang: "", content: '"가온리테일"', body: "한국어", p2: false, note: true },
+    { name: "commented declaration", lang: ' lang="en"', content: 'counter(page); /* content: "가온리테일"; */', body: "English", p2: false, note: false },
+    { name: "commented rule", lang: ' lang="en"', style: '/* @page { @top-left { content: "가온리테일"; } } */', body: "English", p2: false, note: false },
   ];
   for (const fixture of cases) {
     const { root } = sandbox();
     try {
       const input = writeInput(root);
-      writeFileSync(input, `<!doctype html><html${fixture.lang}><head><style>@page { @top-left { content: ${fixture.content}; } }</style></head><body>${fixture.body}</body></html>`);
+      writeFileSync(input, `<!doctype html><html${fixture.lang}><head><style>${fixture.style ?? `@page { @top-left { content: ${fixture.content}; } }`}</style></head><body>${fixture.body}</body></html>`);
       const report = parseReport(run(root, exportArgs(input, join(root, "report.pdf"))));
       assert.equal(report.qa.some((finding) => finding.level === "P2" && /@page content/.test(finding.msg)), fixture.p2, fixture.name);
       assert.equal(report.notes.some((note) => note.id === "page-locale"), fixture.note, fixture.name);
@@ -853,5 +855,18 @@ test("real Chrome SVG crossing smoke", { skip: process.env.CXC_REAL_CHROME !== "
     const report = parseReport(result);
     assert.equal(report.svgGeometry.status, "REVIEW", result.stderr);
     assert.ok(report.qa.some((finding) => /SVG text box is crossed/.test(finding.msg)));
+    const variants = [
+      // A connector moved onto the label by a group transform still crosses it.
+      { name: "transformed", svg: '<text x="50" y="55" font-size="25">LABEL</text><g transform="translate(0 40)"><line x1="0" y1="7" x2="280" y2="7" stroke="black" stroke-width="2"/></g>', crossed: true },
+      // Connectors inside hidden or transparent groups are not painted.
+      { name: "display none", svg: '<text x="50" y="55" font-size="25">LABEL</text><g style="display:none"><line x1="0" y1="47" x2="280" y2="47" stroke="black" stroke-width="2"/></g>', crossed: false },
+      { name: "opacity zero", svg: '<text x="50" y="55" font-size="25">LABEL</text><g opacity="0"><line x1="0" y1="47" x2="280" y2="47" stroke="black" stroke-width="2"/></g>', crossed: false },
+    ];
+    for (const variant of variants) {
+      writeFileSync(input, `<!doctype html><html lang="en"><body><h1>Geometry</h1><svg viewBox="0 0 300 100" width="300">${variant.svg}</svg></body></html>`);
+      const run2 = spawnSync(process.execPath, [SCRIPT, input, join(root, variant.name.replace(/ /g, "-") + ".pdf"), "--chrome", chrome, "--json"], { encoding: "utf8", timeout: 60_000 });
+      const found = parseReport(run2).qa.some((finding) => /SVG text box is crossed/.test(finding.msg));
+      assert.equal(found, variant.crossed, variant.name);
+    }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

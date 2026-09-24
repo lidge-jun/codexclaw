@@ -429,7 +429,9 @@ function extractBalancedBlocks(source, marker) {
 
 function pageContentLiterals(html) {
   const styles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]
-    .map((match) => match[1]).join("\n");
+    .map((match) => match[1]).join("\n")
+    // Commented-out rules and declarations are not page furniture.
+    .replace(/\/\*[\s\S]*?\*\//g, "");
   const pages = extractBalancedBlocks(styles, /@page\b[^{]*/gi);
   return pages.flatMap((page) => [...page.matchAll(
     /content\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/gi,
@@ -462,12 +464,12 @@ function domMeasurementScript() {
     "(() => {\n" +
     "const result = {schemaVersion:" + DOM_QA_SCHEMA_VERSION +
       ",kind:'svg-text-crossings',findings:[],capped:false};\n" +
-    "const visible = n => { const s=getComputedStyle(n); return s.display!=='none' && s.visibility!=='hidden' && Number(s.opacity||1)>0; };\n" +
+    "const visible = n => { if(!n.getClientRects().length)return false; for(let e=n;e&&e.nodeType===1;e=e.parentElement){const s=getComputedStyle(e);if(s.display==='none'||Number(s.opacity||1)<=0)return false;} return getComputedStyle(n).visibility!=='hidden'; };\n" +
     "const cross=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);\n" +
     "const hit=(p,q,r,s)=>{const a=cross(p,q,r),b=cross(p,q,s),c=cross(r,s,p),d=cross(r,s,q);return ((a>0&&b<0)||(a<0&&b>0))&&((c>0&&d<0)||(c<0&&d>0));};\n" +
     "const crossed=(a,b,x)=>{if(a.x>x.left&&a.x<x.right&&a.y>x.top&&a.y<x.bottom)return true;if(b.x>x.left&&b.x<x.right&&b.y>x.top&&b.y<x.bottom)return true;const e=[[[x.left,x.top],[x.right,x.top]],[[x.right,x.top],[x.right,x.bottom]],[[x.right,x.bottom],[x.left,x.bottom]],[[x.left,x.bottom],[x.left,x.top]]];return e.some(v=>hit(a,b,{x:v[0][0],y:v[0][1]},{x:v[1][0],y:v[1][1]}));};\n" +
-    "const point=(s,x,y)=>{const p=s.createSVGPoint();p.x=x;p.y=y;return p.matrixTransform(s.getScreenCTM());};\n" +
-    "const points=(s,n,b)=>{if(n.localName==='line')return[point(s,n.x1.baseVal.value,n.y1.baseVal.value),point(s,n.x2.baseVal.value,n.y2.baseVal.value)];if(n.localName==='polyline')return[...n.points].map(v=>point(s,v.x,v.y));const l=n.getTotalLength(),c=Math.max(1,Math.min(256,Math.ceil(l/4),b));return Array.from({length:c+1},(_,i)=>{const p=n.getPointAtLength(l*i/c);return point(s,p.x,p.y);});};\n" +
+    "const point=(s,n,x,y)=>{const p=s.createSVGPoint();p.x=x;p.y=y;return p.matrixTransform(n.getScreenCTM());};\n" +
+    "const points=(s,n,b)=>{if(n.localName==='line')return[point(s,n,n.x1.baseVal.value,n.y1.baseVal.value),point(s,n,n.x2.baseVal.value,n.y2.baseVal.value)];if(n.localName==='polyline')return[...n.points].map(v=>point(s,n,v.x,v.y));const l=n.getTotalLength(),c=Math.max(1,Math.min(256,Math.ceil(l/4),b));return Array.from({length:c+1},(_,i)=>{const p=n.getPointAtLength(l*i/c);return point(s,n,p.x,p.y);});};\n" +
     "for(const svg of document.querySelectorAll('svg')){const nodes=[...svg.querySelectorAll('text,line,polyline,path')];let budget=5000;for(let ti=0;ti<nodes.length;ti+=1){const text=nodes[ti];if(text.localName!=='text'||!visible(text))continue;const r=text.getBoundingClientRect(),box={left:r.left+1,right:r.right-1,top:r.top+1,bottom:r.bottom-1};if(box.right<=box.left||box.bottom<=box.top)continue;for(let gi=ti+1;gi<nodes.length;gi+=1){const g=nodes[gi];if(!visible(g)||!['line','polyline','path'].includes(g.localName))continue;const st=getComputedStyle(g);if(st.stroke==='none'||Number.parseFloat(st.strokeWidth||'0')<=0)continue;let ps;try{ps=points(svg,g,budget);}catch{continue;}budget-=ps.length;if(budget<0){result.capped=true;break;}for(let i=1;i<ps.length;i+=1)if(crossed(ps[i-1],ps[i],box)){result.findings.push({svg:svg.id||null,text:text.id||null,geometry:g.id||null,geometryType:g.localName});break;}}if(result.capped)break;}if(result.capped)break;}\n" +
     "const out=document.createElement('script');out.id=" + JSON.stringify(DOM_QA_SCRIPT_ID) + ";out.type='application/json';out.textContent=JSON.stringify(result);document.documentElement.appendChild(out);\n" +
     "})();</script>";
