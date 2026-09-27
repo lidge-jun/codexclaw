@@ -1,5 +1,10 @@
 # wp5 — Delivery and issue disposition
 
+
+
+## Amendment 2026-09-28: CI queue as an external wait
+
+At wp2's C, PR #269's hosted CI sat queued because the account's Actions concurrency was held by another repository (lidge-jun/opencodex: 81 queued, 5 in progress at 16:30 UTC). Cancelling another repository's runs is outside this train's authority. The per-phase "CI, merge" step therefore moves to wp5 as an external wait: each implementation phase closes at D once its PR is open with local gates green, the next phase branches from the previous phase branch, and wp5 verifies hosted CI on every PR head, merges them into dev in order (retargeting each later PR to dev after its predecessor merges), and only then meets criterion c-7.
 This phase lands nothing new; it proves the merged state and records the issue decisions.
 
 ## Per implementation phase (wp2, wp3, wp4)
@@ -21,4 +26,3 @@ This phase lands nothing new; it proves the merged state and records the issue d
 ## Acceptance
 
 All goalplan criteria met with captured evidence; `cxc loop validate` passes; `origin/dev` contains the three merge commits; no PR into `main` was opened by this unit.
-
