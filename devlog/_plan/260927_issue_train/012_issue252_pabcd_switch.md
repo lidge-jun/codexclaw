@@ -1,6 +1,6 @@
 # #252 — PABCD hook policy switch
 
-`CODEXCLAW_PABCD=off` disables PABCD hook behavior for the process. Otherwise a project root `codexclaw.json` with `{ "pabcd": { "enabled": false } }` disables it. Missing, malformed, or other values default to enabled. The environment setting wins over the project setting. This changes hook dispatch only; it does not erase state or disable CLI commands.
+`CODEXCLAW_PABCD` is a two-way override: normalized `off|0|false` disables and `on|1|true` enables PABCD hooks, regardless of project config. An unrecognized value is ignored; then project-root `codexclaw.json` `{ "pabcd": { "enabled": false } }` disables. Missing or malformed project config defaults to enabled. This changes hook dispatch only; it does not erase state or disable CLI commands.
 
 Current anchors: `plugins/codexclaw/components/pabcd-state/src/cli.ts:329`, `plugins/codexclaw/components/pabcd-state/src/interview-policy.ts:26`, `plugins/codexclaw/components/pabcd-state/src/goal-gate.ts:313`, `docs-site/src/content/docs/guides/pabcd.md:67`.
 
@@ -8,11 +8,13 @@ Current anchors: `plugins/codexclaw/components/pabcd-state/src/cli.ts:329`, `plu
 
 ### MODIFY `plugins/codexclaw/components/pabcd-state/src/interview-policy.ts`
 
-This module already owns the project config filename and fail-safe JSON read (`:26-61`). Add `readPabcdEnabled(cwd: string, env: NodeJS.ProcessEnv = process.env): boolean` beside `readInterviewPolicy`. Use `configPath(cwd)`; parse only a plain object with a plain-object `pabcd` member and boolean `enabled`. The only disabling values are exact env `off` (after `trim().toLowerCase()`) and exact JSON boolean `false`. No write is needed: `writeInterviewPolicy` preserves unrelated keys (`:63-95`).
+This module already owns the project config filename and fail-safe JSON read (`:26-61`). Add `readPabcdEnabled(cwd: string, env: NodeJS.ProcessEnv = process.env): boolean` beside `readInterviewPolicy`. Normalize the env value with `trim().toLowerCase()` and handle the recognized enable/disable sets **before** reading project config. For an unrecognized env value, use `configPath(cwd)`; parse only a plain object with a plain-object `pabcd` member and boolean `enabled`. Only exact JSON boolean `false` disables at that layer. No write is needed: `writeInterviewPolicy` preserves unrelated keys (`:63-95`).
 
 ```ts
 export function readPabcdEnabled(cwd: string, env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.CODEXCLAW_PABCD?.trim().toLowerCase() === "off") return false;
+  const override = env.CODEXCLAW_PABCD?.trim().toLowerCase();
+  if (override === "off" || override === "0" || override === "false") return false;
+  if (override === "on" || override === "1" || override === "true") return true;
   try {
     const raw: unknown = JSON.parse(readFileSync(configPath(cwd), "utf8"));
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return true;
@@ -55,7 +57,7 @@ Import `readPabcdEnabled` from `interview-policy.ts` at `cli.ts:23-53`. Use `pab
 
 Split mixed branches, rather than skipping independent logic: `pre-tool-use-edit :438-442` must still execute `handleApplyPatchLint` but must skip `handleIdleEditAdvisory`; `post-tool-use-edit-shape :459-467` can no-op because both its shape hint and render capture serve PABCD; `pre-tool-use-lint :433-436` always stays. `session-start-rules :478-480` and `worktree-guard :451-454` stay, because project rules and worktree identity are not PABCD policy. `pre-tool-use :395-402` stays for goal-complete and goal-budget safety, but inspect `goal-gate.ts` branches: only `request_user_input` Interview/goal-mode prohibition is PABCD-specific and should return no intervention under the switch. Goal completion, evidence tombstones and budget protection are independent host-goal safety. Do not change recall's separate component hooks.
 
-The switch must cover `SubagentStop` evidence for both executor and worker when disabled; it does not delete old attempts or tombstones. A standalone `subagent-stop-review` observer is PABCD audit state and no-ops. Existing safety hooks registered outside this component remain untouched.
+The switch must cover `SubagentStop` evidence for both executor and worker when disabled; it does not delete old attempts or tombstones. When enabled, the registered executor is always receipt-gated and the built-in worker is gated only in an active B/C cycle (015). When disabled, the gate is silent for **both**, even if a prior cycle was armed. A standalone `subagent-stop-review` observer is PABCD audit state and no-ops. Existing safety hooks registered outside this component remain untouched.
 
 ### MODIFY `plugins/codexclaw/components/pabcd-state/src/goal-gate.ts`
 
@@ -69,14 +71,24 @@ Add a short “Disable PABCD hooks” subsection near the existing runtime lifec
 
 ### MODIFY tests
 
-- `plugins/codexclaw/components/pabcd-state/test/interview-policy.test.ts`: `pabcd switch: env off overrides project enabled`; `project false disables, malformed and missing enable`; `interview policy write preserves pabcd key`. Assert booleans and preserved JSON.
+- `plugins/codexclaw/components/pabcd-state/test/interview-policy.test.ts`: table-test every recognized env spelling in both directions, invalid env fallback, missing/malformed config, and preservation of the `pabcd` key by interview-policy writes. Assert exact expected booleans from the matrix below.
 - `plugins/codexclaw/test/hook-e2e.test.mjs`: `pabcd off silences UserPromptSubmit, Stop, SessionStart, PostCompact, SubagentStop`; invoke the built hook entry with project config/env, assert stdout empty and no new session/attempt file. This fails before the switch because trigger and Stop hooks still emit/write.
 - Same e2e file: `pabcd off retains worktree, memory, automation and apply_patch lint guards`; feed each registered event an existing deny fixture and assert its denial survives. `pre-tool-use-edit` must still deny a lint violation and emit no idle advisory.
 - `plugins/codexclaw/components/pabcd-state/test/goal-gate.test.ts`: `pabcd off allows request_user_input while preserving goal completion and budget denials`.
+- `plugins/codexclaw/components/pabcd-state/test/subagent-evidence.test.ts` and built-hook e2e: `pabcd off silences registered executor and built-in worker SubagentStop even with an armed B/C parent`; `pabcd on gates executor when project false`; assert no new attempts or tombstones in the disabled case.
+
+| Env value | Project `pabcd.enabled` | Expected PABCD hooks |
+| --- | --- | --- |
+| `off`, `0`, `false` (each, case/space normalized) | true or absent | disabled |
+| `on`, `1`, `true` (each, case/space normalized) | false | enabled |
+| unrecognized (including empty) | false | disabled (project decides) |
+| unrecognized (including empty) | true or absent | enabled (project decides) |
+| unset | false | disabled |
+| unset | true, absent, or malformed config | enabled |
 
 ## Activation and bypass record
 
-Exercise env off with project true, env unset with project false, env `ON` with project false, invalid JSON, missing file, root/subagent payloads, and every mixed event. Tier: local hook dispatch policy, not a host-wide guarantee. Executing surface: `pabcd-state` hook CLI. Known bypass: direct library calls, terminal CLI commands, and an uninstalled/untrusted hook; residual risk: other components may issue independent context. Wording downgrade: “PABCD hooks in this component are silent,” not “CodexClaw is disabled.” Final enforcement layer: `cli.ts` hook dispatch plus `goal-gate.ts`'s Interview branch. Out of scope: recall hooks, state deletion, CLI write blocking, and safety-guard disablement.
+Exercise every matrix row, root/subagent payloads, executor/worker SubagentStop and every mixed event. **Tier:** local hook dispatch policy and E8 tests; no E1 host-wide tool denial. **Executing surface:** `pabcd-state` hook CLI. **Known bypass:** direct library calls, terminal CLI commands, and an uninstalled/untrusted hook. **Residual risk:** other components may issue independent context. **Wording downgrade:** “PABCD hooks in this component are silent,” not “CodexClaw is disabled.” **Final enforcement layer:** `cli.ts` hook dispatch plus `goal-gate.ts`'s Interview branch and E8 regression tests. Out of scope: recall hooks, state deletion, CLI write blocking, and safety-guard disablement.
 
 ## Note from the roadmap reflection
 

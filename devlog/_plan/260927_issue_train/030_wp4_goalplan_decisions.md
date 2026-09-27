@@ -282,6 +282,10 @@ Reuse `phase`, `plan`, and `roundTrip` at `:31-40` and `:155-161`. Add these nam
 
 These tests must include the negative enforcement paths because a filtered `ready` result alone cannot prove that cursor or recovery cannot advance a linked phase (`goalplan.ts:1795-1877`, `:1933-1975`, `:2033-2050`). Run focused tests with `node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/components/pabcd-state/test/goalplan-public-surface.test.ts" "plugins/codexclaw/components/pabcd-state/test/work-phase-states.test.ts"`, then `npm run build` (the root `package.json:21-24` defines build/test but no standalone typecheck). Run `git diff --check` after implementation. These are future builder checks; this docs-only phase did not run code tests.
 
+## Enforcement and bypass record
+
+**Tier:** E8 validation for plan quality and integrity; CLI write preconditions and scheduler predicates are local runtime checks outside the E1-E8 hook ladder. Any hook guidance about a waiting phase is E4 only. **Executing surface:** `goalplan.ts` reviver, integrity/ready/cursor/close/recovery helpers, `goalplan-cli.ts` locked lifecycle mutation, and the existing bound-goal completion gate. **Known bypass:** a caller can use raw library writes or edit the plan file directly; an `ask` record can be omitted after a host question; unrelated host actions are not paused. **Residual risk:** same-user plan tampering and host answers that are never recorded leave the model and plan out of sync; a manual `done` edit must be caught by integrity/E8 before completion. **Wording downgrade:** “linked work phases wait while a recorded decision is open,” not “the host is paused” or “questions are automatically captured.” **Final enforcement layer:** common readiness predicates in `goalplan.ts:983-1004,1795-1877,1933-1975,2033-2050` plus definition integrity and E8 validation at `:1311-1494`; no hook alone can enforce the wait. The negative cursor/recovery tests above are required proof of those layers.
+
 ## Activation scenarios
 
 | Condition | Trigger and expected path |

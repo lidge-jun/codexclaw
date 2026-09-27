@@ -1,6 +1,6 @@
 # #253 — Release an unbound active goal at IDLE
 
-An active host goal alone must not make an IDLE PABCD session block Stop. The IDLE arming block applies only when `state.slug` resolves to a bound goalplan. A missing state or empty slug releases without creating state or advancing a counter.
+An active host goal alone must not make an IDLE PABCD session block Stop. The IDLE arming block applies only when `state.slug` resolves to a bound goalplan. A missing state or empty slug releases without a counter write. SessionStart normally already created state; a direct Stop call without SessionStart may leave `.codexclaw` absent.
 
 Current anchors: `plugins/codexclaw/components/pabcd-state/src/hook.ts:1392`, `plugins/codexclaw/components/pabcd-state/src/hook.ts:1787`, `plugins/codexclaw/components/pabcd-state/test/hook-continuation.test.ts:506`, `plugins/codexclaw/components/pabcd-state/test/hook-continuation.test.ts:567`.
 
@@ -24,7 +24,7 @@ Update the stale comments at `hook.ts:1646-1653,1760-1766` so they no longer say
 
 ### MODIFY `plugins/codexclaw/components/pabcd-state/test/hook-continuation.test.ts`
 
-- Replace `GOAL-IDLE-CONTINUE-01: active goal at IDLE blocks with the arming command` at `:506-529` with `GOAL-IDLE-CONTINUE-01: active goal without bound plan releases without state write`. Keep the active host goal fixture, assert `handleStop(...) === ""`, `existsSync(join(cwd, ".codexclaw")) === false`, and a second call remains silent. This fails before the fix because the first call blocks and writes state.
+- Replace `GOAL-IDLE-CONTINUE-01: active goal at IDLE blocks with the arming command` at `:506-529` with `GOAL-IDLE-CONTINUE-01: active goal without bound plan releases without state write`. Keep the active host goal fixture, call `handleStop` directly without a preceding SessionStart, assert `handleStop(...) === ""`, `existsSync(join(cwd, ".codexclaw")) === false`, and a second call remains silent. A separate SessionStart-path case should assert the pre-existing session file and `.gitignore` remain unchanged. This fails before the fix because the direct first Stop blocks and writes state.
 - Existing win32 and bounded tests at `:535-565` currently use unbound state. Bind a real plan/slug before calling Stop; retain their platform and cap assertions. Otherwise they would contradict the new contract.
 - Keep the bound-plan case at `:567-587` and the bound-empty case at `:589-600`. Add `GOAL-IDLE-CONTINUE-01: stale slug releases without counter write`: write state with a nonexistent slug and `stopBlockTotal: 7`, call Stop, assert empty output and unchanged total.
 

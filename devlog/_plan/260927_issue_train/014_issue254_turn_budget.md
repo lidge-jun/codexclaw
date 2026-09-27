@@ -12,7 +12,7 @@ Codex Stop converts `decision:block` to continuation fragments (`/tmp/cxc-perm/c
 
 ### MODIFY `plugins/codexclaw/components/pabcd-state/src/state.ts`
 
-Add `stopBlockTurnId: string | null` next to `stopBlockTotal` in `State` (`:135-137`), default it to `null` beside `stopBlockTotal: 0` (`:299-301`), and reconstruct a nonempty string or `null` beside `:551-554`. `writeState` already serializes the whole state (`:607-615`); no new writer needed. Old files reconstruct `null`, and a missing `turn_id` does not reset an existing budget.
+Add `stopBlockTurnId: string | null` next to `stopBlockTotal` in `State` (`:135-137`), default it to `null` beside `stopBlockTotal: 0` (`:299-301`), and reconstruct a nonempty string or `null` beside `:551-554`. Export the existing `statePath` function (`state.ts:320-322`) for the `existsSync` guard below; preserve its `sanitizeKey` path construction. `writeState` already serializes the whole state (`:607-615`); no new writer needed. Old files reconstruct `null`, and a missing `turn_id` does not reset an existing budget.
 
 ```diff
  stopBlockTotal: number;
@@ -33,18 +33,18 @@ The numeric branch above is the existing inline validation at `state.ts:551-554`
 
 ### MODIFY `plugins/codexclaw/components/pabcd-state/src/hook.ts`
 
-In `handleUserPromptSubmit` at `:629-653`, read state before branch-specific writes. After the existing memory-write marker step (which may update state), re-read state, then reset only when `turn !== ""`, the state file already exists, and `state.stopBlockTurnId !== turn`. Persist `{ ...state, stopBlockTotal: 0, stopBlockTurnId: turn }`, then use this fresh snapshot in the rest of the handler. Do the reset before the `injectedTurns` dedupe, but the persisted turn ID makes a duplicate event a no-op. Do not clear `stopBlockCount`, `stopMetricCursor`, or work-phase progress. For a fresh cwd without a session file, honor #255: no reset write; first verified mutation creates default state, and a later genuine prompt stamps the next turn.
+In `handleUserPromptSubmit` at `:629-653`, read state before branch-specific writes. After the existing memory-write marker step (which may update state), re-read state, then reset only when `turn !== ""`, the state file already exists, and `state.stopBlockTurnId !== turn`. Persist `{ ...state, stopBlockTotal: 0, stopBlockTurnId: turn }`, then use this fresh snapshot in the rest of the handler. Do the reset before the `injectedTurns` dedupe, but the persisted turn ID makes a duplicate event a no-op. Do not clear `stopBlockCount`, `stopMetricCursor`, or work-phase progress. SessionStart normally creates the default state file. A direct UserPromptSubmit without prior SessionStart may still see no file; skip the reset in that case. No new state-creation API is added by #255.
 
 ```ts
 let state = readState(payload.cwd, payload.session_id);
-if (turn && sessionStateFileExists(payload.cwd, payload.session_id) && state.stopBlockTurnId !== turn) {
+if (turn && existsSync(statePath(payload.cwd, payload.session_id)) && state.stopBlockTurnId !== turn) {
   state = { ...state, stopBlockTotal: 0, stopBlockTurnId: turn };
   writeState(payload.cwd, state);
 }
 if (turn && state.injectedTurns.includes(turn)) return "";
 ```
 
-Use `sessionStateFileExists` added in `011`; do not infer existence from `readState`, which returns a default for absent files (`state.ts:486-603`). Place the reset after `hook.ts:643-651` memory marker so a later spread cannot overwrite either field. `bumpStopCounter` at `hook.ts:1459-1479` continues to increment `stopBlockTotal` for each Stop and release when `nextTotal > MAX_STOP_BLOCKS_TOTAL`. Change its return to distinguish `"phase-cap"` and `"total-cap"`, so only the absolute-cap release emits a message. Every caller at `hook.ts:1791,1810` must handle either release code.
+Import `existsSync` from `node:fs` and the newly exported `statePath` from `state.ts`; use the file-existence guard before `writeState` because `readState` returns a default for absent files (`state.ts:412-420,486-603`). This is a narrow reset guard, not a new strict inspection or conditional-publication API. Place the reset after `hook.ts:643-651` memory marker so a later spread cannot overwrite either field. `bumpStopCounter` at `hook.ts:1459-1479` continues to increment `stopBlockTotal` for each Stop and release when `nextTotal > MAX_STOP_BLOCKS_TOTAL`. Change its return to distinguish `"phase-cap"` and `"total-cap"`, so only the absolute-cap release emits a message. Every caller at `hook.ts:1791,1810` must handle either release code.
 
 ```diff
 -if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
