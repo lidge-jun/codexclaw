@@ -625,6 +625,7 @@ export function handleUserPromptSubmit(
   payload: UserPromptSubmitPayload,
   platform: NodeJS.Platform = process.platform,
   dcloseCommitHooks: HookDcloseCommitHooks = {},
+  options: { pabcdEnabled?: boolean } = {},
 ): string {
   if (payload.hook_event_name !== "UserPromptSubmit") return "";
   const turn = payload.turn_id ?? "";
@@ -649,6 +650,7 @@ export function handleUserPromptSubmit(
       // `cxc memory allow-write`; it must never break prompt handling.
     }
   }
+  if (options.pabcdEnabled === false) return "";
   const state = readState(payload.cwd, payload.session_id);
   if (turn && state.injectedTurns.includes(turn)) return "";
 

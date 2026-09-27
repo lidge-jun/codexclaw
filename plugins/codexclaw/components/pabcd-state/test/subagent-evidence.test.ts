@@ -5,6 +5,7 @@
  * valid-receipt release, symlink/outside-root rejection, and transcript spoofing.
  */
 import { test } from "node:test";
+import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync, chmodSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -822,4 +823,23 @@ test("canonical executor exit without a receipt is blocked", () => {
   const cwd = tmp();
   const out = runSubagentStopGate(payload(cwd, { agent_type: "executor" }));
   assert.equal(JSON.parse(out).decision, "block");
+});
+
+test("#252: policy-off dispatch leaves armed executor and worker evidence untouched", () => {
+  const cwd = tmp();
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), '{"pabcd":{"enabled":false}}');
+    writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
+    const entry = new URL("../src/cli.ts", import.meta.url);
+    for (const agent_type of ["executor", "worker"]) {
+      const result = spawnSync(process.execPath, [entry.pathname, "hook", "subagent-stop"], {
+        input: JSON.stringify(payload(cwd, { agent_type, agent_id: agent_type })), encoding: "utf8",
+        env: { ...process.env, CODEXCLAW_PABCD: "off" },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "");
+      assert.equal(readAttempts(cwd, "s1", agent_type), 0);
+    }
+    assert.deepEqual(readState(cwd, "s1").unverifiedSubagents, []);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
