@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildStageHeader,
   handleUserPromptSubmit,
+  handleSessionStart,
   handleStop,
   MAX_STOP_BLOCKS,
   MAX_STOP_BLOCKS_TOTAL,
@@ -501,29 +502,33 @@ test("L6: guard 2a — IDLE / inactive orchestration releases for a plain sessio
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-// ── 260709 GOAL-IDLE-CONTINUE-01: active goal + no in-flight cycle = bounded arming block ──
+// ── GOAL-IDLE-CONTINUE-01: only a bound goalplan arms the IDLE block ──
 
-test("GOAL-IDLE-CONTINUE-01: active goal at IDLE blocks with the arming command", () => {
+test("GOAL-IDLE-CONTINUE-01: active goal without bound plan releases without state write", () => {
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "gi1", status: "active" }], () => {
-      // no state file at all (019f4407 shape: goal created, FSM never entered)
-      const out = handleStop(stop(cwd, "gi1"), "linux");
-      const parsed = JSON.parse(out.trim());
-      assert.equal(parsed.decision, "block");
-      assert.match(parsed.reason, /goal continuation/);
-      assert.match(parsed.reason, /GOAL-IDLE-CONTINUE-01/);
-      // `--attest` is a PREFIX of `--attest-file`, so the old assertion passed on
-      // win32 by accident. Pin the POSIX form explicitly; the win32 branch is
-      // asserted separately below.
-      assert.match(parsed.reason, /cxc orchestrate P --session gi1 --attest '\{/);
-      assert.match(parsed.reason, /update_goal/);
-      assert.match(parsed.reason, /LOOP-UNIT-CHAIN-01/, "IDLE block must teach heterogeneous work-phase chaining");
-      assert.match(parsed.reason, /cxc loop init/, "unbound session must be pointed at loop init");
-      // the counter write bootstraps the session file, keyed at IDLE
-      const st = readState(cwd, "gi1");
-      assert.equal(st.stopBlockPhase, "IDLE");
-      assert.equal(st.stopBlockCount, 1);
+      assert.equal(handleStop(stop(cwd, "gi1"), "linux"), "");
+      assert.equal(existsSync(join(cwd, ".codexclaw")), false);
+      assert.equal(handleStop(stop(cwd, "gi1"), "linux"), "");
+      assert.equal(existsSync(join(cwd, ".codexclaw")), false);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-IDLE-CONTINUE-01: SessionStart state and gitignore survive unbound IDLE Stop", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi-start", status: "active" }], () => {
+      assert.equal(handleSessionStart({ hook_event_name: "SessionStart", session_id: "gi-start", cwd }), "");
+      const sessionPath = join(cwd, ".codexclaw", "sessions", "gi-start.json");
+      const ignorePath = join(cwd, ".codexclaw", ".gitignore");
+      writeFileSync(ignorePath, "pre-existing ignore\n");
+      const stateBefore = readFileSync(sessionPath, "utf8");
+      const ignoreBefore = readFileSync(ignorePath, "utf8");
+      assert.equal(handleStop(stop(cwd, "gi-start")), "");
+      assert.equal(readFileSync(sessionPath, "utf8"), stateBefore);
+      assert.equal(readFileSync(ignorePath, "utf8"), ignoreBefore);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
@@ -536,6 +541,9 @@ test("GOAL-IDLE-CONTINUE-01: the win32 block teaches the file flag, not inline a
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "gi1", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Win32 IDLE continuation" });
+      writeGoalplan(cwd, plan);
+      writeState(cwd, { ...defaultState("gi1"), slug: plan.slug });
       const parsed = JSON.parse(handleStop(stop(cwd, "gi1"), "win32").trim());
       assert.equal(parsed.decision, "block");
       assert.doesNotMatch(parsed.reason, /--attest '\{/);
@@ -555,6 +563,9 @@ test("GOAL-IDLE-CONTINUE-01: bounded — releases after MAX_STOP_BLOCKS blocks a
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "gi2", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Bounded IDLE continuation" });
+      writeGoalplan(cwd, plan);
+      writeState(cwd, { ...defaultState("gi2"), slug: plan.slug });
       for (let i = 0; i < MAX_STOP_BLOCKS; i++) {
         assert.notEqual(handleStop(stop(cwd, "gi2")), "", `IDLE block ${i + 1} should block`);
       }
@@ -595,6 +606,20 @@ test("GOAL-IDLE-CONTINUE-01: bound but EMPTY goalplan is told to register the pl
       writeState(cwd, { ...defaultState("gi4"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
       const reason = JSON.parse(handleStop(stop(cwd, "gi4")).trim()).reason;
       assert.match(reason, /EMPTY: register workPhases/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-IDLE-CONTINUE-01: stale slug releases without counter write", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi-stale", status: "active" }], () => {
+      writeState(cwd, { ...defaultState("gi-stale"), slug: "missing-plan", stopBlockTotal: 7 });
+      const sessionPath = join(cwd, ".codexclaw", "sessions", "gi-stale.json");
+      const before = readFileSync(sessionPath, "utf8");
+      assert.equal(handleStop(stop(cwd, "gi-stale")), "");
+      assert.equal(readState(cwd, "gi-stale").stopBlockTotal, 7);
+      assert.equal(readFileSync(sessionPath, "utf8"), before);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

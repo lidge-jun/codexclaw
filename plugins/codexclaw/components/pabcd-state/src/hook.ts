@@ -8,9 +8,9 @@
  *
  * Stop: active under a native goal only. It returns a bounded
  * `{decision:"block",reason}` continuation envelope while a PABCD cycle is in flight —
- * or, since 260709 (GOAL-IDLE-CONTINUE-01), while an ACTIVE goal is parked with no
- * in-flight cycle (arming nudge). It releases on: no active goal, phase I, context
- * pressure, or the same-phase stagnation cap (the single total-termination bound now
+ * or, since 260709 (GOAL-IDLE-CONTINUE-01), while an ACTIVE goal has a bound
+ * goalplan but no in-flight cycle (arming nudge). It releases on: no active goal,
+ * no bound plan, phase I, context pressure, or the same-phase stagnation cap (the single total-termination bound now
  * that the old unconditional `stop_hook_active` release is gone).
  *
  * Ground truth:
@@ -1643,14 +1643,12 @@ export function readStopWorkContext(cwd: string, state: State): StopWorkContext 
 }
 
 /**
- * GOAL-IDLE-CONTINUE-01 (260709) — the Stop block for "goal ACTIVE but no PABCD cycle
- * in flight". The old guard 2a released this state silently, so a session could park an
- * active goal at IDLE forever (019f4407: goal created, FSM never entered, turn ended).
+ * GOAL-IDLE-CONTINUE-01 (260709) — the Stop block for a goal ACTIVE with a bound
+ * goalplan but no PABCD cycle in flight. An unbound goal releases at IDLE.
  * The reason names the two honest exits: arm the next work-phase (`orchestrate P`), or
  * close the goal for real (`update_goal complete` — gated by GOAL-COMPLETE-GATE-01 when
- * a goalplan is bound — or `blocked` for external blockers). When a goalplan is bound,
- * the remaining work is named; when it is bound but unregistered (empty), the block says
- * to fill it; when none is bound, it points at `cxc loop init`.
+ * a goalplan is bound — or `blocked` for external blockers). The remaining work is
+ * named when present; an empty bound plan gets guidance to register work phases.
  */
 export function buildGoalIdleBlock(
   cwd: string,
@@ -1746,9 +1744,10 @@ function objectivePlateau(cwd: string, sessionId: string): PlateauCheck {
 /**
  * Stop handler — L6 active continuation with a bounded stagnation guard so the loop
  * ALWAYS terminates. Blocks (keeps the agent going) only when a PABCD cycle is genuinely
- * in flight under an active goal, OR when an ACTIVE goal is parked with no in-flight
- * cycle (GOAL-IDLE-CONTINUE-01: arming nudge). Releases via any of: no active goal,
- * phase I (interview firewall), context pressure, or the MAX_STOP_BLOCKS cap.
+ * in flight under an active goal, OR when an ACTIVE goal with a bound plan is
+ * parked at IDLE (GOAL-IDLE-CONTINUE-01: arming nudge). Releases via any of:
+ * no active goal, no bound plan at IDLE, phase I (interview firewall), context
+ * pressure, or the MAX_STOP_BLOCKS cap.
  *
  * 260709 (lazygap loop-enforcement patch):
  *  - guard 1 (`stop_hook_active` → unconditional release) is REMOVED. Under the old
@@ -1757,13 +1756,10 @@ function objectivePlateau(cwd: string, sessionId: string): PlateauCheck {
  *    phase progress, which is the "step-by-step cut" the loop doctrine forbids.
  *    Termination stays total: the per-phase MAX_STOP_BLOCKS stagnation cap (reset on
  *    every real transition) bounds every continuation chain that stops progressing.
- *  - GOAL-IDLE-CONTINUE-01: an ACTIVE goal with no in-flight cycle used to release
- *    silently (guard 2a), so "goal armed but PABCD never entered" (019f4407) ended
- *    turns freely. It now gets the same bounded block, naming the arming command
- *    (`cxc orchestrate P --session <id>`), the goalplan's remaining work when one is
- *    bound, and the honest close-out path (update_goal complete gated by E8 / blocked).
- *    Side effect by design: the counter write creates the session state file, so the
- *    suggested orchestrate command passes the G2 unknown-session guard afterwards.
+ *  - GOAL-IDLE-CONTINUE-01: an ACTIVE goal with a resolvable bound plan gets a
+ *    bounded block naming the arming command (`cxc orchestrate P --session <id>`),
+ *    remaining work, and the honest close-out path (update_goal complete gated by
+ *    E8 / blocked). An unbound or stale slug releases without a counter write.
  */
 export function handleStop(
   payload: StopPayload,
@@ -1782,10 +1778,11 @@ export function handleStop(
   const inFlight = state.orchestrationActive && state.phase !== "IDLE";
 
   // guard 2a (amended by GOAL-IDLE-CONTINUE-01): with no cycle in flight a plain
-  // interactive session releases exactly as before; an ACTIVE goal instead gets a
-  // bounded arming block — "IDLE is not the end while work remains" (LOOP-CONTINUE-01).
+  // interactive session releases exactly as before; an ACTIVE goal with a bound
+  // plan gets a bounded arming block — "IDLE is not the end while work remains".
   if (!inFlight) {
     if (!goalActive) return "";
+    if (!state.slug || !safeReadBoundGoalplan(payload.cwd, state.slug)) return "";
     // bail: don't pile on during context-pressure/compaction recovery.
     if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
     if (bumpStopCounter(payload.cwd, state) === "release") return "";
