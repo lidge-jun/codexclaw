@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync, chmodSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, existsSync, chmodSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -35,7 +35,7 @@ function payload(cwd: string, over: Partial<SubagentStopPayload> = {}): Subagent
     hook_event_name: "SubagentStop",
     session_id: "s1",
     cwd,
-    agent_type: "worker",
+    agent_type: "executor",
     agent_id: "a1",
     last_assistant_message: null,
     ...over,
@@ -55,22 +55,122 @@ test("010: non-gated agent_type (explorer) is released untouched", () => {
   assert.equal(out, "");
 });
 
-test("010: worker with no receipt blocks (under cap) and names the receipt contract", () => {
+test("251: worker outside armed PABCD releases without attempts or tombstone", () => {
   const cwd = tmp();
-  const out = runSubagentStopGate(payload(cwd));
-  const parsed = JSON.parse(out);
-  assert.equal(parsed.decision, "block");
-  assert.match(parsed.reason, /EVIDENCE_RECORDED/);
-  assert.equal(readAttempts(cwd, "s1", "a1"), 1);
+  assert.equal(runSubagentStopGate(payload(cwd, { agent_type: "worker" })), "");
+  assert.equal(readAttempts(cwd, "s1", "a1"), 0);
+  assert.equal(existsSync(join(cwd, ".codexclaw", "evidence-attempts")), false);
+  assert.deepEqual(readState(cwd, "s1").unverifiedSubagents, []);
+  assert.equal(existsSync(join(cwd, ".codexclaw")), false);
+});
+
+test("251: worker in armed B and C blocks without receipt", () => {
+  for (const phase of ["B", "C"] as const) {
+    const cwd = tmp();
+    writeState(cwd, { ...defaultState("s1"), phase, orchestrationActive: true });
+    const out = runSubagentStopGate(payload(cwd, { agent_type: "worker" }));
+    assert.equal(JSON.parse(out).decision, "block");
+    assert.equal(readAttempts(cwd, "s1", "a1"), 1);
+  }
+});
+
+test("251: worker at P/A/IDLE or inactive B/C releases without writes", () => {
+  for (const phase of ["P", "A", "IDLE", "B", "C"] as const) {
+    const cwd = tmp();
+    writeState(cwd, { ...defaultState("s1"), phase, orchestrationActive: phase !== "B" && phase !== "C" });
+    assert.equal(runSubagentStopGate(payload(cwd, { agent_type: "worker" })), "", phase);
+    assert.equal(readAttempts(cwd, "s1", "a1"), 0);
+    assert.equal(existsSync(join(cwd, ".codexclaw", "evidence-attempts")), false);
+    assert.deepEqual(readState(cwd, "s1").unverifiedSubagents, []);
+  }
+});
+
+test("251: worker with unreadable state releases without write", () => {
+  const cwd = tmp();
+  const statePath = join(cwd, ".codexclaw", "sessions", "s1.json");
+  mkdirSync(dirname(statePath), { recursive: true });
+  writeFileSync(statePath, "{ corrupt");
+  assert.equal(runSubagentStopGate(payload(cwd, { agent_type: "worker" })), "");
+  assert.equal(readAttempts(cwd, "s1", "a1"), 0);
+  assert.equal(existsSync(join(cwd, ".codexclaw", "evidence-attempts")), false);
+  assert.equal(readFileSync(statePath, "utf8"), "{ corrupt");
+});
+
+test("251: executor with or without state blocks outside an active cycle", () => {
+  for (const present of [false, true]) {
+    const cwd = tmp();
+    if (present) writeState(cwd, defaultState("s1"));
+    assert.equal(JSON.parse(runSubagentStopGate(payload(cwd, { agent_type: "executor" }))).decision, "block");
+    assert.equal(readAttempts(cwd, "s1", "a1"), 1);
+  }
+});
+
+test("251: disabled PABCD releases executor and worker with no attempts or tombstones", () => {
+  const prior = process.env.CODEXCLAW_PABCD;
+  process.env.CODEXCLAW_PABCD = "off";
+  try {
+    for (const agent_type of ["executor", "worker"]) {
+      const cwd = tmp();
+      writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
+      assert.equal(runSubagentStopGate(payload(cwd, { agent_type })), "");
+      assert.equal(readAttempts(cwd, "s1", "a1"), 0);
+      assert.equal(existsSync(join(cwd, ".codexclaw", "evidence-attempts")), false);
+      assert.deepEqual(readState(cwd, "s1").unverifiedSubagents, []);
+    }
+  } finally {
+    if (prior === undefined) delete process.env.CODEXCLAW_PABCD;
+    else process.env.CODEXCLAW_PABCD = prior;
+  }
+});
+
+test("251: project-disabled PABCD releases both roles in an armed cycle", () => {
+  const cwd = tmp();
+  writeFileSync(join(cwd, "codexclaw.json"), JSON.stringify({ pabcd: { enabled: false } }));
+  writeState(cwd, { ...defaultState("s1"), phase: "C", orchestrationActive: true });
+  for (const agent_type of ["executor", "worker"]) {
+    assert.equal(runSubagentStopGate(payload(cwd, { agent_type })), "");
+    assert.equal(readAttempts(cwd, "s1", "a1"), 0);
+  }
+  assert.equal(existsSync(join(cwd, ".codexclaw", "evidence-attempts")), false);
+  assert.deepEqual(readState(cwd, "s1").unverifiedSubagents, []);
+});
+
+test("251: armed worker rejects invalid receipt and records terminal verdict", () => {
+  const cwd = tmp();
+  writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const out = runSubagentStopGate(payload(cwd, {
+      agent_type: "worker", last_assistant_message: "EVIDENCE_RECORDED: elsewhere/missing.md",
+    }));
+    assert.equal(JSON.parse(out).decision, "block");
+  }
+  assert.equal(runSubagentStopGate(payload(cwd, { agent_type: "worker" })), "");
+  assert.equal(readState(cwd, "s1").unverifiedSubagents[0]?.agentType, "worker");
+  assert.equal(readAttempts(cwd, "s1", "a1"), MAX_ATTEMPTS);
+});
+
+test("251: enabled PABCD overrides project false and gates executor", () => {
+  const cwd = tmp();
+  writeFileSync(join(cwd, "codexclaw.json"), JSON.stringify({ pabcd: { enabled: false } }));
+  const prior = process.env.CODEXCLAW_PABCD;
+  process.env.CODEXCLAW_PABCD = "on";
+  try {
+    assert.equal(JSON.parse(runSubagentStopGate(payload(cwd, { agent_type: "executor" }))).decision, "block");
+    assert.equal(readAttempts(cwd, "s1", "a1"), 1);
+  } finally {
+    if (prior === undefined) delete process.env.CODEXCLAW_PABCD;
+    else process.env.CODEXCLAW_PABCD = prior;
+  }
 });
 
 test("010: worker with a valid receipt is released and attempts cleared", () => {
   const cwd = tmp();
+  writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
   writeEvidence(cwd, "proof.md", "ran tests: 369/369");
   // prime an attempt to prove it gets cleared on success.
-  runSubagentStopGate(payload(cwd));
+  runSubagentStopGate(payload(cwd, { agent_type: "worker" }));
   const out = runSubagentStopGate(
-    payload(cwd, { last_assistant_message: "done.\nEVIDENCE_RECORDED: .codexclaw/evidence/proof.md" }),
+    payload(cwd, { agent_type: "worker", last_assistant_message: "done.\nEVIDENCE_RECORDED: .codexclaw/evidence/proof.md" }),
   );
   assert.equal(out, "");
   assert.equal(readAttempts(cwd, "s1", "a1"), 0);
@@ -152,7 +252,7 @@ test("010: terminal release records an unresolved tombstone for the parent", () 
   assert.equal(state.unverifiedSubagents.length, 1);
   const entry = state.unverifiedSubagents[0];
   assert.equal(entry.agentId, "a1");
-  assert.equal(entry.agentType, "worker");
+  assert.equal(entry.agentType, "executor");
   assert.equal(entry.resolvable, true);
 });
 
@@ -265,7 +365,7 @@ test("010: concurrent terminal stops do not lose a tombstone", async () => {
     for (let i = 0; i < MAX_ATTEMPTS; i++) runSubagentStopGate(payload(cwd, { agent_id: agent }));
   }
   const runner = (agent: string) =>
-    `import{runSubagentStopGate}from${JSON.stringify(src)};runSubagentStopGate({hook_event_name:"SubagentStop",session_id:"s1",cwd:${JSON.stringify(cwd)},agent_type:"worker",agent_id:${JSON.stringify(agent)},last_assistant_message:null});`;
+    `import{runSubagentStopGate}from${JSON.stringify(src)};runSubagentStopGate({hook_event_name:"SubagentStop",session_id:"s1",cwd:${JSON.stringify(cwd)},agent_type:"executor",agent_id:${JSON.stringify(agent)},last_assistant_message:null});`;
   const { spawn } = await import("node:child_process");
   const childErrors: string[] = [];
   const go = (agent: string) =>
@@ -769,18 +869,20 @@ test("DISPATCH-AGENT-TYPE-01: default agent_type is not gated", () => {
 
 test("DISPATCH-AGENT-TYPE-01: worker cannot exempt itself with transcript text", () => {
   const cwd = tmp();
+  writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });
   const transcriptPath = join(transcriptDir, "child.jsonl");
   writeFileSync(transcriptPath, '[CXC-EVIDENCE-EXEMPT] [REVIEWER] review the plan\n');
   const out = runSubagentStopGate(
-    payload(cwd, { agent_transcript_path: transcriptPath }),
+    payload(cwd, { agent_type: "worker", agent_transcript_path: transcriptPath }),
   );
   assert.equal(JSON.parse(out).decision, "block");
 });
 
 test("DISPATCH-AGENT-TYPE-01: marker deep in transcript still cannot bypass", () => {
   const cwd = tmp();
+  writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });
   const transcriptPath = join(transcriptDir, "child.jsonl");
@@ -788,19 +890,20 @@ test("DISPATCH-AGENT-TYPE-01: marker deep in transcript still cannot bypass", ()
   const padding = "x".repeat(30000);
   writeFileSync(transcriptPath, padding + '\n[CXC-EVIDENCE-EXEMPT] task\n');
   const out = runSubagentStopGate(
-    payload(cwd, { agent_transcript_path: transcriptPath }),
+    payload(cwd, { agent_type: "worker", agent_transcript_path: transcriptPath }),
   );
   assert.equal(JSON.parse(out).decision, "block");
 });
 
 test("DISPATCH-AGENT-TYPE-01: generic read-only text without token still blocks", () => {
   const cwd = tmp();
+  writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });
   const transcriptPath = join(transcriptDir, "child.jsonl");
   writeFileSync(transcriptPath, '[REVIEWER read-only] review the plan\n');
   const out = runSubagentStopGate(
-    payload(cwd, { agent_transcript_path: transcriptPath }),
+    payload(cwd, { agent_type: "worker", agent_transcript_path: transcriptPath }),
   );
   const parsed = JSON.parse(out);
   assert.equal(parsed.decision, "block", "generic read-only without token should still block");
@@ -808,12 +911,13 @@ test("DISPATCH-AGENT-TYPE-01: generic read-only text without token still blocks"
 
 test("DISPATCH-AGENT-TYPE-01: worker without token still blocks", () => {
   const cwd = tmp();
+  writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });
   const transcriptPath = join(transcriptDir, "child.jsonl");
   writeFileSync(transcriptPath, 'TASK: implement the fix and write tests.\n');
   const out = runSubagentStopGate(
-    payload(cwd, { agent_transcript_path: transcriptPath }),
+    payload(cwd, { agent_type: "worker", agent_transcript_path: transcriptPath }),
   );
   const parsed = JSON.parse(out);
   assert.equal(parsed.decision, "block", "write task should still be gated");

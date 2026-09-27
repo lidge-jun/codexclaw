@@ -10,6 +10,8 @@
  *    explorer/reviewer -> "explorer", executor -> "worker". Architect never aliases another role.
  *    executor resolves to its registered native "executor" type when $CODEX_HOME/agents/executor.toml
  *    exists (cxc subagents register executor); unregistered installs keep built-in worker.
+ *    With PABCD enabled, executor is receipt-gated on every stop; worker is gated only
+ *    while the parent is actively orchestrating B/C. Both release when policy is off.
  *  - the role prompt is injected INLINE in the message ("TASK: ..."), since plugin
  *    install dirs are not a config layer.
  *  - model selection is not emitted by the v2 builder. The durable per-role model in

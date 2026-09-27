@@ -1,7 +1,7 @@
 /**
  * subagent-evidence.ts — SubagentStop evidence-receipt gate (lazygap_impl 010).
  *
- * A dispatched WRITE/verify subagent (agent_type "executor", or legacy "worker") cannot "finish" without a
+ * A registered executor, or a legacy worker in an active PABCD B/C cycle, cannot "finish" without a
  * non-empty evidence receipt under `.codexclaw/evidence/`. Missing/invalid receipt ->
  * `decision:"block"` with a verifier directive that re-prompts the CHILD (codex-rs
  * turn.rs:323). After MAX_ATTEMPTS the directive escalates but remains fail-closed;
@@ -53,10 +53,11 @@ import {
   type UnverifiedSubagent,
 } from "./state.ts";
 import type { SubagentStopPayload } from "./hook.ts";
+import { configPath } from "./interview-policy.ts";
 
 /**
- * agent_type values this gate refuses to release without a receipt.
- * DISPATCH-AGENT-TYPE-01: executor and legacy worker are gated. Read-only audit/research
+ * agent_type values routed to this gate.
+ * DISPATCH-AGENT-TYPE-01: executor and legacy worker are candidates. Read-only audit/research
  * dispatches MUST use agent_type:"explorer" so they bypass both the hook
  * manifest matcher (^(executor|worker)$) and this runtime gate. See
  * structure/20_pabcd_dispatch_doctrine.md §3.
@@ -468,9 +469,31 @@ export function escalationDirective(): string {
  * The SubagentStop decision. Returns the codex hook stdout (a `{decision:"block",reason}`
  * JSON string to force the child to continue, or `""` to release). Total: never throws.
  */
+function readPabcdEnabled(cwd: string): boolean {
+  // WP2-012 owns the shared reader. Keep this isolated branch buildable until its
+  // predecessor lands; the policy precedence and shape match that reader.
+  const override = process.env.CODEXCLAW_PABCD?.trim().toLowerCase();
+  if (override === "off" || override === "0" || override === "false") return false;
+  if (override === "on" || override === "1" || override === "true") return true;
+  try {
+    const raw: unknown = JSON.parse(readFileSync(configPath(cwd), "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return true;
+    const pabcd = (raw as Record<string, unknown>).pabcd;
+    if (!pabcd || typeof pabcd !== "object" || Array.isArray(pabcd)) return true;
+    return (pabcd as Record<string, unknown>).enabled !== false;
+  } catch {
+    return true;
+  }
+}
+
 export function runSubagentStopGate(payload: SubagentStopPayload): string {
   try {
+    if (!readPabcdEnabled(payload.cwd)) return "";
     if (!GATED_AGENT_TYPES.has(payload.agent_type)) return "";
+    if (payload.agent_type === "worker") {
+      const { state, unreadable } = readStateStrict(payload.cwd, payload.session_id);
+      if (unreadable || !state.orchestrationActive || (state.phase !== "B" && state.phase !== "C")) return "";
+    }
     const agentId = payload.agent_id ?? "";
     const { cwd, session_id: sessionId } = payload;
     // Same identity as a tombstone: two turns of one agent must not share a budget.
