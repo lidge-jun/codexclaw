@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join, resolve } from "node:path";
@@ -374,6 +375,7 @@ export function ensureState(
     throw new TypeError("sessionId must be a canonical state key");
   }
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, sessionId);
   const tmp = `${finalPath}.${process.pid}.${randomUUID()}.tmp`;
@@ -606,6 +608,7 @@ export function readStateStrict(cwd: string, sessionId: string): { state: State;
 
 export function writeState(cwd: string, next: State): void {
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, next.sessionId);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
@@ -653,6 +656,7 @@ function sleepSyncMs(ms: number): void {
 
 export function withSessionLock<T>(cwd: string, sessionId: string, fn: () => T): T {
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const lockPath = `${statePath(cwd, sessionId)}.lock`;
   let held = false;
@@ -680,6 +684,7 @@ export function withSessionLock<T>(cwd: string, sessionId: string, fn: () => T):
 
 export function appendLedger(cwd: string, entry: LedgerEntry): void {
   const dir = join(cwd, STATE_DIR);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, LEDGER_FILE), `${JSON.stringify(entry)}\n`);
 }
@@ -737,6 +742,7 @@ function interviewLedgerPath(cwd: string, sessionId: string): string {
  */
 export function appendInterviewEvent(cwd: string, entry: InterviewEvent): void {
   const dir = interviewsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   appendFileSync(interviewLedgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
 }
