@@ -472,3 +472,12 @@ test("IDLE release refuses a plan whose done phase depends on unfinished work", 
   const p = plan([phase("root", "pending", { awaitsDecision: ["dec-1"] }), phase("child", "done", { dependsOn: ["root"] })], { decisions: [d] });
   assert.equal(remainingWorkAwaitsDecisions(p), false);
 });
+
+
+test("IDLE release refuses invalid superseded phases and other structural breaks", () => {
+  const d = { id: "dec-1", question: "Choose", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const waiting = phase("root", "pending", { awaitsDecision: ["dec-1"] });
+  assert.equal(remainingWorkAwaitsDecisions(plan([waiting, phase("old", "superseded", { supersededBy: "ghost" })], { decisions: [d] })), false);
+  assert.equal(remainingWorkAwaitsDecisions(plan([waiting, phase("gone", "superseded")], { decisions: [d] })), false);
+  assert.equal(remainingWorkAwaitsDecisions(plan([waiting, phase("old", "superseded", { supersededBy: "root" })], { decisions: [d] })), true);
+});

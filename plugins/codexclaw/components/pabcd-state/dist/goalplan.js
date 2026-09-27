@@ -1191,8 +1191,7 @@ export function dependencyDeadlock(plan          )                            {
 /** IDLE can yield only when actual open user decisions account for all remaining work. */
 export function remainingWorkAwaitsDecisions(plan          )          {
   // A plan with broken references must keep prompting the agent to repair it.
-  if (goalplanDefinitionIntegrityReasons(plan).length > 0 ||
-      goalplanDependencyCompletionReasons(plan).length > 0) return false;
+  if (goalplanStructuralReasons(plan).length > 0) return false;
   const remaining = remainingWorkPhases(plan);
   if (remaining.length === 0) return false;
   const byId = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
@@ -1706,6 +1705,25 @@ function supersededIntegrityReasons(plan          )           {
     }
   }
   return out;
+}
+
+/**
+ * Every E8 reason that means the plan itself is broken, as opposed to work that is
+ * simply not finished yet. The IDLE decision release refuses any of these so the
+ * agent keeps being prompted to repair the plan.
+ */
+export function goalplanStructuralReasons(plan          )           {
+  const reasons           = [];
+  if (typeof plan.schemaVersion === "number" && plan.schemaVersion > SUPPORTED_MAX_SCHEMA_VERSION) {
+    reasons.push(`schemaVersion ${plan.schemaVersion} is newer than this build supports`);
+  }
+  reasons.push(...goalplanDefinitionIntegrityReasons(plan), ...goalplanDependencyCompletionReasons(plan));
+  for (const c of plan.criteria) {
+    if (c.status === "met" && (c.capturedEvidence ?? "").trim().length === 0) reasons.push(`criterion ${c.id} marked met but has no captured evidence`);
+  }
+  for (const wp of doneWorkPhasesWithPendingTasks(plan)) reasons.push(`work phase ${wp.id} is marked done but still has open task(s)`);
+  reasons.push(...supersededIntegrityReasons(plan));
+  return reasons;
 }
 
 /** Marker path: promotion to v2 is recorded outside the plan file as well. */
