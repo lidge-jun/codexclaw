@@ -492,7 +492,7 @@ test("help lists repeated dependency syntax and required outcome", () => {
   // unknown-verb 거부 문구가 새 동사 넷을 포함하고 기존 여섯을 순서대로 남긴다.
   // 다음 verb 추가가 이 문구를 다시 빠뜨리면 여기서 RED가 난다.
   assert.deepEqual(parseGoalplanCliArgs(["redy"], "/tmp"), {
-    error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help",
+    error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide); run cxc loop --help",
   });
 });
 
@@ -679,4 +679,102 @@ test("the built CLI rejects a misplaced or misspelled flag before any write", ()
       }
     }
   }
+});
+
+test("ask records an open decision and hides only linked work phases", () => {
+  const plan = fixture();
+  plan.workPhases.push({ id: "wp-free", title: "free", status: "pending", tasks: [{ id: "free-task", title: "free", status: "pending" }], criteriaIds: [] });
+  const { cwd, session } = workspace(plan);
+  const asked = cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--recommendation", "Use v2", "--work-phase", "wp-live"]);
+  assert.equal(asked.code, 0, asked.output);
+  const back = readGoalplan(cwd, plan.slug)!;
+  assert.equal(back.decisions?.[0]?.status, "open");
+  assert.match(back.decisions?.[0]?.askedAt ?? "", /^\d{4}-\d\d-\d\dT/);
+  assert.deepEqual(back.workPhases.find((wp) => wp.id === "wp-live")?.awaitsDecision, ["dec-1"]);
+  assert.deepEqual(readyWorkPhases(back).map((wp) => wp.id), ["wp-free"]);
+  assert.deepEqual(readyTasks(back).map(({ workPhaseId }) => workPhaseId), ["wp-free"]);
+  const ready = cli(cwd, ["ready", "--session", session, "--json"]);
+  assert.equal(ready.code, 0, ready.output);
+  const data = JSON.parse(ready.output);
+  assert.equal(data.openDecisions[0].id, "dec-1");
+  assert.deepEqual(data.awaitingDecisions, [{ workPhaseId: "wp-live", decisionIds: ["dec-1"] }]);
+  assert.match(cli(cwd, ["show", "--session", session]).output, /Choose API[\s\S]*waiting: wp-live/);
+});
+
+test("decide releases linked phases without unblocking explicit blocks", () => {
+  const plan = fixture();
+  plan.workPhases.push({ id: "wp-explicit", title: "explicit", status: "blocked", blockedReason: "vendor", tasks: [], criteriaIds: [] });
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--work-phase", "wp-live", "--work-phase", "wp-explicit"]).code, 0);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v2"]).code, 0);
+  const back = readGoalplan(cwd, plan.slug)!;
+  assert.equal(back.decisions?.[0]?.answer, "Use v2");
+  assert.equal(back.decisions?.[0]?.status, "decided");
+  assert.match(back.decisions?.[0]?.decidedAt ?? "", /^\d{4}-/);
+  assert.deepEqual(readyWorkPhases(back).map((wp) => wp.id), ["wp-live"]);
+  assert.equal(back.workPhases.find((wp) => wp.id === "wp-explicit")?.blockedReason, "vendor");
+  assert.deepEqual(JSON.parse(cli(cwd, ["ready", "--session", session, "--json"]).output).awaitingDecisions, []);
+});
+
+test("ask rejects duplicate open question and unknown phase without a write", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--work-phase", "wp-live"]).code, 0);
+  const before = planText(cwd, plan.slug), ledger = ledgerText(cwd, plan.slug);
+  const duplicate = cli(cwd, ["ask", "--session", session, "--id", "dec-2", "--question", " Choose API "]);
+  assert.equal(duplicate.code, 1);
+  assert.match(duplicate.output, /dec-1/);
+  const unknown = cli(cwd, ["ask", "--session", session, "--id", "dec-2", "--question", "Other", "--work-phase", "ghost"]);
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.output, /ghost/);
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(ledgerText(cwd, plan.slug), ledger);
+});
+
+test("ask and decide enforce per-verb flags before writing", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const before = planText(cwd, plan.slug), ledger = ledgerText(cwd, plan.slug);
+  for (const argv of [
+    ["ask", "--session", session, "--id", "dec-1", "--answer", "x"],
+    ["decide", "--session", session, "--id", "dec-1", "--question", "x"],
+    ["ask", "--session", session, "--id", "dec-1", "--question", "x", "--question", "y"],
+    ["ask", "--session", session, "--id", "dec-1", "--question", "x", "--work-phase", "wp-live", "--work-phase", "wp-live"],
+    ["ask", "--session", session, "--id", "dec-1", "--question="],
+    ["decide", "--session", session, "--id", "dec-1", "--answer"],
+  ]) assert.equal("error" in parseGoalplanCliArgs(argv, cwd), true, argv.join(" "));
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(ledgerText(cwd, plan.slug), ledger);
+  assert.match(renderGoalplanHelp(), /ask --session <id> --id <id> --question <text>/);
+  assert.match(renderGoalplanHelp(), /decide --session <id> --id <id> --answer <text>/);
+});
+
+test("decide is idempotent only for the same answer", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API"]);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v2"]).code, 0);
+  const before = planText(cwd, plan.slug);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v2"]).code, 0);
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v3"]).code, 1);
+  assert.equal(planText(cwd, plan.slug), before);
+});
+
+test("ready rejects dangling and duplicate decision references", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  plan.workPhases.find((wp) => wp.id === "wp-live")!.awaitsDecision = ["ghost"];
+  writeGoalplan(cwd, plan);
+  const dangling = cli(cwd, ["ready", "--session", session]);
+  assert.equal(dangling.code, 1);
+  assert.match(dangling.output, /awaits unknown decision 'ghost'/);
+  plan.decisions = [{ id: "ghost", question: "Choose", status: "open", askedAt: "2026-09-28T00:00:00.000Z" }];
+  plan.workPhases.find((wp) => wp.id === "wp-live")!.awaitsDecision = ["ghost", "ghost"];
+  writeGoalplan(cwd, plan);
+  assert.match(cli(cwd, ["ready", "--session", session]).output, /more than once/);
+  plan.workPhases.find((wp) => wp.id === "wp-live")!.awaitsDecision = ["ghost"];
+  plan.decisions.push({ ...plan.decisions[0], question: "Again" });
+  writeGoalplan(cwd, plan);
+  assert.match(cli(cwd, ["ready", "--session", session]).output, /duplicate decision id/);
 });

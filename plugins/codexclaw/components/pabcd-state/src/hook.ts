@@ -74,6 +74,7 @@ import {
   readGoalplan,
   readyTasks,
   readyWorkPhases,
+  remainingWorkAwaitsDecisions,
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
@@ -1822,7 +1823,9 @@ export function handleStop(
   // plan gets a bounded arming block — "IDLE is not the end while work remains".
   if (!inFlight) {
     if (!goalActive) return "";
-    if (!state.slug || !safeReadBoundGoalplan(payload.cwd, state.slug)) return "";
+    const plan = state.slug ? safeReadBoundGoalplan(payload.cwd, state.slug) : null;
+    if (!plan) return "";
+    if (remainingWorkAwaitsDecisions(plan)) return "";
     // bail: don't pile on during context-pressure/compaction recovery.
     if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
     const count = bumpStopCounter(payload.cwd, state);

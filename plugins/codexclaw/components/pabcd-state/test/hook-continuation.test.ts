@@ -1451,3 +1451,85 @@ test("wp6: Stop reason keeps a single blocked phase when no work is ready", () =
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+function decisionStopPlan(cwd: string, sessionId: string, phases: ReturnType<typeof buildGoalplan>["workPhases"], criteria: ReturnType<typeof buildGoalplan>["criteria"] = []): ReturnType<typeof buildGoalplan> {
+  const plan = buildGoalplan({ objective: `decision stop ${sessionId}` });
+  plan.workPhases = phases;
+  plan.criteria = criteria;
+  plan.decisions = [{ id: "dec-1", question: "Choose API", status: "open", askedAt: "2026-09-28T00:00:00.000Z" }];
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(sessionId), slug: plan.slug });
+  return plan;
+}
+
+const waitingPhase = (id: string, criteriaIds: string[] = []) => ({ id, title: id, status: "pending" as const, tasks: [], criteriaIds, awaitsDecision: ["dec-1"] });
+
+test("IDLE Stop releases when every remaining phase awaits an open decision", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-idle", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-idle", [waitingPhase("linked")]);
+    assert.equal(handleStop(stop(cwd, "dec-idle")), "");
+    assert.equal(readState(cwd, "dec-idle").stopBlockTotal, 0);
+  });
+});
+
+test("IDLE Stop still blocks when an independent phase is runnable", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-free", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-free", [waitingPhase("linked"), { id: "free", title: "free", status: "pending", tasks: [], criteriaIds: [] }]);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-free")).trim()).decision, "block");
+  });
+});
+
+test("IDLE Stop blocks again after decide releases the wait", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-answered", status: "active" }], () => {
+    const plan = decisionStopPlan(cwd, "dec-answered", [waitingPhase("linked")]);
+    assert.equal(handleStop(stop(cwd, "dec-answered")), "");
+    plan.decisions = [{ ...plan.decisions![0], status: "decided", answer: "Use v2", decidedAt: "2026-09-28T01:00:00.000Z" }];
+    writeGoalplan(cwd, plan);
+    assert.match(JSON.parse(handleStop(stop(cwd, "dec-answered")).trim()).reason, /cxc orchestrate P/);
+  });
+});
+
+test("IDLE Stop still blocks when one phase waits on a decision and another is blocked for another reason", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-blocked", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-blocked", [waitingPhase("linked"), { id: "blocked", title: "blocked", status: "blocked", blockedReason: "vendor", tasks: [], criteriaIds: [] }]);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-blocked")).trim()).decision, "block");
+  });
+});
+
+test("IDLE Stop releases when an in-progress phase gained an open decision mid-cycle and its dependents wait on it", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-chain", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-chain", [{ ...waitingPhase("root"), status: "in_progress" }, { id: "child", title: "child", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["root"] }]);
+    assert.equal(handleStop(stop(cwd, "dec-chain")), "");
+  });
+});
+
+test("IDLE Stop still blocks when an independent criterion is unmet", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-criterion", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-criterion", [waitingPhase("linked")], [{ id: "c-1", scenario: "independent", expectedEvidence: "proof", capturedEvidence: null, status: "open" }]);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-criterion")).trim()).decision, "block");
+  });
+});
+
+test("IDLE Stop releases when every unmet criterion belongs to a decision-waiting phase", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-criterion-linked", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-criterion-linked", [waitingPhase("linked", ["c-1"])], [{ id: "c-1", scenario: "linked", expectedEvidence: "proof", capturedEvidence: null, status: "open" }]);
+    assert.equal(handleStop(stop(cwd, "dec-criterion-linked")), "");
+  });
+});
+
+test("dangling decision reference does not release IDLE Stop", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-dangling", status: "active" }], () => {
+    const plan = decisionStopPlan(cwd, "dec-dangling", [waitingPhase("linked")]);
+    plan.decisions = [];
+    writeGoalplan(cwd, plan);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-dangling")).trim()).decision, "block");
+  });
+});

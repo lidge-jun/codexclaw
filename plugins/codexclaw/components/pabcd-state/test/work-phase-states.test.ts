@@ -14,6 +14,11 @@ import { join } from "node:path";
 import {
   advanceWorkPhase,
   buildGoalplan,
+  closeFixedWorkPhase,
+  resumeAbsentTarget,
+  goalplanDefinitionIntegrityReasons,
+  readGoalplanDetailed,
+  remainingWorkAwaitsDecisions,
   dependencyDeadlock,
   dependencyWaitReasons,
   effectiveActiveWorkPhaseId,
@@ -21,6 +26,7 @@ import {
   nextOpenTask,
   readGoalplan,
   remainingWorkPhases,
+  readyWorkPhases,
   validateGoalplan,
   writeGoalplan,
   type Goalplan,
@@ -323,4 +329,119 @@ test("wp4: dependency wait reasons include phase and task waits", () => {
     "work-phase build waits for work-phase vendor (blocked)",
     "task build/t-dependent waits for task build/t-upstream (pending)",
   ]);
+});
+
+test("open decision excludes linked phase from cursor close and successor selection", () => {
+  const p = plan([
+    phase("linked", "in_progress", { awaitsDecision: ["dec-1"] }),
+    phase("free", "pending"),
+  ], { activeWorkPhaseId: "linked", decisions: [{ id: "dec-1", question: "Choose", status: "open", askedAt: "2026-09-28T00:00:00.000Z" }] });
+  assert.equal(effectiveActiveWorkPhaseId(p), "free");
+  const advanced = advanceWorkPhase(p);
+  assert.equal(advanced.kind, "ok");
+  if (advanced.kind === "ok") {
+    assert.equal(advanced.plan.workPhases[0].status, "in_progress");
+    assert.equal(advanced.plan.workPhases[1].status, "done");
+    assert.match(dependencyDeadlock(advanced.plan)?.reasons.join(" ") ?? "", /linked awaits decision dec-1/);
+  }
+});
+
+test("decision wait reasons appear beside ready independent work", () => {
+  const p = plan([phase("free", "pending"), phase("linked", "pending", { awaitsDecision: ["dec-1"] })],
+    { decisions: [{ id: "dec-1", question: "Choose", status: "open", askedAt: "2026-09-28T00:00:00.000Z" }] });
+  assert.equal(dependencyDeadlock(p), null);
+  assert.match(dependencyWaitReasons(p).join(" "), /work-phase linked awaits decision dec-1/);
+});
+
+test("legacy plan round trips without decision fields", () => {
+  const p = plan([phase("free", "pending")]);
+  const back = roundTrip(p)!;
+  assert.equal("decisions" in back, false);
+  assert.equal("awaitsDecision" in back.workPhases[0], false);
+  assert.deepEqual(readyWorkPhases(back).map((wp) => wp.id), ["free"]);
+});
+
+test("E8 fails a done phase waiting on an open decision but permits an unrelated open decision", () => {
+  const d = { id: "dec-1", question: "Choose", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const linked = plan([phase("done", "done", { awaitsDecision: ["dec-1"] })], { decisions: [d] });
+  assert.match(validateGoalplan(linked).reasons.join(" "), /done while decision dec-1 is open/);
+  const unlinked = plan([phase("done", "done")], { decisions: [d] });
+  assert.equal(validateGoalplan(unlinked).ok, true);
+  const pending = plan([phase("linked", "pending", { awaitsDecision: ["dec-1"] })], { decisions: [d] });
+  assert.match(validateGoalplan(pending).reasons.join(" "), /work phase\(s\) not done/);
+});
+
+test("missing decision id keeps the phase waiting", () => {
+  const p = plan([phase("linked", "pending", { awaitsDecision: ["ghost"] })], { activeWorkPhaseId: "linked" });
+  assert.equal(effectiveActiveWorkPhaseId(p), null);
+});
+
+test("duplicate decision id keeps the phase waiting", () => {
+  const decided = { id: "dec-1", question: "Choose", status: "decided" as const, answer: "yes", askedAt: "2026-09-28T00:00:00.000Z", decidedAt: "2026-09-28T01:00:00.000Z" };
+  const open = { id: "dec-1", question: "Again", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  for (const decisions of [[decided, open], [open, decided]]) {
+    const p = plan([phase("linked", "pending", { awaitsDecision: ["dec-1"] })], { activeWorkPhaseId: "linked", decisions });
+    assert.equal(effectiveActiveWorkPhaseId(p), null);
+  }
+});
+
+test("invalid decision fields and dangling references fail closed", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-dec-invalid-"));
+  const p = plan([phase("linked", "pending", { awaitsDecision: ["dec-1"] })],
+    { decisions: [{ id: "dec-1", question: "Choose", status: "open", askedAt: "2026-09-28T00:00:00.000Z" }] });
+  writeGoalplan(cwd, p);
+  const file = join(goalplanDir(cwd, p.slug), "goalplan.json");
+  const original = JSON.parse(readFileSync(file, "utf8")) as Goalplan;
+  for (const [change, field] of [
+    [(raw: Goalplan) => { raw.decisions = [{ ...raw.decisions![0], askedAt: "bad" }]; }, "decisions"],
+    [(raw: Goalplan) => { raw.workPhases[0].awaitsDecision = [""]; }, "workPhases[].awaitsDecision"],
+  ] as const) {
+    const raw = structuredClone(original);
+    change(raw);
+    writeFileSync(file, JSON.stringify(raw));
+    assert.equal(readGoalplan(cwd, p.slug), null);
+    assert.equal((readGoalplanDetailed(cwd, p.slug).diagnostic as { field: string }).field, field);
+  }
+  writeFileSync(file, JSON.stringify(original));
+  const dangling = { ...p, decisions: [] };
+  assert.match(goalplanDefinitionIntegrityReasons(dangling).join(" "), /awaits unknown decision 'dec-1'/);
+  assert.deepEqual(readyWorkPhases(dangling), []);
+  assert.match(goalplanDefinitionIntegrityReasons({ ...p, decisions: [p.decisions![0], p.decisions![0]] }).join(" "), /duplicate decision id/);
+  assert.match(goalplanDefinitionIntegrityReasons({ ...p, workPhases: [phase("linked", "pending", { awaitsDecision: ["dec-1", "dec-1"] })] }).join(" "), /more than once/);
+});
+
+test("decision-waiting successor cannot activate through close or absent-target recovery", () => {
+  const d = { id: "dec-1", question: "Choose", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const p = plan([phase("current", "in_progress"), phase("linked", "pending", { awaitsDecision: ["dec-1"] })],
+    { activeWorkPhaseId: "current", decisions: [d] });
+  const closed = closeFixedWorkPhase(p, "current");
+  assert.equal(closed.kind, "ok");
+  if (closed.kind === "ok") assert.equal(closed.plan.activeWorkPhaseId, null);
+  assert.equal(closeFixedWorkPhase(p, "current", "linked").kind, "successor_lost");
+  assert.equal(resumeAbsentTarget(p, "linked").kind, "successor_lost");
+  const currentWaits = { ...p, workPhases: [phase("current", "in_progress", { awaitsDecision: ["dec-1"] }), p.workPhases[1]] };
+  assert.equal(closeFixedWorkPhase(currentWaits, "current").kind, "dependencies_unmet");
+});
+
+test("duplicate decision id blocks successor and absent-target recovery in either order", () => {
+  const decided = { id: "dec-1", question: "Choose", status: "decided" as const, answer: "yes", askedAt: "2026-09-28T00:00:00.000Z", decidedAt: "2026-09-28T01:00:00.000Z" };
+  const open = { id: "dec-1", question: "Again", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  for (const decisions of [[decided, open], [open, decided]]) {
+    const p = plan([phase("current", "in_progress"), phase("linked", "pending", { awaitsDecision: ["dec-1"] })], { decisions });
+    assert.equal(closeFixedWorkPhase(p, "current").kind, "ok");
+    assert.equal(closeFixedWorkPhase(p, "current", "linked").kind, "successor_lost");
+    assert.equal(resumeAbsentTarget(p, "linked").kind, "successor_lost");
+  }
+});
+
+test("remaining work awaits decisions only for actual open answers and covered criteria", () => {
+  const d = { id: "dec-1", question: "Choose", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const root = phase("root", "in_progress", { awaitsDecision: ["dec-1"], criteriaIds: ["c-1"] });
+  const child = phase("child", "pending", { dependsOn: ["root"] });
+  const criterion = { id: "c-1", scenario: "chosen", expectedEvidence: "proof", capturedEvidence: null, status: "open" as const };
+  const p = plan([root, child], { decisions: [d], criteria: [criterion] });
+  assert.equal(remainingWorkAwaitsDecisions(p), true);
+  assert.equal(remainingWorkAwaitsDecisions({ ...p, decisions: [] }), false);
+  assert.equal(remainingWorkAwaitsDecisions({ ...p, criteria: [...p.criteria, { ...criterion, id: "c-2" }] }), false);
+  assert.equal(remainingWorkAwaitsDecisions({ ...p, workPhases: [...p.workPhases, phase("free", "pending")] }), false);
 });
