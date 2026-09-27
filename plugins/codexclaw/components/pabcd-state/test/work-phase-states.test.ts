@@ -465,3 +465,10 @@ test("decide refuses an ambiguous decision id and leaves the plan unchanged", ()
   assert.equal(result.kind, "rejected");
   assert.match((result as { reason: string }).reason, /ambiguous/);
 });
+
+
+test("IDLE release refuses a plan whose done phase depends on unfinished work", () => {
+  const d = { id: "dec-1", question: "Choose", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const p = plan([phase("root", "pending", { awaitsDecision: ["dec-1"] }), phase("child", "done", { dependsOn: ["root"] })], { decisions: [d] });
+  assert.equal(remainingWorkAwaitsDecisions(p), false);
+});

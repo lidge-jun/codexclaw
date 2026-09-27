@@ -1191,7 +1191,8 @@ export function dependencyDeadlock(plan: Goalplan): DependencyDeadlock | null {
 /** IDLE can yield only when actual open user decisions account for all remaining work. */
 export function remainingWorkAwaitsDecisions(plan: Goalplan): boolean {
   // A plan with broken references must keep prompting the agent to repair it.
-  if (goalplanDefinitionIntegrityReasons(plan).length > 0) return false;
+  if (goalplanDefinitionIntegrityReasons(plan).length > 0 ||
+      goalplanDependencyCompletionReasons(plan).length > 0) return false;
   const remaining = remainingWorkPhases(plan);
   if (remaining.length === 0) return false;
   const byId = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
