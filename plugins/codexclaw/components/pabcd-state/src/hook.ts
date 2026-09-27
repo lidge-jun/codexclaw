@@ -252,10 +252,19 @@ function requestLines(prompt: string): string[] {
       })
       .replace(/"(?:\\.|[^"\\])*"|“[^”]*”|(?<!\w)'(?:\\.|[^'\\])*'/g, " ")
       .trim();
-    if (unquoted && !explanatory) result.push(unquoted);
+    if (!unquoted || explanatory) continue;
+    // A request clause that forbids the action ("do not run cxc-loop", "cxc-loop 돌리지 마")
+    // is not a request. Clauses split on sentence ends and contrast words, never on commas.
+    for (const clause of unquoted.split(/[.;!?]\s*|\s+but\s+|\s*(?:하지만|그런데)\s*/i)) {
+      const text = clause.trim();
+      if (text && !NEGATED_REQUEST.test(text)) result.push(text);
+    }
   }
   return result;
 }
+
+const NEGATED_REQUEST =
+  /\b(?:do\s+not|don't|dont|never|no\s+need\s+to|without|avoid)\b|지\s*마|지\s*말|말고|금지|없이/i;
 
 /** Advisory phase hints require an explicit CodexClaw marker and request. */
 export function detectTrigger(prompt: string): Phase | null {

@@ -80,6 +80,31 @@ test("detectTrigger: explicit CodexClaw phase requests map to phases", () => {
   ] as const) assert.equal(detectTrigger(prompt), phase, prompt);
 });
 
+
+test("issue 250: negated requests never arm or inject", () => {
+  for (const prompt of [
+    "Do not run cxc-loop for this task",
+    "Do not use cxc-pabcd to start Plan phase",
+    "cxc-loop 돌리지 마",
+    "cxc-pabcd 쓰지 말고 그냥 고쳐줘",
+    "Don't use `cxc-loop` here",
+  ]) {
+    assert.equal(detectTrigger(prompt), null, prompt);
+    assert.equal(detectLoopArmRequest(prompt), false, prompt);
+    const cwd = freshCwd();
+    try {
+      writeState(cwd, defaultState("negated"));
+      assert.equal(handleUserPromptSubmit(ups(prompt, cwd, "negated", "t1")), "", prompt);
+      assert.equal(readState(cwd, "negated").loopArmSeen, false, prompt);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+  // A later negated clause does not cancel an earlier explicit request.
+  assert.equal(detectLoopArmRequest("Run cxc-loop for this task. Do not push."), true);
+  assert.equal(detectTrigger("Use cxc-pabcd to plan, not build"), "P");
+  assert.equal(detectTrigger("PABCD로, 단계별로 진행해"), "P");
+});
+
+
 test("detectTrigger: phase priority applies only within an explicit request line", () => {
   assert.equal(detectTrigger("Use cxc-pabcd to start Interview then Plan phase"), "I");
   assert.equal(detectTrigger("Summarize interview notes\nUse cxc-pabcd to start Plan phase"), "P");
