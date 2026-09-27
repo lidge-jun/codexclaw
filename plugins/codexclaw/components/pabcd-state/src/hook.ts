@@ -253,18 +253,24 @@ function requestLines(prompt: string): string[] {
       .replace(/"(?:\\.|[^"\\])*"|“[^”]*”|(?<!\w)'(?:\\.|[^'\\])*'/g, " ")
       .trim();
     if (!unquoted || explanatory) continue;
-    // A request clause that forbids the action ("do not run cxc-loop", "cxc-loop 돌리지 마")
-    // is not a request. Clauses split on sentence ends and contrast words, never on commas.
+    // A clause that forbids the codexclaw action itself ("do not run cxc-loop",
+    // "cxc-loop 돌리지 마") is not a request; a constraint on something else
+    // ("run cxc-loop without asking me") is. Clauses split on sentence ends and
+    // contrast words, never on commas.
     for (const clause of unquoted.split(/[.;!?]\s*|\s+but\s+|\s*(?:하지만|그런데)\s*/i)) {
       const text = clause.trim();
-      if (text && !NEGATED_REQUEST.test(text)) result.push(text);
+      if (text && !NEGATED_LEAD.test(text) && !NEGATED_TAIL.test(text)) result.push(text);
     }
   }
   return result;
 }
 
-const NEGATED_REQUEST =
-  /\b(?:do\s+not|don't|dont|never|no\s+need\s+to|without|avoid)\b|지\s*마|지\s*말|말고|금지|없이/i;
+/** English negation that governs the clause's own verb: "do not run ...", "never use ...". */
+const NEGATED_LEAD =
+  /^(?:(?:please|좀)\s+)?(?:do\s+not|don't|dont|never|no\s+need\s+to|avoid)\b/i;
+/** Korean negation attached to the mode verb right after the marker: "cxc-loop 돌리지 마", "쓰지 말고". */
+const NEGATED_TAIL =
+  /(?:cxc-?(?:loop|pabcd)|pabcd)\S*\s*(?:을|를|은|는)?\s*(?:(?:돌리|쓰|사용하|실행하|켜|하)지\s*(?:마|말)|말고|금지)/i;
 
 /** Advisory phase hints require an explicit CodexClaw marker and request. */
 export function detectTrigger(prompt: string): Phase | null {

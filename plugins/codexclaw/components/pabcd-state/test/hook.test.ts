@@ -88,6 +88,9 @@ test("issue 250: negated requests never arm or inject", () => {
     "cxc-loop 돌리지 마",
     "cxc-pabcd 쓰지 말고 그냥 고쳐줘",
     "Don't use `cxc-loop` here",
+    "Please never run cxc-loop",
+    "cxc-loop 쓰지마",
+    "cxc-loop 말고 그냥 고쳐줘",
   ]) {
     assert.equal(detectTrigger(prompt), null, prompt);
     assert.equal(detectLoopArmRequest(prompt), false, prompt);
@@ -102,6 +105,12 @@ test("issue 250: negated requests never arm or inject", () => {
   assert.equal(detectLoopArmRequest("Run cxc-loop for this task. Do not push."), true);
   assert.equal(detectTrigger("Use cxc-pabcd to plan, not build"), "P");
   assert.equal(detectTrigger("PABCD로, 단계별로 진행해"), "P");
+  // A constraint on another action keeps the explicit request.
+  assert.equal(detectLoopArmRequest("Run cxc-loop without asking me"), true);
+  assert.equal(detectTrigger("Use cxc-pabcd to plan without interviewing"), "P");
+  assert.equal(detectLoopArmRequest("cxc-loop으로 끝까지 마무리해"), true);
+  assert.equal(detectLoopArmRequest("cxc-loop으로 끝까지 해줘, 푸시는 하지 마"), true);
+  assert.equal(detectLoopArmRequest("cxc-loop 돌려줘. 커밋은 하지 말고"), true);
 });
 
 
