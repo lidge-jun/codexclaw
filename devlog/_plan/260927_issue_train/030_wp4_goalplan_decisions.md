@@ -82,8 +82,12 @@ Add these pure helpers beside `isRunnablePhase` at `:983` and replace its body. 
 
 ```ts
 export function openDecisionIdsForPhase(plan: Goalplan, wp: GoalplanWorkPhase): string[] {
-  return [...new Set(wp.awaitsDecision ?? [])].filter((id) =>
-    plan.decisions?.find((decision) => decision.id === id)?.status !== "decided");
+  // A reference counts as answered only when exactly one decision has that id and it
+  // is decided; a missing or duplicated id keeps the phase waiting (fail closed).
+  return [...new Set(wp.awaitsDecision ?? [])].filter((id) => {
+    const matches = (plan.decisions ?? []).filter((decision) => decision.id === id);
+    return !(matches.length === 1 && matches[0].status === "decided");
+  });
 }
 
 function workPhaseReadyConditionsMet(plan: Goalplan, wp: GoalplanWorkPhase): boolean {
@@ -308,3 +312,10 @@ No host question tool integration, automatic answer capture, reminder/polling me
 
 - **Provenance.** Anchors re-checked on `codex/issue-train-wp3` at 3637fef1 (wp2 and wp3 landed; goalplan files unchanged by them). Current line numbers: reviver ends at goalplan.ts:607; `withGoalplanWriteLock` hands the parsed plan to its callback (goalplan.ts:741/797), so `runDecision` uses that argument instead of re-reading; readiness entries goalplan.ts:986, 993-1007, 1053-1120; ID regex :1123; integrity :1314; remaining-work validation :1494-1496; close/successor :1798, :1825-1829, :1872-1879; absent-target wording :1921-1928 and gate :1957; cursor :2036-2053.
 - **Stop at IDLE when only decisions remain (W4-4).** Line 205's "no hook-specific filter is needed" holds for target selection but not for the IDLE continuation block (`hook.ts:1823-1831`), which blocks every active, bound IDLE goal. Add `remainingWorkAwaitsDecisions(plan): boolean` to goalplan.ts: true when at least one work phase is not done and **every** not-done phase (pending or in progress) is decision-waiting. A phase is decision-waiting when it lists an open decision in `awaitsDecision`, or when some prerequisite in its `dependsOn` closure that is not done is itself decision-waiting (computed with a visited set, so cycles return false). A phase that is `blocked` for another reason, runnable, or waiting only on non-decision prerequisites makes the helper false and keeps today's continuation path. In `handleStop`, after the bound-plan check and before the counter, `if (remainingWorkAwaitsDecisions(plan)) return "";` (no counter write). The goal stays active and GOAL-COMPLETE-GATE-01 still refuses completion. Tests in `hook-continuation.test.ts`: `IDLE Stop releases when every remaining phase awaits an open decision` (no block, stopBlockTotal unchanged); `IDLE Stop still blocks when an independent phase is runnable` (one waiting phase plus one ready phase); after `decide`, the same plan blocks again with the arming command; `IDLE Stop still blocks when one phase waits on a decision and another is blocked for another reason`; `IDLE Stop releases when an in-progress phase gained an open decision mid-cycle and its dependents wait on it`. Also unit tests for the helper in the decisions test file.
+
+
+## wp4 audit folds (round 1)
+
+- **Duplicate or missing decision ids fail closed.** `openDecisionIdsForPhase` (code above, edited in place) treats a reference as answered only when exactly one decision has that id and it is decided. Tests: `duplicate decision id keeps the phase waiting` for both orders (decided then open, open then decided) through `effectiveActiveWorkPhaseId` cursor selection, `closeFixedWorkPhase` successor choice, and absent-target recovery; `missing decision id keeps the phase waiting`.
+- **Unmet criteria gate the IDLE release.** `remainingWorkAwaitsDecisions(plan)` additionally requires every unmet criterion to be listed in the `criteriaIds` of some decision-waiting phase. An unmet criterion that no phase lists, or that only a non-waiting phase lists, keeps today's continuation block, because the agent may still be able to act on it. Tests: `IDLE Stop still blocks when an independent criterion is unmet` and `IDLE Stop releases when every unmet criterion belongs to a decision-waiting phase`.
+- **Bypass record for the Stop release.** Tier: E4 Stop continuation (a release decision, not a denial). Executing surface: `handleStop` IDLE branch via `remainingWorkAwaitsDecisions`. Known bypass: hand-editing the goalplan to add `awaitsDecision` links or an open decision releases Stop early; `cxc loop ask` records a question without proving it was delivered. Residual risk: an agent can park a goal by recording a decision it never asked; the goal stays active and GOAL-COMPLETE-GATE-01 still refuses completion, so the work cannot be falsely closed, only paused. Wording: "Stop releases at IDLE when every remaining phase and unmet criterion waits on an open user decision." Final gate: GOAL-COMPLETE-GATE-01 via E8 validation, unchanged.
