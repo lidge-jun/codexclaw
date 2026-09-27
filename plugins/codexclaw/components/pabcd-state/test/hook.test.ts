@@ -103,6 +103,13 @@ const ISSUE_250_PROMPTS = [
   ["neg_plain", "list the files in out/"],
 ] as const;
 
+// #254 stamps the per-turn Stop budget on every genuine prompt; #250 is about
+// PABCD context and arming, so compare everything except that bookkeeping.
+function withoutTurnBudget(state: ReturnType<typeof readState>) {
+  const { stopBlockTurnId: _turn, updatedAt: _at, ...rest } = state;
+  return rest;
+}
+
 test("issue 250: nine reported prompts stay silent", () => {
   for (const [label, prompt] of ISSUE_250_PROMPTS) {
     assert.equal(detectTrigger(prompt), null, label);
@@ -120,7 +127,7 @@ test("issue 250: incidental prompt emits no context and does not arm", () => {
       const after = readState(cwd, label);
       assert.equal(after.loopArmSeen, false, label);
       assert.deepEqual(after.injectedTurns, state.injectedTurns, label);
-      assert.deepEqual(after, state, label);
+      assert.deepEqual(withoutTurnBudget(after), withoutTurnBudget(state), label);
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
 });
@@ -160,7 +167,7 @@ test("issue 250: inline quoted requests are data", () => {
       writeState(cwd, defaultState("quoted"));
       const state = readState(cwd, "quoted");
       assert.equal(handleUserPromptSubmit(ups(prompt, cwd, "quoted", "t1")), "", prompt);
-      assert.deepEqual(readState(cwd, "quoted"), state, prompt);
+      assert.deepEqual(withoutTurnBudget(readState(cwd, "quoted")), withoutTurnBudget(state), prompt);
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
 });
@@ -263,7 +270,7 @@ test("wp3: ordinary Korean C2 remains silent without a CodexClaw request", () =>
       assert.equal(detectTrigger(WP3_ORIGINAL_C2_PROMPT), null);
       assert.equal(detectLoopArmRequest(WP3_ORIGINAL_C2_PROMPT), false);
       assert.equal(handleUserPromptSubmit(ups(WP3_ORIGINAL_C2_PROMPT, cwd, session, turn)), "");
-      assert.deepEqual(readState(cwd, session), before);
+      assert.deepEqual(withoutTurnBudget(readState(cwd, session)), withoutTurnBudget(before));
       assert.equal(existsSync(join(cwd, STATE_DIR, LEDGER_FILE)), false);
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
