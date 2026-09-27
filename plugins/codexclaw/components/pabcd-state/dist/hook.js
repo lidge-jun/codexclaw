@@ -314,7 +314,7 @@ export function detectAgbrowseSearchRequest(prompt        )          {
 export function detectLoopArmRequest(prompt        )          {
   for (const line of requestLines(prompt)) {
     const marker = /\bcxc-?loop\b|\bcodexclaw:cxc-loop\b|\[\$?cxc-loop\]\(skill:\/\/[^)]+\)|\bgoal\s*plan\b|\bgoalplan\b|골플랜|\bhotl\b|(?<![-/\w])i?pabcd\b/i;
-    const action = /\b(?:use|run|start|invoke|arm|create|init|repeat|cycle)\b|(?:실행|돌려|돌리|써서|으로|시작|등록|진행|적용|해줘)/i;
+    const action = /\b(?:use|run|start|invoke|arm|create|init|repeat|cycle|resume|continue)\b|(?:실행|돌려|돌리|써서|으로|시작|등록|진행|적용|해줘|이어서|재개)/i;
     if (marker.test(line) && action.test(line)) return true;
   }
   return false;
