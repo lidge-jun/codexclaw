@@ -15,6 +15,7 @@ import {
   advanceWorkPhase,
   buildGoalplan,
   closeFixedWorkPhase,
+  decideGoalplanDecision,
   resumeAbsentTarget,
   goalplanDefinitionIntegrityReasons,
   readGoalplanDetailed,
@@ -444,4 +445,23 @@ test("remaining work awaits decisions only for actual open answers and covered c
   assert.equal(remainingWorkAwaitsDecisions({ ...p, decisions: [] }), false);
   assert.equal(remainingWorkAwaitsDecisions({ ...p, criteria: [...p.criteria, { ...criterion, id: "c-2" }] }), false);
   assert.equal(remainingWorkAwaitsDecisions({ ...p, workPhases: [...p.workPhases, phase("free", "pending")] }), false);
+});
+
+
+test("IDLE release refuses a plan with broken references", () => {
+  const d = { id: "dec-1", question: "Choose", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const waiting = phase("root", "in_progress", { awaitsDecision: ["dec-1"] });
+  const base = plan([waiting], { decisions: [d] });
+  assert.equal(remainingWorkAwaitsDecisions(base), true);
+  assert.equal(remainingWorkAwaitsDecisions(plan([phase("root", "in_progress", { awaitsDecision: ["dec-1", "ghost"] })], { decisions: [d] })), false);
+  assert.equal(remainingWorkAwaitsDecisions(plan([waiting, phase("child", "pending", { dependsOn: ["missing"] })], { decisions: [d] })), false);
+});
+
+test("decide refuses an ambiguous decision id and leaves the plan unchanged", () => {
+  const a = { id: "dec-1", question: "First", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const b = { id: "dec-1", question: "Second", status: "open" as const, askedAt: "2026-09-28T00:00:00.000Z" };
+  const p = plan([phase("root", "pending", { awaitsDecision: ["dec-1"] })], { decisions: [a, b] });
+  const result = decideGoalplanDecision(p, "dec-1", "yes", "2026-09-28T01:00:00.000Z");
+  assert.equal(result.kind, "rejected");
+  assert.match((result as { reason: string }).reason, /ambiguous/);
 });

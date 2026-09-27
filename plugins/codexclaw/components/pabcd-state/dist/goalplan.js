@@ -1190,6 +1190,8 @@ export function dependencyDeadlock(plan          )                            {
 
 /** IDLE can yield only when actual open user decisions account for all remaining work. */
 export function remainingWorkAwaitsDecisions(plan          )          {
+  // A plan with broken references must keep prompting the agent to repair it.
+  if (goalplanDefinitionIntegrityReasons(plan).length > 0) return false;
   const remaining = remainingWorkPhases(plan);
   if (remaining.length === 0) return false;
   const byId = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
@@ -1257,8 +1259,10 @@ export function askGoalplanDecision(
 export function decideGoalplanDecision(
   plan          , id        , answer        , decidedAt        ,
 )                          {
-  const decision = plan.decisions?.find((candidate) => candidate.id === id.trim());
-  if (!decision) return { kind: "rejected", reason: `decision '${id.trim()}' is not in this plan` };
+  const matches = (plan.decisions ?? []).filter((candidate) => candidate.id === id.trim());
+  if (matches.length === 0) return { kind: "rejected", reason: `decision '${id.trim()}' is not in this plan` };
+  if (matches.length > 1) return { kind: "rejected", reason: `decision id '${id.trim()}' is ambiguous (${matches.length} entries); repair the plan first` };
+  const decision = matches[0];
   if (!answer.trim()) return { kind: "rejected", reason: "decision answer must not be empty" };
   if (!validIsoTime(decidedAt)) return { kind: "rejected", reason: "decision decidedAt must be an ISO timestamp" };
   if (decision.status === "decided") return decision.answer === answer.trim()
