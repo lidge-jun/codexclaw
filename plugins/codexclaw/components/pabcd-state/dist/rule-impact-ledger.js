@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * rule-impact-ledger.ts — opt-in Rule Impact Ledger (issue #18).
  *
@@ -5,7 +6,7 @@
  * outcome change, and cost so the router diet can be evidence-based.
  */
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve, sep } from "node:path";
 
 /** Schema version for the rule impact ledger. */
 export const LEDGER_SCHEMA_VERSION = 1;
@@ -102,6 +103,10 @@ export function appendRecord(path        , record                  )       {
   const ledger = readLedger(path);
   ledger.records.push(record);
   const dir = dirname(path);
+  const absolute = resolve(path);
+  const marker = `${sep}.codexclaw${sep}`;
+  const index = absolute.indexOf(marker);
+  if (index >= 0) ensureCodexclawDir(absolute.slice(0, index));
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(path, JSON.stringify(ledger, null, 2));
 }

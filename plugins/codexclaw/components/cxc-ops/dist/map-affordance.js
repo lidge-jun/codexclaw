@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * map-affordance.ts — SessionStart `cxc map` discoverability injector.
  *
@@ -245,7 +246,8 @@ function recoveryPath(stdin        , event        , create         )            
       try { st = lstatSync(path); }
       catch (error) {
         if (!create || (error                         ).code !== "ENOENT") return null;
-        mkdirSync(path, { mode: 0o700 });
+        if (path === state) ensureCodexclawDir(realpathSync(p.cwd));
+        else mkdirSync(path, { mode: 0o700 });
         st = lstatSync(path);
       }
       if (!st.isDirectory() || st.isSymbolicLink()) return null;

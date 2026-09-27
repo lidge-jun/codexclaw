@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * interview-ledger.ts — durable interview question/answer capture (L12 / 120, WP4).
  *
@@ -217,6 +218,7 @@ function alreadyRecorded(cwd        , sessionId        , eventId        )       
 
 function appendEvent(cwd        , entry                  )       {
   const dir = join(cwd, STATE_DIR, INTERVIEWS_SUBDIR);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   appendFileSync(ledgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
 }

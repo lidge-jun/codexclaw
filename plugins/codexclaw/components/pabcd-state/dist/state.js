@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join, resolve } from "node:path";
@@ -230,6 +231,10 @@ export function reconstructUnverified(raw         )                             
 
 
 
+
+
+
+
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
@@ -298,6 +303,8 @@ export function defaultState(sessionId        , slug = "")        {
     stopBlockWorkPhaseId: null,
     stopMetricCursor: 0,
     stopBlockTotal: 0,
+    stopBlockTurnId: null,
+    stopBlockCapNotified: false,
     loopArmSeen: false,
     idleEditNudges: 0,
     memoryWriteRequested: false,
@@ -317,7 +324,7 @@ function sessionsDir(cwd        )         {
   return join(cwd, STATE_DIR, SESSIONS_SUBDIR);
 }
 
-function statePath(cwd        , sessionId        )         {
+export function statePath(cwd        , sessionId        )         {
   return join(sessionsDir(cwd), `${sanitizeKey(sessionId)}.json`);
 }
 
@@ -374,6 +381,7 @@ export function ensureState(
     throw new TypeError("sessionId must be a canonical state key");
   }
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, sessionId);
   const tmp = `${finalPath}.${process.pid}.${randomUUID()}.tmp`;
@@ -552,6 +560,11 @@ export function readStateStrict(cwd        , sessionId        )                 
         typeof parsed.stopBlockTotal === "number" && Number.isFinite(parsed.stopBlockTotal) && parsed.stopBlockTotal >= 0
           ? Math.floor(parsed.stopBlockTotal)
           : 0,
+      stopBlockTurnId:
+        typeof parsed.stopBlockTurnId === "string" && parsed.stopBlockTurnId.length > 0
+          ? parsed.stopBlockTurnId
+          : null,
+      stopBlockCapNotified: parsed.stopBlockCapNotified === true,
       // 260714 wp3: strict reconstruction (old files read false/0 — backward-compatible).
       loopArmSeen: parsed.loopArmSeen === true,
       idleEditNudges:
@@ -606,6 +619,7 @@ export function readStateStrict(cwd        , sessionId        )                 
 
 export function writeState(cwd        , next       )       {
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, next.sessionId);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
@@ -653,6 +667,7 @@ function sleepSyncMs(ms        )       {
 
 export function withSessionLock   (cwd        , sessionId        , fn         )    {
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const lockPath = `${statePath(cwd, sessionId)}.lock`;
   let held = false;
@@ -680,6 +695,7 @@ export function withSessionLock   (cwd        , sessionId        , fn         ) 
 
 export function appendLedger(cwd        , entry             )       {
   const dir = join(cwd, STATE_DIR);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, LEDGER_FILE), `${JSON.stringify(entry)}\n`);
 }
@@ -737,6 +753,7 @@ function interviewLedgerPath(cwd        , sessionId        )         {
  */
 export function appendInterviewEvent(cwd        , entry                )       {
   const dir = interviewsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   appendFileSync(interviewLedgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
 }

@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * activation-trace.ts — opt-in eval trace recorder (issue #11).
  *
@@ -134,6 +135,7 @@ export function emitTrace(
 )                {
   if (!isTracingEnabled(env)) return null;
   const dir = join(outputDir, ".codexclaw", "traces");
+  ensureCodexclawDir(outputDir);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, "activations.jsonl");
   writeFileSync(path, JSON.stringify(trace) + "\n", { flag: "a" });
