@@ -118,14 +118,16 @@ codexclaw translation:
   and fresh-session schema verification are prerequisites; never alias it to explorer
   or reviewer when unavailable. Registration is not a dispatch side effect.
 - **DISPATCH-AGENT-TYPE-01 (DEFAULT).** The role-to-agent-type mapping above is the
-  canonical dispatch classifier for the SubagentStop evidence gate: only
-  `agent_type:"worker"` triggers the evidence-receipt gate (hook matcher `^worker$` +
-  runtime `GATED_AGENT_TYPES`). Read-only audit, research, and review dispatches MUST
+  canonical dispatch classifier for the SubagentStop evidence gate: registered
+  `executor` is receipt-gated under enabled PABCD; the legacy `worker` is gated only
+  while the parent has an active B/C cycle (hook matcher `^(executor|worker)$` +
+  runtime `GATED_AGENT_TYPES`). Both gates are silent under disabled PABCD.
+  Read-only audit, research, and review dispatches MUST
   use a supported read-only role: a registered role when exposed, otherwise
   `agent_type:"explorer"` when available. With schema-minimal native
   tools, carry the logical role and read-only scope in the message instead; that
-  label is not native role enforcement and cannot evade an actual worker receipt
-  requirement. Follow the live-schema/returned-handle owner in installed
+  label is not native role enforcement and cannot evade a receipt requirement
+  while the worker gate is armed. Follow the live-schema/returned-handle owner in installed
   `pabcd/references/delegation.md`; never invent unsupported fields or IDs.
 - **EVIDENCE-TERMINAL-01 (DEFAULT, 260826).** The evidence gate blocks at most
   `MAX_ATTEMPTS` times per `(agent, turn)`, then RELEASES with an unresolved verdict
