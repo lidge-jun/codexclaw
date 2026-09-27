@@ -136,6 +136,12 @@
   ],
   "hooks": [
     {
+      "file": "permission-request-allowing-agent-thread.json",
+      "event": "PermissionRequest",
+      "component": "pabcd-state",
+      "matcher": "*"
+    },
+    {
       "file": "post-compact-injecting-bg-terminal-affordance.json",
       "event": "PostCompact",
       "component": "cxc-ops",
@@ -217,6 +223,12 @@
       "file": "session-start-adopting-background-completions.json",
       "event": "SessionStart",
       "component": "bg-wake",
+      "matcher": null
+    },
+    {
+      "file": "session-start-advising-agent-thread-permissions.json",
+      "event": "SessionStart",
+      "component": "pabcd-state",
       "matcher": null
     },
     {

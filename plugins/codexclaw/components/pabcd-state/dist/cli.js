@@ -340,11 +340,27 @@ async function main()                {
 
   const stdin = readStdin();
   if (stdin.overflow) {
+    if (event === "permission-request" || event === "session-start-permission-advisory") {
+      process.exit(0);
+    }
     const denied = oversizedHookOutput(event);
     if (denied) process.stdout.write(denied);
     process.exit(denied ? 0 : 1);
   }
   const raw = stdin.raw;
+  if (event === "permission-request" || event === "session-start-permission-advisory") {
+    try {
+      const { handleAgentThreadPermissionRequest, handleAgentThreadSessionStartAdvisory } =
+        await import("./agent-thread-permissions.js");
+      const result = event === "permission-request"
+        ? handleAgentThreadPermissionRequest(raw)
+        : handleAgentThreadSessionStartAdvisory(raw);
+      if (result) process.stdout.write(result);
+    } catch {
+      // Fail open: no decision/advisory, exit 0.
+    }
+    process.exit(0);
+  }
   recordHookInvocation(raw, "pabcd-state", event, import.meta.url);
   let output = "";
 

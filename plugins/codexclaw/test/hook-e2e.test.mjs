@@ -227,7 +227,8 @@ test("WP7/G19: every manifest hook command resolves to an existing dist entrypoi
   // 260910: 25 -> 28 with bg-wake's three hooks. The pin is deliberate — it is the
   // machine-checked partner of the README badges and inventory.json, so an optional
   // component removes itself here too (see `cxc bg removal`).
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 29, "expected 29 declared hooks");
+  // 260928: 29 -> 31 with the agent-thread PermissionRequest hook and its SessionStart advisory.
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 31, "expected 31 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.

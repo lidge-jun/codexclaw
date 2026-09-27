@@ -241,9 +241,10 @@ test("C2b: deleting a shared target yields one issue per reference", () => {
   rmSync(join(root, "components/pabcd-state/dist/cli.js"));
   // 17 is hardcoded: seventeen hooks reference pabcd-state/dist/cli.js today (11 +
   // the 3 worktree-guard hooks 260804 + the review observer 260815 + the
-  // memory-write gate 260909 + automation ownership 260922). If a hook is added or removed this test should fail
-  // and be updated deliberately.
-  assert.equal(validateManifestTargets(root).length, 17);
+  // memory-write gate 260909 + automation ownership 260922 + the agent-thread
+  // PermissionRequest hook and SessionStart advisory 260928). If a hook is added or
+  // removed this test should fail and be updated deliberately.
+  assert.equal(validateManifestTargets(root).length, 19);
 });
 
 // ---- D. doctor integration -------------------------------------------------

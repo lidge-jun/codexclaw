@@ -1,12 +1,12 @@
 # wp3 — Agent-created thread permission hook and advisory
 
-Codex Desktop can start a `create_thread` child with approval prompts even when the user's top-level Codex configuration says `never` and `danger-full-access`. This phase offers a user-global, default-off PermissionRequest auto-allow for that exact provenance and a separate SessionStart warning that works without the opt-in. It does not claim to change the child's sandbox or network access. The symptom also occurs for projectless children, so no worktree predicate belongs in the eligibility test.
+Codex Desktop can start a `create_thread` child with approval prompts even when the user's top-level Codex configuration says `never` and `danger-full-access`. This phase offers a user-global, default-off PermissionRequest auto-allow for that exact provenance and a separate SessionStart warning that works without the opt-in. It does not change the child's sandbox. With the opt-in it answers pending approvals the way the user's full-access config would, and that includes one-time network-access approvals, which Codex sends to hooks as `Bash` with a `network-access <target>` description (`codex-rs/core/src/tools/approvals.rs:217-224`); an allow there lets that one request through (`network_approval.rs:893-905`). The symptom also occurs for projectless children, so no worktree predicate belongs in the eligibility test.
 
 ## Phase contract
 
 - Class: C4, permission boundary. Binding decisions: AD-1 through AD-5 and AD-7 in `devlog/_plan/260927_issue_train/002_architect_consultation.md:9-15`.
 - Dependency: wp2's PABCD switch. The advisory is read-only and must not create `<cwd>/.codexclaw` itself; the separate existing SessionStart bootstrapping hook still creates state and 011's `.gitignore` when PABCD policy is enabled. The module itself only reads files and returns JSON and does not call `handleSessionStart`; the shared CLI path still records a hook observation under `CODEX_HOME` (plugins/codexclaw/scripts/hook-observation.mjs:17,70), never under the cwd. Both verbs stay active when `CODEXCLAW_PABCD=off` or `pabcd.enabled=false`, because they are not PABCD policy; 012's switch must not list them.
-- Success: with the explicit global opt-in, an agent-created root thread whose hook says `permission_mode: "default"` and whose user Codex config shows explicit top-level evidence `approval_policy = "never"` and `sandbox_mode = "danger-full-access"` (no profile) emits the exact allow object for Bash, write_stdin, apply_patch, request_permissions, and tool names that follow the `mcp__<server>__<tool>` naming convention. This is config evidence of user intent, not proof of the thread's effective permission; an exact guarantee needs Codex to expose the resolved policy and sandbox in PermissionRequest input. Every missing, mismatched, corrupt or unknown input emits zero stdout bytes and exits 0. The advisory is independent of opt-in.
+- Success: with the explicit global opt-in, an agent-created root thread whose hook says `permission_mode: "default"` and whose user Codex config shows explicit top-level evidence `approval_policy = "never"` and `sandbox_mode = "danger-full-access"` (no profile) emits the exact allow object for Bash (including one-time network-access approvals), write_stdin, apply_patch, and tool names that follow the `mcp__<server>__<tool>` naming convention. This is config evidence of user intent, not proof of the thread's effective permission; an exact guarantee needs Codex to expose the resolved policy and sandbox in PermissionRequest input. Every missing, mismatched, corrupt or unknown input emits zero stdout bytes and exits 0. The advisory is independent of opt-in.
 - Runtime proof boundary: hook input has `session_id`, `transcript_path`, `permission_mode`, `tool_name`, and optional `agent_id`/`agent_type` at `/tmp/cxc-perm/codex-src/codex-rs/hooks/src/schema.rs:298-318`; SessionStart input has the first three at `/tmp/cxc-perm/codex-src/codex-rs/hooks/src/schema.rs:496-510`. `SessionMeta` stores `id` and `thread_source` at `/tmp/cxc-perm/codex-src/codex-rs/protocol/src/protocol.rs:3128-3154`, and `ThreadSource::Feature` serializes its feature string at `/tmp/cxc-perm/codex-src/codex-rs/protocol/src/protocol.rs:2841-2857`. The specific `agent_created_thread` value is the observed rollout fixture from this issue train, not a universal enum variant.
 
 ## File change map
@@ -26,13 +26,13 @@ The value must be the JSON boolean `true`; missing file/key, malformed JSON, arr
 ```ts
 import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 const MAX_META_LINE_BYTES = 64 * 1024;
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const ALLOW = '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}';
-const MODEL_ADVICE = "This Codex Desktop agent-created thread may show approval prompts even though the user Codex config requests full access. Request escalation explicitly for network or git operations when needed; do not assume this hook changes sandbox or network access.";
-const USER_ADVICE = "This agent-created thread started in the default approval mode despite your full-access Codex config, so approval prompts may appear. You can switch this thread to Full Access in the composer or enable permissions.agentCreatedThreadAutoAllow in your user-global Codexclaw config.";
+const MODEL_ADVICE = "This Codex Desktop agent-created thread may show approval prompts even though the user Codex config requests full access. Request escalation explicitly for network or git operations when needed. If the user enabled permissions.agentCreatedThreadAutoAllow, codexclaw answers pending approvals, including one-time network requests, without prompting; it never changes this thread's sandbox.";
+const USER_ADVICE = "This agent-created thread started in the default approval mode despite your full-access Codex config, so approval prompts may appear. You can switch this thread to Full Access in the composer, or set permissions.agentCreatedThreadAutoAllow to true in ~/.codexclaw/config.json so codexclaw answers these approvals for you, including one-time network requests.";
 
 type JsonObject = Record<string, unknown>;
 
@@ -79,10 +79,13 @@ function boundedText(path: string): string | null {
   return readFileSync(path, "utf8");
 }
 
-function globalOptIn(env: NodeJS.ProcessEnv): boolean {
+function globalOptIn(env: NodeJS.ProcessEnv, cwd: string): boolean {
   const override = env.CODEXCLAW_HOME?.trim();
   if (override && !isAbsolute(override)) return false;
   const home = override || join(homedir(), ".codexclaw");
+  // A project cannot grant this: an override that resolves inside the session cwd is ignored.
+  const rel = relative(resolve(cwd), resolve(home));
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return false;
   const config = object(JSON.parse(boundedText(join(home, "config.json")) ?? "null"));
   const permissions = object(config?.permissions);
   return permissions?.agentCreatedThreadAutoAllow === true;
@@ -100,7 +103,7 @@ function codexConfigFullAccess(env: NodeJS.ProcessEnv): boolean {
     if (line === "" || line.startsWith("#")) continue;
     if (line.startsWith("[")) {
       // An invalid table header leaves the ownership of following keys unknown.
-      if (!/^\[\[?[^\]\r\n]+\]\]?\s*(?:#.*)?$/.test(line)) return false;
+      if (!/^(?:\[\[[^[\]\r\n]+\]\]|\[[^[\]\r\n]+\])\s*(?:#.*)?$/.test(line)) return false;
       break;
     }
     if (/^(?:profile|"profile"|'profile')\s*=/.test(line)) return false;
@@ -120,8 +123,14 @@ function codexConfigFullAccess(env: NodeJS.ProcessEnv): boolean {
 
 function coveredTool(name: unknown): boolean {
   return typeof name === "string" &&
-    (["Bash", "write_stdin", "apply_patch", "request_permissions"].includes(name) ||
-      /^mcp__/.test(name));
+    (["Bash", "write_stdin", "apply_patch"].includes(name) ||
+      isMcpToolName(name));
+}
+
+/** `mcp__<server>__<tool>` with both segments present. */
+function isMcpToolName(name: string): boolean {
+  const match = /^mcp__(.+?)__(.+)$/.exec(name);
+  return !!match && match[1].replace(/_/g, "") !== "" && match[2].replace(/_/g, "") !== "";
 }
 
 function parseHook(raw: string, event: string): JsonObject | null {
@@ -134,7 +143,8 @@ export function handleAgentThreadPermissionRequest(
 ): string {
   try {
     const input = parseHook(raw, "PermissionRequest");
-    return input && coveredTool(input.tool_name) && globalOptIn(env) &&
+    return input && typeof input.cwd === "string" && input.cwd !== "" &&
+      coveredTool(input.tool_name) && globalOptIn(env, input.cwd) &&
       agentCreatedRoot(input) && codexConfigFullAccess(env) ? ALLOW : "";
   } catch {
     return "";
@@ -250,13 +260,13 @@ Use `node:test` and `node:assert/strict`, as in adjacent component tests. Fixtur
 
 | Named test | Exact assertion and reason it fails before this phase |
 |---|---|
-| `allows opted-in agent-created root thread for covered tools` | For `Bash`, `write_stdin`, `apply_patch`, `request_permissions`, `mcp__codex_app__create_worktree`, assert `strictEqual(result, '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}')`. No handler exists before this phase. |
+| `allows opted-in agent-created root thread for covered tools` | For `Bash`, a `Bash` network approval (`tool_input.description` = `network-access example.com`), `write_stdin`, `apply_patch`, `mcp__codex_app__create_worktree`, assert `strictEqual(result, '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}')`. No handler exists before this phase. |
 | `default-off global setting leaves approval to Codex` | For missing `config.json`, missing `permissions`, malformed JSON, `permissions` array, `false`, and string `"true"`, assert empty output. The new gate must not silently grant approval. |
 | `rejects missing corrupt and mismatched rollout identity` | Subcases: missing/empty `session_id`, null/missing transcript path, nonexistent path, empty file, malformed first JSONL line, first line not `session_meta`, missing payload, missing id, wrong id, missing/wrong `thread_source`, first line >64 KiB, and a valid second line after a wrong first line; assert empty output each. Without first-record verification an arbitrary thread could be allowed. |
 | `rejects non-default permission and subagent payloads` | `permission_mode` missing/`full-access` and present `agent_id` or `agent_type` (including empty string or null) each produce empty output. An inherited child must never use this exception. |
 | `rejects forked and user thread sources` | First-line `thread_source:"user"`, `"subagent"`, and `thread_source:"agent_created_thread"` with non-null `forked_from_id` all produce empty output, even with opt-in. Fork provenance remains outside this exception until measured. |
 | `rejects unknown or conflicting Codex config` | Missing TOML, malformed/torn required assignment, malformed top-level line, duplicate required key, missing either key, `on-request`, `workspace-write`, top-level `profile = "team"`, and quoted top-level `"profile" = "team"` each produce empty output. The global opt-in cannot override unknown effective policy. |
-| `ignores project-local opt-in and noncovered tool` | Write a project `codexclaw.json`/`.codexclaw/config.json` true but omit global opt-in: empty; set relative `CODEXCLAW_HOME` or `CODEX_HOME`: empty; with absolute global paths and opt-in true, `Edit`, `mcp_tool`, `functions.exec`, and empty tool name: empty. The hook matcher is broad but the handler is not. |
+| `ignores project-local opt-in and noncovered tool` | Write a project `codexclaw.json`/`.codexclaw/config.json` true but omit global opt-in: empty; set relative `CODEXCLAW_HOME` or `CODEX_HOME`: empty; with absolute global paths and opt-in true, `Edit`, `mcp_tool`, `functions.exec`, empty tool name, `mcp__`, `mcp__server`, `mcp____tool` and `mcp__server__`: empty; `mcp__codex_app__create_thread`: allow. The hook matcher is broad but the handler is not. |
 | `emits exact allow JSON and otherwise no stdout` | Parse the positive output and assert only `hookSpecificOutput.hookEventName`/`decision.behavior` keys; assert the output bytes equal the literal JSON above with no trailing LF. Test malformed hook JSON, missing/wrong `hook_event_name`, and thrown read errors yield `""`; no `deny`, `continue:false`, or stderr path exists. |
 | `advises agent-created default thread without opt-in` | Remove global opt-in, call SessionStart handler, parse output, assert nonempty `systemMessage` mentioning composer Full Access and opt-in, and `hookSpecificOutput = {hookEventName:"SessionStart",additionalContext:<string>}` with `network` and `git` in the context. This proves AD-5 is independent of AD-2. |
 | `advisory is silent outside degraded agent-created context` | `approval_policy:on-request`, `sandbox_mode:workspace-write`, profile present, `permission_mode` other than default, `thread_source:user`, bad first line, and present agent field each yield `""`. Do not tell ordinary threads they degraded. |
@@ -270,11 +280,11 @@ The existing real-hook golden tests at lines 53-76 and `EVENT_LABELS.PermissionR
 
 ## Runtime decision and bypass record
 
-**Tier:** the synchronous PermissionRequest allow is a host permission decision **outside** structure/40's E1-E8 ladder (E1 means PreToolUse deny, not PermissionRequest allow); the SessionStart advisory is E4 context, and source tests/trust checks are E8. An allow does not override a separate denial. **Executing surface:** `handleAgentThreadPermissionRequest` and `handleAgentThreadSessionStartAdvisory` through their trusted hook manifests and `pabcd-state` CLI dispatch. **Known bypass:** an untrusted or absent hook has no effect; other hooks can deny; a direct caller can bypass the module predicates. **Residual risk:** runtime permission mode and sandbox/network constraints may differ from the top-level `config.toml` heuristic, and the `^mcp__` name filter may misclassify tools. **Wording downgrade:** “may suppress this approval prompt when all predicates hold,” not “agent threads have full access.” **Final enforcement layer:** Codex's PermissionRequest decision aggregator (`/tmp/cxc-perm/codex-src/codex-rs/hooks/src/events/permission_request.rs:149-169,301-327`); the advisory has no enforcement layer beyond context delivery. E8 tests check hook trust, allow bytes, and fail-open cases.
+**Tier:** the synchronous PermissionRequest allow is a host permission decision **outside** structure/40's E1-E8 ladder (E1 means PreToolUse deny, not PermissionRequest allow); the SessionStart advisory is E4 context, and source tests/trust checks are E8. An allow does not override a separate denial. **Executing surface:** `handleAgentThreadPermissionRequest` and `handleAgentThreadSessionStartAdvisory` through their trusted hook manifests and `pabcd-state` CLI dispatch. **Known bypass:** an untrusted or absent hook has no effect; other hooks can deny; a direct caller can bypass the module predicates. **Residual risk:** runtime permission mode and sandbox/network constraints may differ from the top-level `config.toml` heuristic, and the `mcp__<server>__<tool>` name convention may misclassify tools. **Wording downgrade:** “may suppress this approval prompt when all predicates hold,” not “agent threads have full access.” **Final enforcement layer:** Codex's PermissionRequest decision aggregator (`/tmp/cxc-perm/codex-src/codex-rs/hooks/src/events/permission_request.rs:149-169,301-327`); the advisory has no enforcement layer beyond context delivery. E8 tests check hook trust, allow bytes, and fail-open cases.
 
 The PermissionRequest surface can suppress a user approval prompt only after all predicates pass. An empty stdout and exit 0 is no decision, so Codex keeps its normal prompt path; this is supported by `/tmp/cxc-perm/codex-src/codex-rs/hooks/src/events/permission_request.rs:205-211`. The exact allow is parsed at `/tmp/cxc-perm/codex-src/codex-rs/hooks/src/engine/output_parser.rs:184-204`. Never emit a denial, exit 2, `updatedInput`, `updatedPermissions`, or `interrupt`: the latter fields are unsupported at `/tmp/cxc-perm/codex-src/codex-rs/hooks/src/schema.rs:199-217`, and exit 2 can deny at `/tmp/cxc-perm/codex-src/codex-rs/hooks/src/events/permission_request.rs:249-263`. Another PermissionRequest hook's deny wins over this allow at `/tmp/cxc-perm/codex-src/codex-rs/hooks/src/events/permission_request.rs:149-169,301-327`.
 
-Residual risks to record in the implementation PR: top-level `config.toml` can differ from runtime overrides; `permission_mode:"default"` does not prove the active sandbox; an allow result does not widen filesystem or network permissions; the `^mcp__` name check is a naming heuristic; another hook may deny; a new/modified hook declaration changes its trust hash and needs re-approval. The advisory therefore says only that approval mode may have degraded. This workaround does not assert upstream #33282, #40793, or #41167 is fixed.
+Residual risks to record in the implementation PR: top-level `config.toml` can differ from runtime overrides; `permission_mode:"default"` does not prove the active sandbox; an allow result does not widen filesystem or network permissions; the `mcp__<server>__<tool>` name check is a naming convention, not proof that the approval is an MCP call; another hook may deny; a new/modified hook declaration changes its trust hash and needs re-approval. The advisory therefore says only that approval mode may have degraded. This workaround does not assert upstream #33282, #40793, or #41167 is fixed.
 
 ## Verification and activation
 
@@ -284,4 +294,35 @@ Cross-phase integration test (required, in `agent-thread-permissions.test.ts`): 
 
 ## Out of scope
 
-No upstream Codex patch, runtime permission-profile change, automatic global opt-in, repo-local permission setting, forked-thread allowance, trust-state forging, or network/sandbox widening. `021_wp3_dispatch_guidance.md` owns the separate dispatch and #265 checkpoint text.
+No upstream Codex patch, runtime permission-profile change, automatic global opt-in, repo-local permission setting, forked-thread allowance, trust-state forging, or sandbox changes. One-time network-access approvals are answered under the opt-in (see the audit folds), which is disclosed in the opt-in documentation and the model advice. `021_wp3_dispatch_guidance.md` owns the separate dispatch and #265 checkpoint text.
+
+
+## wp3 re-verification against codex/issue-train-wp2 (supersedes stale anchors above)
+
+Architect handle `01a0e3b8-436b-7203-a4f6-97d24b865814` re-checked this plan after wp2 landed (HEAD 5178e261). Binding corrections:
+
+- **CLI placement (W3-2):** dispatch both verbs in `pabcd-state/src/cli.ts` right after stdin overflow handling and `const raw = stdin.raw` (`cli.ts:341-347`), before the hook recorder (`:348`), the subagent early exit (`:399-401`) and the PABCD switch (`:403-412`). On stdin overflow both verbs exit 0 with empty stdout. The generic SessionStart handler is now at `cli.ts:426-428`; `config interview` is at `cli.ts:217-252`.
+- **Switch (W3-3):** neither `permission-request` nor `session-start-permission-advisory` is added to `PABCD_DISABLED_EVENTS` (`cli.ts:56-61`).
+- **MCP names (W3-4, AD-4):** `coveredTool` accepts an MCP name only through `isMcpToolName` (the module code above now contains it): `/^mcp__(.+?)__(.+)$/` with both captures nonempty after removing underscores. Tests: `mcp__codex_app__create_thread` allowed; `mcp__`, `mcp__server`, `mcp____tool`, `mcp__server__` get no decision.
+- **Switch tests (W3-5):** the built-CLI integration test runs both verbs twice, once with `CODEXCLAW_PABCD=off` and once with project `codexclaw.json` `{"pabcd":{"enabled":false}}`, each in a fresh cwd, asserting the allow bytes, the advisory JSON and no `<cwd>/.codexclaw`.
+- **Counts:** manifest hooks 29 -> 31 (`plugin.json:22-52`); test baseline 3650 before this phase; README hook badges at line 18, tests badges at line 16.
+
+
+## wp3 audit folds (round 1)
+
+- **Network approvals are in scope.** A full-access user config grants network, so the opt-in also answers `Bash` network-access approvals once. Tests: `network-access approval is allowed with opt-in` and `network-access approval gets no decision without opt-in`.
+- **Malformed TOML fails closed.** Table headers must have paired delimiters (`[name]` or `[[name]]`); `[[profiles]`, `[profiles]]` and any other line starting with `[` return no decision. Tests: both malformed headers plus a valid `[features]` header after the two keys.
+- **`request_permissions` is out of scope.** The current host routes it straight to Guardian without PermissionRequest hooks (`codex-rs/core/src/session/mod.rs:2985-3008`, `approvals.rs:866-868`), so listing it would be a coverage claim no live path exercises. It is removed from `coveredTool` and the tests; revisit if the host starts routing it through hooks.
+- **A project cannot grant the opt-in.** The handler requires a string `cwd` in the hook input and ignores a `CODEXCLAW_HOME` that resolves inside that cwd. Test: absolute `CODEXCLAW_HOME=<cwd>/.codexclaw` with `agentCreatedThreadAutoAllow: true` gets no decision; a sibling temp dir outside cwd with the same file allows.
+
+
+## wp3 audit folds (round 2, supersede the reader code above where they differ)
+
+- **Whole-file TOML validation.** `codexConfigFullAccess` validates the entire file before trusting the two top-level keys; it no longer stops at the first header. A small structural scanner (no new dependency) walks the file: blank lines and `#` comments; table headers with paired delimiters; `key = value` statements where the value is a closed basic or literal string, a number, a boolean, an offset date-time, an inline table, or an array. Arrays and inline tables may span lines (the user's own config has `writable_roots = [` across lines); the scanner tracks bracket and brace depth outside strings and requires depth 0 at each statement end. Multi-line strings (`"""`, `'''`) are accepted when closed. Anything else, including an unclosed bracket at EOF, a stray token, or a duplicate top-level `approval_policy`/`sandbox_mode`, returns no decision. Tests: the user's pattern (keys, then `[features]`, then a multi-line `writable_roots` array) allows; `not_valid = [` at EOF after a valid table, `[[profiles]`, `[profiles]]`, `x = "unterminated` and `x = 1 2` get no decision.
+- **Canonical containment of the file actually read.** For both the default `~/.codexclaw/config.json` and a `CODEXCLAW_HOME` override, the handler resolves the real path of the config file it will read (`realpathSync`) and gives no decision when that real path lies inside the real cwd tree, with one exception: the unresolved default path itself (`<home>/.codexclaw/config.json` when it is a regular file, not a symlink) stays eligible when cwd is the home directory, because that file is the user-global config by definition. A symlinked default file is judged by its target. Tests: override `<cwd>/.codexclaw` (no decision), override outside cwd that is a symlink into `<cwd>/.codexclaw` (no decision), outside `config.json` symlinked to a project file (no decision), plain outside override (allow), default home with cwd = home and a regular file (allow), default `~/.codexclaw/config.json` symlinked into the project (no decision). A test asserts `USER_ADVICE` mentions `agentCreatedThreadAutoAllow` and one-time network requests.
+- **Advice and scope text.** `MODEL_ADVICE` and the out-of-scope line now say that the opt-in answers one-time network requests and never changes the sandbox. The opt-in documentation states the same.
+
+
+## wp3 implementation review record
+
+Reviewer `01a0e3dc-0b84-7db1-9166-938b6d14aa49` (gpt-6-sol, security focus) reviewed the built feature over four rounds. Folded: whole-file TOML grammar (headers, dotted keys, numbers, escapes, duplicates, repeated tables), canonical containment for both config files with a literal-default home exception, no hook observation writes for the two verbs, calendar-valid dates and times, single-line inline tables, finite numbers. Rebutted: Codex config *schema* type errors (for example `model = 123`) are not re-validated. The hook treats the two explicit top-level keys as evidence of user intent, not as a Codex schema check, and Codex refuses to start with a type-invalid config. This remains a documented residual risk alongside runtime overrides.

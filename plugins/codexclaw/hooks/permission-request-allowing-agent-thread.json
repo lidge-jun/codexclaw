@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "PermissionRequest": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook permission-request",
+        "timeout": 10,
+        "statusMessage": "(codexclaw) Checking agent-created thread permission"
+      }]
+    }]
+  }
+}
