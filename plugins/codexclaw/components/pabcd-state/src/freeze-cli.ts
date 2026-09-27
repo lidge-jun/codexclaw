@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * freeze-cli.ts — runtime wiring for the L10.3 freeze/stale path (HIGH-1/HIGH-4).
  *
@@ -115,6 +116,7 @@ export function runFreeze(args: FreezeCliArgs): string {
   }
 
   if (!args.dryRun) {
+    ensureCodexclawDir(args.cwd);
     mkdirSync(join(args.cwd, STATE_DIR, FREEZE_MANIFEST_DIR), { recursive: true });
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   }

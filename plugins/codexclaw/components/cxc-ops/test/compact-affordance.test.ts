@@ -15,6 +15,14 @@ const payload = (cwd: string, event: string, session = "parent", extra = {}) =>
   JSON.stringify({ cwd, session_id: session, hook_event_name: event, ...extra });
 const temp = () => mkdtempSync(join(tmpdir(), "cxc-compact-affordance-"));
 
+test("issue255: PostCompact first writer creates local ignore file", () => {
+  const cwd = temp();
+  try {
+    assert.equal(affordance.runPostCompactAffordance(payload(cwd, "PostCompact")), "");
+    assert.match(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), /^# CodexClaw wrote this/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("PostCompact returns no unsupported event-specific context", () => {
   const cwd = temp();
   try { assert.equal(affordance.runPostCompactAffordance(payload(cwd, "PostCompact")), ""); }
@@ -35,7 +43,7 @@ test("compact hint is emitted once at the next root prompt, without FSM files", 
     assert.match(out.hookSpecificOutput.additionalContext, /User questions:.*request_user_input_async/);
     assert.equal(out.hookSpecificOutput.additionalContext.split("User questions:").length - 1, 1);
     assert.equal(affordance.runUserPromptAffordance(payload(cwd, "UserPromptSubmit")), "");
-    assert.deepEqual(readdirSync(join(cwd, ".codexclaw")), ["affordance-recovery"]);
+    assert.deepEqual(readdirSync(join(cwd, ".codexclaw")), [".gitignore", "affordance-recovery"]);
     assert.deepEqual(readdirSync(dir), []);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

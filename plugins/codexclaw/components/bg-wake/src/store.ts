@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * store.ts — filesystem substrate for the bg registry.
  *
@@ -44,6 +45,7 @@ export function enabledAtPath(cwd: string): string {
 
 export function ensureDir(cwd: string): string {
   const dir = bgDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   return dir;
 }

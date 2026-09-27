@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * goalplan.ts — project-local durable goalplan substrate (lazygap_impl 030).
  *
@@ -850,6 +851,7 @@ function firstInvalidField(parsed: unknown): string {
 export function writeGoalplan(cwd: string, plan: Goalplan): void {
   validateGoalplanSlug(plan.slug);
   const dir = goalplanDir(cwd, plan.slug);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   // Recheck after creation to close the ordinary pre-existing symlink case.
   goalplanDir(cwd, plan.slug);
@@ -874,6 +876,7 @@ export function appendGoalplanLedger(cwd: string, slug: string, entry: GoalplanL
   validateGoalplanSlug(slug);
   if (entry.slug !== slug) throw new Error("goalplan ledger entry slug does not match target slug");
   const dir = goalplanDir(cwd, slug);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   goalplanDir(cwd, slug);
   const path = goalplanLedgerPath(cwd, slug);

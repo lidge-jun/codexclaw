@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -31,7 +31,9 @@ const SESSION = "019f9d73-4c28-7723-ab52-346aca1d9bcb";
 function scratch(): { cwd: string; home: string; env: NodeJS.ProcessEnv } {
   const dir = mkdtempSync(join(tmpdir(), "cxc-memgate-"));
   const home = join(dir, "codex-home");
-  return { cwd: join(dir, "work"), home, env: { CODEX_HOME: home } };
+  const cwd = join(dir, "work");
+  mkdirSync(cwd);
+  return { cwd, home, env: { CODEX_HOME: home } };
 }
 
 function ptu(overrides: Record<string, unknown> = {}): string {
