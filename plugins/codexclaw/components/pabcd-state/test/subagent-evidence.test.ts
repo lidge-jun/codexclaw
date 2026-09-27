@@ -934,9 +934,9 @@ test("#252: policy-off dispatch leaves armed executor and worker evidence untouc
   try {
     writeFileSync(join(cwd, "codexclaw.json"), '{"pabcd":{"enabled":false}}');
     writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true });
-    const entry = new URL("../src/cli.ts", import.meta.url);
+    const entry = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
     for (const agent_type of ["executor", "worker"]) {
-      const result = spawnSync(process.execPath, [entry.pathname, "hook", "subagent-stop"], {
+      const result = spawnSync(process.execPath, [entry, "hook", "subagent-stop"], {
         input: JSON.stringify(payload(cwd, { agent_type, agent_id: agent_type })), encoding: "utf8",
         env: { ...process.env, CODEXCLAW_PABCD: "off" },
       });
