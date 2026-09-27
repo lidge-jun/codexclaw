@@ -91,6 +91,10 @@ test("issue 250: negated requests never arm or inject", () => {
     "Please never run cxc-loop",
     "cxc-loop 쓰지마",
     "cxc-loop 말고 그냥 고쳐줘",
+    "I don't want you to run cxc-loop",
+    "I don't want you to use cxc-pabcd to plan",
+    "I'd rather not use cxc-loop",
+    "Stop using cxc-loop",
   ]) {
     assert.equal(detectTrigger(prompt), null, prompt);
     assert.equal(detectLoopArmRequest(prompt), false, prompt);
@@ -111,6 +115,9 @@ test("issue 250: negated requests never arm or inject", () => {
   assert.equal(detectLoopArmRequest("cxc-loop으로 끝까지 마무리해"), true);
   assert.equal(detectLoopArmRequest("cxc-loop으로 끝까지 해줘, 푸시는 하지 마"), true);
   assert.equal(detectLoopArmRequest("cxc-loop 돌려줘. 커밋은 하지 말고"), true);
+  // A refused mode and a requested mode in one sentence: only the requested one counts.
+  assert.equal(detectLoopArmRequest("Don't run cxc-loop, use cxc-pabcd to plan instead"), false);
+  assert.equal(detectTrigger("Don't run cxc-loop, use cxc-pabcd to plan instead"), "P");
 });
 
 

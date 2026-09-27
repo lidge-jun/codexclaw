@@ -257,7 +257,7 @@ function requestLines(prompt: string): string[] {
     // "cxc-loop 돌리지 마") is not a request; a constraint on something else
     // ("run cxc-loop without asking me") is. Clauses split on sentence ends and
     // contrast words, never on commas.
-    for (const clause of unquoted.split(/[.;!?]\s*|\s+but\s+|\s*(?:하지만|그런데)\s*/i)) {
+    for (const clause of unquoted.split(/[.;!?]\s*|,\s*(?=(?:please\s+)?(?:use|run|start|invoke)\b)|\s+but\s+|\s*(?:하지만|그런데)\s*/i)) {
       const text = clause.trim();
       if (text && !NEGATED_LEAD.test(text) && !NEGATED_TAIL.test(text)) result.push(text);
     }
@@ -265,9 +265,12 @@ function requestLines(prompt: string): string[] {
   return result;
 }
 
-/** English negation that governs the clause's own verb: "do not run ...", "never use ...". */
+/**
+ * English negation that governs the clause's own verb: "do not run ...", "never use ...",
+ * and indirect refusals such as "I don't want you to run ..." or "please do not ...".
+ */
 const NEGATED_LEAD =
-  /^(?:(?:please|좀)\s+)?(?:do\s+not|don't|dont|never|no\s+need\s+to|avoid)\b/i;
+  /^(?:(?:please|좀)\s+)?(?:(?:i|we)\s+(?:do\s+not|don't|dont)\s+(?:want|need)\b|(?:i'd|i\s+would|we'd)\s+rather\s+not\b|do\s+not|don't|dont|never|no\s+need\s+to|avoid|stop)\b/i;
 /** Korean negation attached to the mode verb right after the marker: "cxc-loop 돌리지 마", "쓰지 말고". */
 const NEGATED_TAIL =
   /(?:cxc-?(?:loop|pabcd)|pabcd)\S*\s*(?:을|를|은|는)?\s*(?:(?:돌리|쓰|사용하|실행하|켜|하)지\s*(?:마|말)|말고|금지)/i;
