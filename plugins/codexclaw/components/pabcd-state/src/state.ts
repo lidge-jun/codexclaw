@@ -133,8 +133,12 @@ export interface State {
    * but only a cursor answers "is this new".
    */
   stopMetricCursor: number;
-  /** Stop blocks this session, never reset — the loop's absolute bound. */
+  /** Stop blocks in the current observed user turn. */
   stopBlockTotal: number;
+  /** Last genuine UserPromptSubmit turn whose total was reset. */
+  stopBlockTurnId: string | null;
+  /** Whether the current turn's absolute-cap notice was emitted. */
+  stopBlockCapNotified: boolean;
   // 260714 wp3 (IDLE-EDIT-ADVISORY-01): true once this session saw a loop-arm request
   // (detectLoopArmRequest). Retained across D-close (multi-cycle re-arm nudge is the
   // feature); cleared only by explicit reset (operator stand-down).
@@ -298,6 +302,8 @@ export function defaultState(sessionId: string, slug = ""): State {
     stopBlockWorkPhaseId: null,
     stopMetricCursor: 0,
     stopBlockTotal: 0,
+    stopBlockTurnId: null,
+    stopBlockCapNotified: false,
     loopArmSeen: false,
     idleEditNudges: 0,
     memoryWriteRequested: false,
@@ -317,7 +323,7 @@ function sessionsDir(cwd: string): string {
   return join(cwd, STATE_DIR, SESSIONS_SUBDIR);
 }
 
-function statePath(cwd: string, sessionId: string): string {
+export function statePath(cwd: string, sessionId: string): string {
   return join(sessionsDir(cwd), `${sanitizeKey(sessionId)}.json`);
 }
 
@@ -552,6 +558,11 @@ export function readStateStrict(cwd: string, sessionId: string): { state: State;
         typeof parsed.stopBlockTotal === "number" && Number.isFinite(parsed.stopBlockTotal) && parsed.stopBlockTotal >= 0
           ? Math.floor(parsed.stopBlockTotal)
           : 0,
+      stopBlockTurnId:
+        typeof parsed.stopBlockTurnId === "string" && parsed.stopBlockTurnId.length > 0
+          ? parsed.stopBlockTurnId
+          : null,
+      stopBlockCapNotified: parsed.stopBlockCapNotified === true,
       // 260714 wp3: strict reconstruction (old files read false/0 — backward-compatible).
       loopArmSeen: parsed.loopArmSeen === true,
       idleEditNudges:
