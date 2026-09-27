@@ -72,3 +72,6 @@ Exercise absent turn ID, duplicate turn ID, new turn ID, old-schema state, missi
 ## wp2 architect amendment (W2-4)
 
 The total-cap message is one-shot per user turn. Persist `stopBlockCapNotified: string | null` (the turn id already notified) beside `stopBlockTurnId`, with the same default, strict reconstruction and serialization chain. On `total-cap`, emit the `systemMessage` only when `stopBlockCapNotified !== stopBlockTurnId`, then record it; later Stops in that turn return `""`. A new genuine turn resets `stopBlockTotal` and the notice becomes eligible again. Tests: Stop 25 returns the message, Stop 26 returns `""`, a new turn's 25th Stop returns the message again.
+
+
+The notice latch is a boolean `stopBlockCapNotified: boolean` (default false), reset to false together with `stopBlockTotal` when a new genuine turn arrives. It works the same with or without a `turn_id`: Stop 25 emits and sets it, Stop 26 sees it set. This replaces the turn-id-valued latch above. Tests: Stops 25 and 26 with a turn id, Stops 25 and 26 with no turn id, and a new turn re-arming the notice.
