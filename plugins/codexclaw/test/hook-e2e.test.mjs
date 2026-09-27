@@ -572,9 +572,9 @@ test("WP7/G19: session-start provider hook e2e - exit 0 + parseable SessionStart
   } finally { rmSync(emptyPath, { recursive: true, force: true }); }
 });
 
-// Real registered dist entry: natural hints emit guidance/dedup only; explicit
+// Real registered dist entry: explicit phase requests emit guidance/dedup only;
 // commands below prove legal entry. Use an isolated inactive-goal environment.
-test("WP22/G19: natural plan hint emits PLAN advice with IDLE footer, never activates", () => {
+test("WP22/G19: explicit plan request emits PLAN advice with IDLE footer, never activates", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
   assert.equal(event, "UserPromptSubmit");
   const ep = snapshotEntrypoint(distAbs);
@@ -585,7 +585,7 @@ test("WP22/G19: natural plan hint emits PLAN advice with IDLE footer, never acti
     writeFileSync(join(tmp, "codexclaw.json"), JSON.stringify({ interview: "off" }));
     const res = runHook(ep, hookEvent, {
       hook_event_name: "UserPromptSubmit", session_id: "s1", cwd: tmp, turn_id: "t1",
-      prompt: "plan this",
+      prompt: "Use cxc-pabcd to start Plan phase",
     }, home.env);
     assert.equal(res.status, 0, res.stderr);
     const out = JSON.parse(res.stdout);
@@ -623,7 +623,7 @@ test("wp3: advisory snapshot then agent CLI entry reports real state and preserv
       const boot = runHook(ep, start.hookEvent, { hook_event_name: "SessionStart", session_id: sessionId, cwd }, home.env);
       assert.equal(boot.status, 0, boot.stderr);
       const hint = runHook(ep, prompt.hookEvent, { hook_event_name: "UserPromptSubmit",
-        session_id: sessionId, cwd, turn_id: "hint", prompt: phase === "P" ? "plan this" : "인터뷰만 해줘" }, home.env);
+        session_id: sessionId, cwd, turn_id: "hint", prompt: phase === "P" ? "Use cxc-pabcd to start Plan phase" : "Use cxc-pabcd to start Interview phase" }, home.env);
       assert.equal(hint.status, 0, hint.stderr);
       assert.match(JSON.parse(hint.stdout).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
       assert.match(cli("status").stdout, /phase=IDLE/);
@@ -1095,7 +1095,7 @@ test("subagent-guard: user-prompt-submit with agent fields is silent and writes 
   try {
     const res = runHook(ep, hookEvent, {
       hook_event_name: "UserPromptSubmit", session_id: "s-parent", cwd: tmp, turn_id: "t1",
-      prompt: "interview me, then plan this", // root hints emit guidance/dedup; child guard must remain silent
+      prompt: "Use cxc-pabcd to start Interview phase", // root request emits guidance/dedup; child guard must remain silent
       agent_id: "agent-1", agent_type: "worker",
     });
     assert.equal(res.status, 0, res.stderr);
