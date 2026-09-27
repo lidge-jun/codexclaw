@@ -350,7 +350,6 @@ async function main()                {
   const raw = stdin.raw;
   if (event === "permission-request" || event === "session-start-permission-advisory") {
     try {
-      recordHookInvocation(raw, "pabcd-state", event, import.meta.url);
       const { handleAgentThreadPermissionRequest, handleAgentThreadSessionStartAdvisory } =
         await import("./agent-thread-permissions.js");
       const result = event === "permission-request"

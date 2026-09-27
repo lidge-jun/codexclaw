@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -121,6 +121,90 @@ test("rejects unknown or conflicting Codex config", (t) => {
   assert.equal(f.send(), "", "oversized Codex config");
 });
 
+for (const [name, suffix] of [
+  ["invalid header key", "[bad key]\nx = true\n"],
+  ["invalid numeric underscores", "foo = 1__2\n"],
+  ["invalid basic string escape", 'foo = "\\q"\n'],
+  ["duplicate unrelated key", "foo = 1\nfoo = 2\n"],
+] as const) {
+  test(`rejects ${name} anywhere in Codex config`, (t) => {
+    const f = fixture(t);
+    const variants = name === "invalid header key" ? [suffix, "[x. bad key]\ny = 1\n", "[[bad key]]\ny = 1\n"]
+      : name === "invalid numeric underscores" ? [suffix, ...["1_", "1._2", "1.2__3", "1e_2", "1e2_", "0x_1", "0x1__2", "0o7_", "0b1__0"].map((value) => `foo = ${value}\n`)]
+      : name === "invalid basic string escape" ? [suffix, 'foo = """\\q"""\n', '"\\q" = 1\n']
+      : [suffix, 'foo = 1\n"foo" = 2\n', '[x]\na = 1\n"a" = 2\n', 'a = 1\na.b = 2\n'];
+    for (const variant of variants) {
+      writeFileSync(join(f.codexHome, "config.toml"), FULL + variant);
+      assert.equal(f.send(), "", variant);
+      assert.equal(f.advise(), "", variant);
+    }
+  });
+}
+
+test("accepts real dotted tables, literal keys and multiline roots while rejecting redefined scalar", (t) => {
+  const f = fixture(t);
+  const path = join(f.codexHome, "config.toml");
+  writeFileSync(path, `${FULL}[features]\nsearch = true\nalpha . 'beta gamma' = 2\n[projects."/a/b"]\ntrust_level = "trusted"\n[hooks.state."x@y:z.json:pre_tool_use:0:0"]\nenabled = true\n[sandbox_workspace_write]\nwritable_roots = [\n  "/tmp",\n  "/var/tmp",\n]\n[literal.'raw key']\nvalue = 1\n`);
+  assert.equal(f.send(), ALLOW);
+  assert.notEqual(f.advise(), "");
+  writeFileSync(path, `${FULL}[numbers]\nint = 1_000\nfloat = 1_000.2_50e+1_0\nhex = 0xA_B\noctal = 0o7_1\nbinary = 0b1_0\nmultiline = """hello\\\n  world"""\n`);
+  assert.equal(f.send(), ALLOW);
+  writeFileSync(path, `${FULL}foo = 1\nfoo.bar = 2\n`);
+  assert.equal(f.send(), "");
+});
+
+test("allows repeated array tables with fresh keys but rejects repeated standard tables", (t) => {
+  const f = fixture(t);
+  const path = join(f.codexHome, "config.toml");
+  writeFileSync(path, `${FULL}[[x]]\nkey = 1\n[[x]]\nkey = 2\n`);
+  assert.equal(f.send(), ALLOW);
+  writeFileSync(path, `${FULL}[x]\nkey = 1\n[x]\nother = 2\n`);
+  assert.equal(f.send(), "");
+});
+
+test("project-controlled CODEX_HOME config cannot grant permission or advisory", (t) => {
+  const f = fixture(t);
+  const home = join(f.cwd, "codex");
+  mkdirSync(home);
+  writeFileSync(join(home, "config.toml"), FULL);
+  const env = { ...f.env, CODEX_HOME: home };
+  assert.equal(f.send({}, env), "");
+  assert.equal(f.advise({}, env), "");
+});
+
+test("symlinked Codex config into project cannot grant permission or advisory", (t) => {
+  const f = fixture(t);
+  const path = join(f.cwd, "config.toml");
+  writeFileSync(path, FULL);
+  rmSync(join(f.codexHome, "config.toml"));
+  symlinkSync(path, join(f.codexHome, "config.toml"));
+  assert.equal(f.send(), "");
+  assert.equal(f.advise(), "");
+});
+
+test("advisory requires string cwd even with outside Codex config", (t) => {
+  const f = fixture(t);
+  assert.notEqual(f.advise(), "");
+  assert.equal(f.advise({ cwd: null }), "");
+});
+
+test("permission CLI verbs leave project CODEX_HOME untouched", (t) => {
+  const f = fixture(t);
+  const home = join(f.cwd, "codex");
+  mkdirSync(home);
+  writeFileSync(join(home, "config.toml"), FULL);
+  const env = { ...f.env, CODEX_HOME: home };
+  const before = readdirSync(f.cwd).sort();
+  const homeBefore = readdirSync(home).sort();
+  for (const [verb, hook_event_name] of [["permission-request", "PermissionRequest"], ["session-start-permission-advisory", "SessionStart"]] as const) {
+    const result = cli(verb, { ...f.input, hook_event_name }, f.cwd, env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "");
+  }
+  assert.deepEqual(readdirSync(f.cwd).sort(), before);
+  assert.deepEqual(readdirSync(home).sort(), homeBefore);
+});
+
 test("ignores project-local opt-in and noncovered tool", (t) => {
   const f = fixture(t);
   writeFileSync(join(f.clawHome, "config.json"), "{}");
@@ -161,10 +245,20 @@ test("default home config remains eligible at home but a project symlink does no
   mkdirSync(defaultDir);
   const defaultConfig = join(defaultDir, "config.json");
   writeFileSync(defaultConfig, '{"permissions":{"agentCreatedThreadAutoAllow":true}}');
-  const env = { CODEX_HOME: f.codexHome, CODEXCLAW_HOME: "", HOME: f.root };
+  const codexDir = join(f.root, ".codex");
+  mkdirSync(codexDir);
+  writeFileSync(join(codexDir, "config.toml"), FULL);
+  const env = { CODEX_HOME: "", CODEXCLAW_HOME: "", HOME: f.root };
   const atHome = cli("permission-request", { ...f.input, cwd: f.root }, f.root, env);
   assert.equal(atHome.status, 0, atHome.stderr);
   assert.equal(atHome.stdout, ALLOW);
+  const projectToml = join(f.cwd, "config.toml");
+  writeFileSync(projectToml, FULL);
+  rmSync(join(codexDir, "config.toml"));
+  symlinkSync(projectToml, join(codexDir, "config.toml"));
+  assert.equal(cli("permission-request", { ...f.input, cwd: f.root }, f.root, env).stdout, "");
+  rmSync(join(codexDir, "config.toml"));
+  writeFileSync(join(codexDir, "config.toml"), FULL);
   const projectConfig = join(f.cwd, "config.json");
   writeFileSync(projectConfig, '{"permissions":{"agentCreatedThreadAutoAllow":true}}');
   rmSync(defaultConfig);

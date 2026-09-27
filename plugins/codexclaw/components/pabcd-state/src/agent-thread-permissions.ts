@@ -53,27 +53,140 @@ function boundedText(path: string): string | null {
   return readFileSync(path, "utf8");
 }
 
-function globalOptIn(env: NodeJS.ProcessEnv, cwd: string): boolean {
-  const override = env.CODEXCLAW_HOME?.trim();
-  if (override && !isAbsolute(override)) return false;
-  const home = override || join(homedir(), ".codexclaw");
-  const configPath = join(home, "config.json");
+function trustedConfigText(
+  overrideValue: string | undefined, defaultDirectory: string, filename: string, cwd: string,
+): string | null {
+  const override = overrideValue?.trim();
+  if (override && !isAbsolute(override)) return null;
+  const home = override || join(homedir(), defaultDirectory);
+  const configPath = join(home, filename);
   const realCwd = realpathSync(cwd);
   const realConfig = realpathSync(configPath);
   const rel = relative(realCwd, realConfig);
   const withinCwd = rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
   const defaultAtHome = !override && realCwd === realpathSync(homedir()) &&
     !lstatSync(configPath).isSymbolicLink() && lstatSync(configPath).isFile();
-  if (withinCwd && !defaultAtHome) return false;
-  const config = object(JSON.parse(boundedText(realConfig) ?? "null"));
+  if (withinCwd && !defaultAtHome) return null;
+  return boundedText(realConfig);
+}
+
+function globalOptIn(env: NodeJS.ProcessEnv, cwd: string): boolean {
+  const config = object(JSON.parse(trustedConfigText(env.CODEXCLAW_HOME, ".codexclaw", "config.json", cwd) ?? "null"));
   const permissions = object(config?.permissions);
   return permissions?.agentCreatedThreadAutoAllow === true;
+}
+
+type TomlEntry = { kind: "table" | "array" | "scalar"; children?: Map<string, TomlEntry>; declared?: boolean; latest?: TomlEntry };
+
+function table(): TomlEntry {
+  return { kind: "table", children: new Map() };
+}
+
+function keyPath(source: string, start = 0): { parts: string[]; end: number } | null {
+  let index = start;
+  const parts: string[] = [];
+  const spaces = (): void => { while (source[index] === " " || source[index] === "\t") index += 1; };
+  spaces();
+  while (index < source.length) {
+    let part = "";
+    const quote = source[index];
+    if (quote === '"' || quote === "'") {
+      index += 1;
+      let closed = false;
+      while (index < source.length) {
+        const char = source[index++];
+        if (char === quote) { closed = true; break; }
+        if (/[\x00-\x1f\x7f]/.test(char)) return null;
+        if (quote === '"' && char === "\\") {
+          const escape = source[index++];
+          const simple: Record<string, string> = { b: "\b", t: "\t", n: "\n", f: "\f", r: "\r", '"': '"', "\\": "\\" };
+          if (Object.hasOwn(simple, escape)) part += simple[escape];
+          else if (escape === "u" || escape === "U") {
+            const length = escape === "u" ? 4 : 8;
+            const hex = source.slice(index, index + length);
+            if (!new RegExp(`^[0-9a-fA-F]{${length}}$`).test(hex)) return null;
+            const code = Number.parseInt(hex, 16);
+            if (code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return null;
+            part += String.fromCodePoint(code);
+            index += length;
+          } else return null;
+        } else part += char;
+      }
+      if (!closed) return null;
+    } else {
+      const match = /^[A-Za-z0-9_-]+/.exec(source.slice(index));
+      if (!match) return null;
+      part = match[0];
+      index += part.length;
+    }
+    parts.push(part);
+    spaces();
+    if (source[index] !== ".") break;
+    index += 1;
+    spaces();
+    if (index >= source.length) return null;
+  }
+  return parts.length ? { parts, end: index } : null;
+}
+
+function assignKey(scope: TomlEntry, parts: string[]): boolean {
+  let current = scope;
+  for (let index = 0; index < parts.length; index += 1) {
+    const children = current.children;
+    if (!children) return false;
+    const name = parts[index];
+    const existing = children.get(name);
+    if (index === parts.length - 1) {
+      if (existing) return false;
+      children.set(name, { kind: "scalar" });
+      return true;
+    }
+    if (!existing) {
+      const nested = table();
+      children.set(name, nested);
+      current = nested;
+    } else {
+      if (existing.kind !== "table") return false;
+      current = existing;
+    }
+  }
+  return false;
+}
+
+function enterTable(root: TomlEntry, parts: string[], array: boolean): TomlEntry | null {
+  let current = root;
+  for (let index = 0; index < parts.length; index += 1) {
+    const children = current.children;
+    if (!children) return null;
+    const name = parts[index];
+    let entry = children.get(name);
+    const last = index === parts.length - 1;
+    if (last && array) {
+      if (!entry) { entry = { kind: "array" }; children.set(name, entry); }
+      if (entry.kind !== "array") return null;
+      entry.latest = table();
+      return entry.latest;
+    }
+    if (!entry) { entry = table(); children.set(name, entry); }
+    if (entry.kind === "array") {
+      if (!entry.latest) return null;
+      current = entry.latest;
+    } else if (entry.kind === "table") {
+      if (last) {
+        if (entry.declared) return null;
+        entry.declared = true;
+      }
+      current = entry;
+    } else return null;
+  }
+  return current;
 }
 
 /** A bounded structural scanner: unknown TOML is never permission evidence. */
 function validValue(source: string): boolean {
   let index = 0;
-  const scalar = /^(?:true|false|[+-]?(?:0|[1-9](?:[0-9_]*[0-9])?)(?:\.[0-9_]+)?(?:[eE][+-]?[0-9_]+)?|[+-]?(?:inf|nan)|\d{4}-\d\d-\d\d(?:[Tt ]\d\d:\d\d:\d\d(?:\.\d+)?(?:[Zz]|[+-]\d\d:\d\d)?)?|\d\d:\d\d:\d\d(?:\.\d+)?|0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+)$/;
+  const digits = "[0-9](?:_?[0-9])*";
+  const scalar = new RegExp(`^(?:true|false|[+-]?(?:0|[1-9](?:_?[0-9])*)(?:\\.${digits})?(?:[eE][+-]?${digits})?|[+-]?(?:inf|nan)|\\d{4}-\\d\\d-\\d\\d(?:[Tt ]\\d\\d:\\d\\d:\\d\\d(?:\\.\\d+)?(?:[Zz]|[+-]\\d\\d:\\d\\d)?)?|\\d\\d:\\d\\d:\\d\\d(?:\\.\\d+)?|0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|0[oO][0-7](?:_?[0-7])*|0[bB][01](?:_?[01])*)$`);
   const skip = (): void => {
     while (index < source.length) {
       if (/\s/.test(source[index])) { index += 1; continue; }
@@ -93,17 +206,29 @@ function validValue(source: string): boolean {
     while (index < source.length) {
       if (source.startsWith(mark, index)) { index += mark.length; return true; }
       if (!triple && /[\r\n]/.test(source[index])) return false;
-      if (quote === '"' && source[index] === "\\") index += 1;
+      if (/[\x00-\x08\x0b\x0e-\x1f\x7f]/.test(source[index])) return false;
+      if (quote === '"' && source[index] === "\\") {
+        index += 1;
+        const escape = source[index];
+        if ("btnfr\"\\".includes(escape ?? "\0")) { index += 1; continue; }
+        if (escape === "u" || escape === "U") {
+          const length = escape === "u" ? 4 : 8;
+          const hex = source.slice(index + 1, index + 1 + length);
+          if (!new RegExp(`^[0-9a-fA-F]{${length}}$`).test(hex)) return false;
+          const code = Number.parseInt(hex, 16);
+          if (code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return false;
+          index += length + 1;
+          continue;
+        }
+        if (triple) {
+          const continuation = /^[ \t]*(?:\r?\n)/.exec(source.slice(index));
+          if (continuation) { index += continuation[0].length; continue; }
+        }
+        return false;
+      }
       index += 1;
     }
     return false;
-  };
-  const key = (): boolean => {
-    if (source[index] === '"' || source[index] === "'") return quoted();
-    const match = /^[A-Za-z0-9_-]+/.exec(source.slice(index));
-    if (!match) return false;
-    index += match[0].length;
-    return true;
   };
   const value = (depth: number): boolean => {
     if (depth > 64) return false;
@@ -113,11 +238,14 @@ function validValue(source: string): boolean {
     if (opener === "[" || opener === "{") {
       index += 1;
       const closer = opener === "[" ? "]" : "}";
+      const inline = opener === "{" ? table() : null;
       skip();
       if (source[index] === closer) { index += 1; return true; }
       while (index < source.length) {
         if (opener === "{") {
-          if (!key()) return false;
+          const parsed = keyPath(source, index);
+          if (!parsed || !assignKey(inline!, parsed.parts)) return false;
+          index = parsed.end;
           skip();
           if (source[index++] !== "=") return false;
         }
@@ -142,28 +270,34 @@ function validValue(source: string): boolean {
 
 function validTomlAndTopLevel(content: string): boolean {
   const seen = new Map<string, string>();
-  let inTopLevel = true;
+  const root = table();
+  let current = root;
   const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].trim();
     if (line === "" || line.startsWith("#")) continue;
     if (line.startsWith("[")) {
-      if (!/^(?:\[\[[^[\]\r\n]+\]\]|\[[^[\]\r\n]+\])\s*(?:#.*)?$/.test(line)) return false;
-      inTopLevel = false;
+      const array = line.startsWith("[[");
+      const header = array ? /^\[\[(.*)\]\]\s*(?:#.*)?$/.exec(line) : /^\[(.*)\]\s*(?:#.*)?$/.exec(line);
+      if (!header) return false;
+      const parsed = keyPath(header[1]);
+      if (!parsed || parsed.end !== header[1].length) return false;
+      const next = enterTable(root, parsed.parts, array);
+      if (!next) return false;
+      current = next;
       continue;
     }
-    const assignment = /^([A-Za-z0-9_-]+|"[^"\r\n]+"|'[^'\r\n]+')\s*=\s*(.*)$/.exec(line);
-    if (!assignment) return false;
-    const key = assignment[1].replace(/^["']|["']$/g, "");
-    if (inTopLevel && key === "profile") return false;
-    let value = assignment[2];
+    const parsed = keyPath(line);
+    if (!parsed || line[parsed.end] !== "=" || !assignKey(current, parsed.parts)) return false;
+    const key = parsed.parts.length === 1 ? parsed.parts[0] : "";
+    if (current === root && key === "profile") return false;
+    let value = line.slice(parsed.end + 1).trimStart();
     while (!validValue(value)) {
       // Only arrays, inline tables and triple strings may continue onto another line.
       if (!/^(?:\[|\{|"""|''')/.test(value) || index + 1 >= lines.length) return false;
       value += `\n${lines[++index]}`;
     }
-    if (inTopLevel && (key === "approval_policy" || key === "sandbox_mode")) {
-      if (seen.has(key)) return false;
+    if (current === root && (key === "approval_policy" || key === "sandbox_mode")) {
       const exact = /^"([^"\r\n]*)"\s*(?:#.*)?$/.exec(value);
       if (!exact) return false;
       seen.set(key, exact[1]);
@@ -173,11 +307,8 @@ function validTomlAndTopLevel(content: string): boolean {
     seen.get("sandbox_mode") === "danger-full-access";
 }
 
-function codexConfigFullAccess(env: NodeJS.ProcessEnv): boolean {
-  const override = env.CODEX_HOME?.trim();
-  if (override && !isAbsolute(override)) return false;
-  const home = override || join(homedir(), ".codex");
-  const content = boundedText(join(home, "config.toml"));
+function codexConfigFullAccess(env: NodeJS.ProcessEnv, cwd: string): boolean {
+  const content = trustedConfigText(env.CODEX_HOME, ".codex", "config.toml", cwd);
   if (content === null) return false;
   return validTomlAndTopLevel(content);
 }
@@ -206,7 +337,7 @@ export function handleAgentThreadPermissionRequest(
     const input = parseHook(raw, "PermissionRequest");
     return input && typeof input.cwd === "string" && input.cwd !== "" &&
       coveredTool(input.tool_name) && globalOptIn(env, input.cwd) &&
-      agentCreatedRoot(input) && codexConfigFullAccess(env) ? ALLOW : "";
+      agentCreatedRoot(input) && codexConfigFullAccess(env, input.cwd) ? ALLOW : "";
   } catch {
     return "";
   }
@@ -217,7 +348,8 @@ export function handleAgentThreadSessionStartAdvisory(
 ): string {
   try {
     const input = parseHook(raw, "SessionStart");
-    if (!input || !agentCreatedRoot(input) || !codexConfigFullAccess(env)) return "";
+    if (!input || typeof input.cwd !== "string" || input.cwd === "" ||
+        !agentCreatedRoot(input) || !codexConfigFullAccess(env, input.cwd)) return "";
     return `${JSON.stringify({
       systemMessage: USER_ADVICE,
       hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: MODEL_ADVICE },
