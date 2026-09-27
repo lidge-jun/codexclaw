@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C650-brightgreen" alt="3,650 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C667-brightgreen" alt="3,667 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
-  <img src="https://img.shields.io/badge/hooks-29-blue" alt="29 hooks">
+  <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -60,7 +60,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-然后重启 Codex，并在弹出的审批中批准 24 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
+然后重启 Codex，并在弹出的审批中批准 31 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
 
 - `orchestrate status` — 查看 PABCD 状态机
 - "Interview me first, then draft a diff-level plan."
@@ -175,7 +175,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       24 active hooks across the session lifecycle
+├── hooks/                       31 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard

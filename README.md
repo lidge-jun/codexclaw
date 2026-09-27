@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C650-brightgreen" alt="3,650 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C667-brightgreen" alt="3,667 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
-  <img src="https://img.shields.io/badge/hooks-29-blue" alt="29 hooks">
+  <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -68,7 +68,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-Then restart Codex and approve the 24 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
+Then restart Codex and approve the 31 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
 
 - `orchestrate status` — check the PABCD state machine
 - "Interview me first, then draft a diff-level plan."
@@ -196,7 +196,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       24 active hooks across the session lifecycle
+├── hooks/                       31 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
