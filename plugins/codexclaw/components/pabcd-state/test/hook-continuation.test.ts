@@ -1040,15 +1040,111 @@ test("050 S10/S14: the absolute cap holds against forged progress", () => {
   try {
     withGoalsDb([{ thread_id: "s10", status: "active" }], () => {
       metricSession(cwd, "s10");
-      let released = 0;
+      let notice = "";
       for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL + 1; i++) {
         record(cwd, "s10", "score", i);
-        if (handleStop(stop(cwd, "s10")) === "") released = i;
+        const out = handleStop(stop(cwd, "s10"));
+        if (i <= MAX_STOP_BLOCKS_TOTAL) assert.equal(JSON.parse(out).decision, "block", `block ${i}`);
+        else notice = out;
       }
-      assert.equal(released, MAX_STOP_BLOCKS_TOTAL + 1, "released exactly at the absolute cap");
+      const parsed = JSON.parse(notice);
+      assert.match(parsed.systemMessage, /continuation cap \(24\) reached/);
+      assert.equal(parsed.decision, undefined, "the notice does not block");
       const st = readState(cwd, "s10");
       assert.equal(st.stopBlockTotal, MAX_STOP_BLOCKS_TOTAL + 1, "the total never resets");
       assert.equal(st.stopMetricCursor, MAX_STOP_BLOCKS_TOTAL + 1, "the cursor advances on release too");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("absolute Stop cap resets once on new real UserPromptSubmit turn", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "turn-reset", status: "active" }], () => {
+      writeState(cwd, { ...defaultState("turn-reset"), phase: "B", orchestrationActive: true,
+        stopBlockTotal: 24, stopBlockTurnId: "old", stopBlockCapNotified: true,
+        stopBlockCount: 2, stopMetricCursor: 7 });
+      handleUserPromptSubmit(ups("continue", cwd, "turn-reset", "new"));
+      let state = readState(cwd, "turn-reset");
+      assert.equal(state.stopBlockTotal, 0);
+      assert.equal(state.stopBlockTurnId, "new");
+      assert.equal(state.stopBlockCapNotified, false);
+      assert.equal(state.stopBlockCount, 2, "a new turn preserves phase progress");
+      assert.equal(state.stopMetricCursor, 7, "a new turn preserves observed metrics");
+      assert.equal(JSON.parse(handleStop(stop(cwd, "turn-reset"))).decision, "block");
+      handleUserPromptSubmit(ups("continue", cwd, "turn-reset", "new"));
+      assert.equal(readState(cwd, "turn-reset").stopBlockTotal, 1, "duplicate prompt cannot reset");
+      handleUserPromptSubmit(ups("continue", cwd, "turn-reset", "next"));
+      state = readState(cwd, "turn-reset");
+      assert.equal(state.stopBlockTotal, 0);
+      assert.equal(state.stopBlockTurnId, "next");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("UserPromptSubmit without SessionStart does not create a state file for the cap reset", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("continue", cwd, "missing-state", "new"));
+    assert.equal(readState(cwd, "missing-state").stopBlockTurnId, null);
+    assert.equal(readState(cwd, "missing-state").stopBlockTotal, 0);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("Stop continuation never invokes reset path", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "same-turn", status: "active" }], () => {
+      metricSession(cwd, "same-turn");
+      handleUserPromptSubmit(ups("continue", cwd, "same-turn", "t1"));
+      for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL; i++) {
+        record(cwd, "same-turn", "score", i);
+        assert.equal(JSON.parse(handleStop(stop(cwd, "same-turn", true))).decision, "block");
+      }
+      record(cwd, "same-turn", "score", 25);
+      const out = JSON.parse(handleStop(stop(cwd, "same-turn", true)));
+      assert.match(out.systemMessage, /continuation cap \(24\) reached/);
+      assert.equal(out.decision, undefined);
+      assert.equal(readState(cwd, "same-turn").stopBlockTotal, 25);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+for (const turnId of ["t1", undefined]) {
+  test(`cap notice once per turn (${turnId ? "turn id" : "no turn id"})`, () => {
+    const cwd = freshCwd();
+    try {
+      withGoalsDb([{ thread_id: "notice-once", status: "active" }], () => {
+        metricSession(cwd, "notice-once");
+        if (turnId) handleUserPromptSubmit(ups("continue", cwd, "notice-once", turnId));
+        for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL + 1; i++) {
+          record(cwd, "notice-once", "score", i);
+          const payload = { ...stop(cwd, "notice-once"), turn_id: turnId };
+          const out = handleStop(payload);
+          if (i === MAX_STOP_BLOCKS_TOTAL + 1) assert.match(JSON.parse(out).systemMessage, /continuation cap \(24\) reached/);
+        }
+        record(cwd, "notice-once", "score", 26);
+        assert.equal(handleStop({ ...stop(cwd, "notice-once"), turn_id: turnId }), "");
+        assert.equal(readState(cwd, "notice-once").stopBlockCapNotified, true);
+      });
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+}
+
+test("new turn re-arms the cap notice", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "rearm", status: "active" }], () => {
+      metricSession(cwd, "rearm");
+      writeState(cwd, { ...readState(cwd, "rearm"), stopBlockTotal: 24,
+        stopBlockTurnId: "old", stopBlockCapNotified: true });
+      handleUserPromptSubmit(ups("continue", cwd, "rearm", "new"));
+      assert.equal(readState(cwd, "rearm").stopBlockCapNotified, false);
+      for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL + 1; i++) {
+        record(cwd, "rearm", "score", i);
+        const out = handleStop(stop(cwd, "rearm"));
+        if (i === MAX_STOP_BLOCKS_TOTAL + 1) assert.match(JSON.parse(out).systemMessage, /continuation cap \(24\) reached/);
+      }
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
