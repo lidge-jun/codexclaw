@@ -736,7 +736,12 @@ for (const agentType of ["executor", "worker"]) test(`L010: subagent-stop hook e
   if (!ep) return;
   const tmp = mkdtempSync(join(tmpdir(), "ccx-sas-"));
   try {
-    // 1) worker, no receipt -> block with the EVIDENCE_RECORDED contract.
+    // The legacy worker gate requires the parent's active B/C state.
+    if (agentType === "worker") {
+      mkdirSync(join(tmp, ".codexclaw", "sessions"), { recursive: true });
+      for (const id of ["s1", "s3"]) writeFileSync(join(tmp, ".codexclaw", "sessions", `${id}.json`), JSON.stringify({ phase: "B", orchestrationActive: true }));
+    }
+    // 1) armed worker or executor, no receipt -> block with the EVIDENCE_RECORDED contract.
     const blocked = runHook(ep, hookEvent, {
       hook_event_name: "SubagentStop", session_id: "s1", cwd: tmp,
       agent_type: agentType, agent_id: "a1", last_assistant_message: "all done!",
@@ -764,6 +769,37 @@ for (const agentType of ["executor", "worker"]) test(`L010: subagent-stop hook e
     });
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(ok.stdout.trim(), "", "valid receipt must release");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("251: built SubagentStop releases unarmed worker and policy-disabled roles", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/subagent-stop-verifying-evidence.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "built hook entrypoint required");
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-sas-251-"));
+  const run = (agent_type, env = {}) => runHook(ep, hookEvent, {
+    hook_event_name: "SubagentStop", session_id: "s1", cwd: tmp,
+    agent_type, agent_id: agent_type, last_assistant_message: null,
+  }, env);
+  try {
+    const free = run("worker");
+    assert.equal(free.status, 0, free.stderr);
+    assert.equal(free.stdout, "");
+    assert.equal(existsSync(join(tmp, ".codexclaw")), false);
+
+    mkdirSync(join(tmp, ".codexclaw", "sessions"), { recursive: true });
+    writeFileSync(join(tmp, ".codexclaw", "sessions", "s1.json"), JSON.stringify({ phase: "C", orchestrationActive: true }));
+    for (const role of ["executor", "worker"]) {
+      const disabled = run(role, { CODEXCLAW_PABCD: "off" });
+      assert.equal(disabled.status, 0, disabled.stderr);
+      assert.equal(disabled.stdout, "");
+      assert.equal(existsSync(join(tmp, ".codexclaw", "evidence-attempts")), false);
+      assert.deepEqual(JSON.parse(readFileSync(join(tmp, ".codexclaw", "sessions", "s1.json"), "utf8")), { phase: "C", orchestrationActive: true });
+    }
+    writeFileSync(join(tmp, "codexclaw.json"), JSON.stringify({ pabcd: { enabled: false } }));
+    const enabled = run("executor", { CODEXCLAW_PABCD: "on" });
+    assert.equal(enabled.status, 0, enabled.stderr);
+    assert.equal(JSON.parse(enabled.stdout).decision, "block");
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
