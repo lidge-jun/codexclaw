@@ -15,6 +15,7 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Changed
 
+- Goalplans can record pending user decisions: `cxc loop ask --session <id> --id <q> --question <text> [--recommendation <text>] [--work-phase <id>]...` links a question the agent already asked to the phases that wait on it, and `cxc loop decide --session <id> --id <q> --answer <text>` records the answer. Linked phases are not runnable while the decision is open; unrelated phases stay ready. When every remaining phase and unmet criterion waits on an open decision, the Stop hook lets an IDLE turn end instead of asking to start another phase; the goal stays active and cannot be completed early. Old plans load unchanged (#262).
 - The absolute Stop continuation cap (24) now counts per genuine user turn instead of per session, and the release prints one notice per turn (#254).
 
 ### Fixed
