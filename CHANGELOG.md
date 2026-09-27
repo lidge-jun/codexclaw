@@ -6,6 +6,22 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `CODEXCLAW_PABCD=off` (or `on`) and project `codexclaw.json` `{"pabcd": {"enabled": false}}` turn the PABCD hook policy off while keeping the worktree, memory-write, automation-ownership and apply_patch lint guards and recall active. A recognized environment value wins over the project file in both directions (#252).
+- When codexclaw creates a project's `.codexclaw` folder, it also writes `.codexclaw/.gitignore` so session state, ledgers and evidence stay out of git; user-authored `rules/*.md` stay committable unless an ancestor ignore rule hides the folder. Existing `.codexclaw` folders are never modified. Lazy creation of session state is deferred (#255, partial).
+
+### Changed
+
+- The absolute Stop continuation cap (24) now counts per genuine user turn instead of per session, and the release prints one notice per turn (#254).
+
+### Fixed
+
+- Ordinary words (for example "interview", "keep going until", "끝까지 진행해", quoted or fenced examples) no longer inject PABCD phase directives or arm the loop; hints need an explicit codexclaw request such as `cxc-pabcd` or `cxc-loop` (#250).
+- The SubagentStop evidence gate no longer blocks Codex's built-in `worker` outside an active PABCD build or check cycle; registered `executor` stays gated while PABCD is on (#251).
+- An active native goal without a bound goalplan no longer blocks Stop at IDLE (#253).
+
+
 ## [0.2.39] - 2026-09-24
 
 ### Added
