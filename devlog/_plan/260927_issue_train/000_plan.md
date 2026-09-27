@@ -41,6 +41,8 @@ OUT: Codex core/Desktop, host automation mutation handler (#213), SessionStart f
 
 Delivery: one ordinary PR per implementation work phase from a `codex/issue-train-wpN` branch into `dev`, each merged after its hosted CI passes and the next phase rebased onto the new `dev`. No native stacks. Main owns git, the FSM, integration and delivery; gpt-6-sol subagents draft docs, build within disjoint scopes or task-owned worktrees, and review.
 
+Builder workspaces: for parallel builders inside a work phase, main creates one managed worktree per builder with `create_worktree` (ref = the phase branch) and dispatches a gpt-6-sol subagent that passes that worktree path as the shell `workdir` on every command and commits on its own `codex/issue-train-wpN-<slug>` branch there. Subagents inherit this session's full-access permission, which avoids the reduced-permission start that `create_thread` children can get (001, agent-created thread section). Main merges builder branches into the phase branch in the order the decade doc gives, then runs the phase gates in this checkout.
+
 ## Issue acceptance mapping
 
 | Issue | Decision | Where it lands |

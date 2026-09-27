@@ -41,3 +41,17 @@ No further module-ownership conflicts were found across 010-016, 020 and 030.
 Three audit rounds returned **FAIL**. The root cause was the proposed lazy SessionStart state creation: stateless sessions would change the executor evidence gate and the goal-complete gate (`plugins/codexclaw/components/pabcd-state/src/goal-gate.ts:215-236`), and the proposed `writeExistingState` guard did not settle atomic conditional publication against `writeState`'s temporary-file rename (`state.ts:607-617`). The earlier no-parent-state executor release was especially unsafe.
 
 Main changed #255 to a low-severity **partial fix** using the reporter's offered `.codexclaw/.gitignore` alternative. SessionStart and CLI identity behavior stay as shipped; `011_issue255_codexclaw_gitignore.md` now routes first-directory writers through one exclusive ignore-file helper. Lazy state creation, `verifiedCreateState`, `sessionStateFileExists`, `writeExistingState`, missing-state hook suppression, and no-parent-state evidence release were dropped from this train and deferred for a separate design. The revised 010/013/014/015/020 contracts follow that decision.
+
+
+## Audit record
+
+Reviewer handle `01a0e340-8900-7930-99db-9101bd95d661` (gpt-6-sol, CXC-ROLE: reviewer) audited every round.
+
+| Round | Verdict | Blockers | Disposition |
+|---|---|---|---|
+| 1 | FAIL | 8 (4 High) | All folded into 011, 012, 015, 016, 020, 030 |
+| 2 | FAIL | 4 (1 High) | Folded; narrowed native verification to missing-state creation |
+| 3 | FAIL | 3 (1 High) | Root cause: lazy state creation reaches the executor evidence gate, the goal-complete gate and publication atomicity. Returned to P and re-planned #255 as a partial fix |
+| 4 | GO-WITH-FIXES | 4 (Medium) | Folded as "Audit round 4" amendments in 011 (parent ignore limit, atomic staging rename, self-contained helper copies with drift test, build order) and 016 (structural explanatory framing) |
+
+A>B exited as near-pass on round 4 with every blocker folded.
