@@ -59,7 +59,7 @@ test("overflowing numbers fail closed", (t) => {
 
 test("symlinked default directories into the home-cwd project cannot grant permission", (t) => {
   const f = fixture(t);
-  const env = { CODEX_HOME: "", CODEXCLAW_HOME: "", HOME: f.root };
+  const env = { CODEX_HOME: "", CODEXCLAW_HOME: "", HOME: f.root, USERPROFILE: f.root };
   // Real project directories under the home, reached through symlinked defaults.
   const projectCodex = join(f.cwd, ".codex");
   const projectClaw = join(f.cwd, ".codexclaw");
@@ -302,7 +302,7 @@ test("default home config remains eligible at home but a project symlink does no
   const codexDir = join(f.root, ".codex");
   mkdirSync(codexDir);
   writeFileSync(join(codexDir, "config.toml"), FULL);
-  const env = { CODEX_HOME: "", CODEXCLAW_HOME: "", HOME: f.root };
+  const env = { CODEX_HOME: "", CODEXCLAW_HOME: "", HOME: f.root, USERPROFILE: f.root };
   const atHome = cli("permission-request", { ...f.input, cwd: f.root }, f.root, env);
   assert.equal(atHome.status, 0, atHome.stderr);
   assert.equal(atHome.stdout, ALLOW);
