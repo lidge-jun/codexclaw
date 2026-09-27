@@ -270,7 +270,7 @@ function requestLines(prompt: string): string[] {
  * and indirect refusals such as "I don't want you to run ..." or "please do not ...".
  */
 const NEGATED_LEAD =
-  /^(?:(?:please|좀)\s+)?(?:(?:i|we)\s+(?:do\s+not|don't|dont)\s+(?:want|need)\b|(?:i'd|i\s+would|we'd)\s+rather\s+not\b|do\s+not|don't|dont|never|no\s+need\s+to|avoid|stop)\b/i;
+  /^(?:(?:please|좀)\s+)?(?:(?:i|we)\s+(?:do\s+not|don't|dont)\s+(?:want|need)\b|(?:i'd|i\s+would|we'd|we\s+would)\s+(?:rather|prefer)\s+(?:not|you\s+not|you\s+didn't)\b|(?:can|could|would|will)\s+you\s+(?:not|please\s+not)\b|do\s+not|don't|dont|never|no\s+need\s+to|avoid|stop)\b/i;
 /** Korean negation attached to the mode verb right after the marker: "cxc-loop 돌리지 마", "쓰지 말고". */
 const NEGATED_TAIL =
   /(?:cxc-?(?:loop|pabcd)|pabcd)\S*\s*(?:을|를|은|는)?\s*(?:(?:돌리|쓰|사용하|실행하|켜|하)지\s*(?:마|말)|말고|금지)/i;

@@ -95,6 +95,8 @@ test("issue 250: negated requests never arm or inject", () => {
     "I don't want you to use cxc-pabcd to plan",
     "I'd rather not use cxc-loop",
     "Stop using cxc-loop",
+    "Can you not run cxc-loop?",
+    "I would prefer not to use cxc-pabcd for planning",
   ]) {
     assert.equal(detectTrigger(prompt), null, prompt);
     assert.equal(detectLoopArmRequest(prompt), false, prompt);
