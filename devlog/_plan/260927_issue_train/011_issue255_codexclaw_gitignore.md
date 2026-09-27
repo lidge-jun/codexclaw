@@ -67,4 +67,4 @@ The other `mkdirSync` results do not first-create `<cwd>/.codexclaw`: `plan-cli.
 
 Residual risk: a process that dies between steps 1 and 2 leaves an empty `.codexclaw` without `.gitignore`, and later writers will not repair it. This is accepted for a low-severity issue; a user can delete the empty folder.
 
-Tests: `fresh cwd gets .codexclaw/.gitignore with exact bytes`; `existing empty .codexclaw is left alone`; `existing .codexclaw symlink is left alone and its target gets nothing`; `existing .gitignore is never overwritten`; `identical EEXIST on the ignore write is success`; `ignore write failure removes the empty folder it created and rethrows`.
+Tests: `fresh cwd gets .codexclaw/.gitignore with exact bytes`; `existing empty .codexclaw is left alone`; `existing .codexclaw symlink is left alone and its target gets nothing` (calls the helper alone, not a full writer); `existing .gitignore is never overwritten`; `identical EEXIST on the ignore write is success`; `ignore write failure removes the empty folder it created and rethrows`.

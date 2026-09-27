@@ -44,16 +44,23 @@ if (turn && existsSync(statePath(payload.cwd, payload.session_id)) && state.stop
 if (turn && state.injectedTurns.includes(turn)) return "";
 ```
 
-Import `existsSync` from `node:fs` and the newly exported `statePath` from `state.ts`; use the file-existence guard before `writeState` because `readState` returns a default for absent files (`state.ts:412-420,486-603`). This is a narrow reset guard, not a new strict inspection or conditional-publication API. Place the reset after `hook.ts:643-651` memory marker so a later spread cannot overwrite either field. `bumpStopCounter` at `hook.ts:1459-1479` continues to increment `stopBlockTotal` for each Stop and release when `nextTotal > MAX_STOP_BLOCKS_TOTAL`. Change its return to distinguish `"phase-cap"` and `"total-cap"`, so only the absolute-cap release emits a message. Every caller at `hook.ts:1791,1810` must handle either release code.
+Import `existsSync` from `node:fs` and the newly exported `statePath` from `state.ts`; use the file-existence guard before `writeState` because `readState` returns a default for absent files (`state.ts:412-420,486-603`). This is a narrow reset guard, not a new strict inspection or conditional-publication API. Place the reset after `hook.ts:643-651` memory marker so a later spread cannot overwrite either field. `bumpStopCounter` at `hook.ts:1459-1479` continues to increment `stopBlockTotal` for each Stop and release when `nextTotal > MAX_STOP_BLOCKS_TOTAL`. Its return contract and both callers are specified once, in "wp2 final cap-notice rule" at the end of this document (a numeric block count, or `phase-cap`, `total-cap`, `total-cap-silent`).
 
 ```diff
 -if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
-+if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
-   writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null, stopBlockCount: 0 });
+-  writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null, stopBlockCount: 0 });
 -  return "release";
-+  return nextTotal > MAX_STOP_BLOCKS_TOTAL ? "total-cap" : "phase-cap";
++if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
++  const totalCap = nextTotal > MAX_STOP_BLOCKS_TOTAL;
++  const alreadyNotified = state.stopBlockCapNotified === true;
++  writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null, stopBlockCount: 0,
++    stopBlockCapNotified: totalCap ? true : state.stopBlockCapNotified });
++  if (!totalCap) return "phase-cap";
++  return alreadyNotified ? "total-cap-silent" : "total-cap";
  }
 ```
+
+The block path keeps returning the numeric `nextCount` as today (`hook.ts:1471-1478`); the function type becomes `number | "phase-cap" | "total-cap" | "total-cap-silent"` (`hook.ts:1459`), and callers treat any number as a block.
 
 For `total-cap`, return `JSON.stringify({ systemMessage: "CodexClaw Stop continuation cap (24) reached for this user turn; releasing." })` plus newline. Do not include `decision:block`, `continue:false`, or `stopReason`. The universal Stop output accepts `systemMessage` (`/tmp/cxc-perm/codex-src/codex-rs/hooks/src/schema.rs:90-99,455-464`); the runtime records it as a Warning without blocking (`/tmp/cxc-perm/codex-src/codex-rs/hooks/src/events/stop.rs:277-293`). A phase-cap returns `""` as before.
 
@@ -77,7 +84,7 @@ Field chain for `stopBlockCapNotified: boolean`:
 - Reconstruction: `parsed.stopBlockCapNotified === true` in the strict reader beside `state.ts:551-554`; anything else is `false`. Old files read as `false`.
 - Serialization: `writeState` writes the whole object (`state.ts:607-615`); nothing extra.
 - Reset: the new-turn reset in `handleUserPromptSubmit` writes `{ stopBlockTotal: 0, stopBlockTurnId: turn, stopBlockCapNotified: false }`.
-- Cap write: `bumpStopCounter` returns `"block" | "phase-cap" | "total-cap" | "total-cap-silent"`. On a total-cap release it writes `stopBlockCapNotified: true` in the same `writeState` call and returns `"total-cap"` when the flag was false before, `"total-cap-silent"` when it was already true.
+- Cap write: `bumpStopCounter` returns `number | "phase-cap" | "total-cap" | "total-cap-silent"` (a number is a block, as today). On a total-cap release it writes `stopBlockCapNotified: true` in the same `writeState` call and returns `"total-cap"` when the flag was false before, `"total-cap-silent"` when it was already true.
 - Caller output: both callers (`hook.ts:1791` IDLE path and `hook.ts:1810` in-flight path) map `"total-cap"` to `JSON.stringify({ systemMessage: "CodexClaw Stop continuation cap (24) reached for this user turn; releasing." }) + "\n"` and every other release code to `""`.
 
 Tests in `hook-continuation.test.ts`: `cap notice once per turn (turn id)` (Stop 25 returns the message, Stop 26 returns ""), `cap notice once per turn (no turn id)` (same with no `turn_id` in any payload), `new turn re-arms the cap notice`; in `state.test.ts`: `stopBlockCapNotified defaults to false and round-trips`.
