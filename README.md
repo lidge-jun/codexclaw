@@ -74,6 +74,16 @@ Then restart Codex and approve the 24 hooks when prompted (upgrades ask again â€
 - "Interview me first, then draft a diff-level plan."
 - "Plan this with codexclaw PABCD and use multi-model subagents."
 
+### Agent-created thread approvals (optional)
+
+Some Codex Desktop agent-created threads start with approval prompts even when your top-level Codex config requests `approval_policy = "never"` and `sandbox_mode = "danger-full-access"`. Codexclaw warns in those threads. To let its trusted PermissionRequest hook answer pending approvals, including one-time network-access requests, add this JSON boolean to `$CODEXCLAW_HOME/config.json` (default `~/.codexclaw/config.json`):
+
+```json
+{"permissions":{"agentCreatedThreadAutoAllow":true}}
+```
+
+Preserve any other keys already in that file. The setting is off when absent and cannot be enabled by a project-local file. It applies only when the rollout identifies an agent-created root thread in the default approval mode and the user Codex config has both explicit top-level full-access values. It does not change the thread's sandbox or guarantee network or filesystem access; other hooks can still deny a request. New or changed hooks need Codex trust approval before they run.
+
 <details>
 <summary><b>Update / uninstall / optional CLI</b></summary>
 

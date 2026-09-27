@@ -75,6 +75,33 @@ test("identityHash keeps the matcher in the live SubagentStop hook golden fixtur
   );
 });
 
+test("new agent thread hooks have stable trust identities and both require trust", () => {
+  const specs = [
+    ["permission-request-allowing-agent-thread.json", "PermissionRequest", "permission_request"],
+    ["session-start-advising-agent-thread-permissions.json", "SessionStart", "session_start"],
+  ] as const;
+  const entries = listHookEntries(PLUGIN_ROOT, "codexclaw@local");
+  const selected = specs.map(([file, event, label]) => {
+    const doc = JSON.parse(readFileSync(join(PLUGIN_ROOT, "hooks", file), "utf8")) as {
+      hooks: Record<string, Array<{ matcher?: string; hooks: HookHandler[] }>>;
+    };
+    const group = doc.hooks[event][0];
+    const hash = identityHash(event, group.matcher, group.hooks[0]);
+    assert.match(hash, /^sha256:[a-f0-9]{64}$/);
+    if (event === "PermissionRequest") assert.equal(group.matcher, "*");
+    const matches = entries.filter((entry) => entry.key === `codexclaw@local:hooks/${file}:${label}:0:0`);
+    assert.equal(matches.length, 1);
+    assert.equal(matches[0].hash, hash);
+    return matches[0];
+  });
+  const home = makeCodexHome("");
+  let statuses = diagnoseHookTrust(home, PLUGIN_ROOT, "codexclaw@local");
+  assert.deepEqual(selected.map((entry) => statuses.find((item) => item.key === entry.key)?.status), ["untrusted", "untrusted"]);
+  writeFileSync(join(home, "config.toml"), `${trustSection(selected[0])}\n${trustSection(selected[1], "sha256:stale")}`);
+  statuses = diagnoseHookTrust(home, PLUGIN_ROOT, "codexclaw@local");
+  assert.deepEqual(selected.map((entry) => statuses.find((item) => item.key === entry.key)?.status), ["trusted", "drifted"]);
+});
+
 test("identityHash filters matcher by event", () => {
   const handler = command("echo ok");
   assert.equal(identityHash("Stop", "^ignored$", handler), identityHash("Stop", undefined, handler));
