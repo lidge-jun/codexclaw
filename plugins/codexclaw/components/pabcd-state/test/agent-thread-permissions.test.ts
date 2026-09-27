@@ -44,6 +44,48 @@ test("allows opted-in agent-created root thread for covered tools", (t) => {
   assert.equal(f.send({ tool_name: "Bash", tool_input: { description: "network-access example.com" } }), ALLOW);
 });
 
+
+test("symlinked default directories into the home-cwd project cannot grant permission", (t) => {
+  const f = fixture(t);
+  const env = { CODEX_HOME: "", CODEXCLAW_HOME: "", HOME: f.root };
+  // Real project directories under the home, reached through symlinked defaults.
+  const projectCodex = join(f.cwd, ".codex");
+  const projectClaw = join(f.cwd, ".codexclaw");
+  mkdirSync(projectCodex);
+  mkdirSync(projectClaw);
+  writeFileSync(join(projectCodex, "config.toml"), FULL);
+  writeFileSync(join(projectClaw, "config.json"), '{"permissions":{"agentCreatedThreadAutoAllow":true}}');
+  const codexDir = join(f.root, ".codex");
+  const clawDir = join(f.root, ".codexclaw");
+  mkdirSync(clawDir);
+  writeFileSync(join(clawDir, "config.json"), '{"permissions":{"agentCreatedThreadAutoAllow":true}}');
+  symlinkSync(projectCodex, codexDir);
+  assert.equal(cli("permission-request", { ...f.input, cwd: f.root }, f.root, env).stdout, "", "symlinked ~/.codex");
+  rmSync(codexDir);
+  mkdirSync(codexDir);
+  writeFileSync(join(codexDir, "config.toml"), FULL);
+  rmSync(clawDir, { recursive: true, force: true });
+  symlinkSync(projectClaw, clawDir);
+  assert.equal(cli("permission-request", { ...f.input, cwd: f.root }, f.root, env).stdout, "", "symlinked ~/.codexclaw");
+});
+
+test("invalid dates, times and multi-line inline tables fail closed", (t) => {
+  const f = fixture(t);
+  for (const tail of [
+    "foo = 2026-13-42", "foo = 25:99:99", "foo = [2026-99-99]", "foo = 2026-02-30",
+    "foo = 2026-01-01T10:00:00+24:00", "foo = { a = 1,\n  b = 2 }",
+  ]) {
+    writeFileSync(join(f.codexHome, "config.toml"), FULL + tail + "\n");
+    assert.equal(f.send(), "", tail);
+    assert.equal(f.advise(), "", tail);
+  }
+  for (const tail of ["foo = 2024-02-29", "foo = 1979-05-27T07:32:00Z", "foo = 07:32:00", "foo = { a = 1, b = \"x\" }"]) {
+    writeFileSync(join(f.codexHome, "config.toml"), FULL + tail + "\n");
+    assert.equal(f.send(), ALLOW, tail);
+  }
+});
+
+
 test("network-access approval is allowed with opt-in", (t) => {
   const f = fixture(t);
   assert.equal(f.send({ tool_input: { description: "network-access example.com" } }), ALLOW);

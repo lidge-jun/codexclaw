@@ -53,6 +53,24 @@ function boundedText(path        )                {
   return readFileSync(path, "utf8");
 }
 
+/** Dates and times must name a real calendar day and clock time. */
+function validDateTime(token        )          {
+  const date = /^(\d{4})-(\d\d)-(\d\d)/.exec(token);
+  if (date) {
+    const year = Number(date[1]);
+    const month = Number(date[2]);
+    const day = Number(date[3]);
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return false;
+  }
+  const time = /(?:^|[Tt ])(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:[Zz]|[+-](\d\d):(\d\d))?$/.exec(token);
+  if (time) {
+    if (Number(time[1]) > 23 || Number(time[2]) > 59 || Number(time[3]) > 60) return false;
+    if (time[4] !== undefined && (Number(time[4]) > 23 || Number(time[5]) > 59)) return false;
+  }
+  return true;
+}
+
 function trustedConfigText(
   overrideValue                    , defaultDirectory        , filename        , cwd        ,
 )                {
@@ -64,7 +82,12 @@ function trustedConfigText(
   const realConfig = realpathSync(configPath);
   const rel = relative(realCwd, realConfig);
   const withinCwd = rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-  const defaultAtHome = !override && realCwd === realpathSync(homedir()) &&
+  // The home-cwd exception covers only the literal default file: if the default
+  // directory or file is a symlink anywhere, its real path differs and it is judged
+  // like any other file inside cwd.
+  const realHome = realpathSync(homedir());
+  const defaultAtHome = !override && realCwd === realHome &&
+    realConfig === join(realHome, defaultDirectory, filename) &&
     !lstatSync(configPath).isSymbolicLink() && lstatSync(configPath).isFile();
   if (withinCwd && !defaultAtHome) return null;
   return boundedText(realConfig);
@@ -230,17 +253,24 @@ function validValue(source        )          {
     }
     return false;
   };
+  // TOML 1.0 inline tables stay on one line (newlines only inside string values).
+  const singleLineInline = (start        )          => {
+    const body = source.slice(start, index)
+      .replace(/"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:[^"\\\n]|\\.)*"|'[^'\n]*'/g, "");
+    return !/[\r\n]/.test(body);
+  };
   const value = (depth        )          => {
     if (depth > 64) return false;
     skip();
     const opener = source[index];
     if (opener === '"' || opener === "'") return quoted();
     if (opener === "[" || opener === "{") {
+      const start = index;
       index += 1;
       const closer = opener === "[" ? "]" : "}";
       const inline = opener === "{" ? table() : null;
       skip();
-      if (source[index] === closer) { index += 1; return true; }
+      if (source[index] === closer) { index += 1; return opener === "[" || singleLineInline(start); }
       while (index < source.length) {
         if (opener === "{") {
           const parsed = keyPath(source, index);
@@ -251,7 +281,7 @@ function validValue(source        )          {
         }
         if (!value(depth + 1)) return false;
         skip();
-        if (source[index] === closer) { index += 1; return true; }
+        if (source[index] === closer) { index += 1; return opener === "[" || singleLineInline(start); }
         if (source[index++] !== ",") return false;
         skip();
         if (opener === "[" && source[index] === closer) { index += 1; return true; }
@@ -259,7 +289,7 @@ function validValue(source        )          {
       return false;
     }
     const bare = /^[^\s,\]\}#]+/.exec(source.slice(index));
-    if (!bare || !scalar.test(bare[0])) return false;
+    if (!bare || !scalar.test(bare[0]) || !validDateTime(bare[0])) return false;
     index += bare[0].length;
     return true;
   };
