@@ -47,11 +47,11 @@ test("allows opted-in agent-created root thread for covered tools", (t) => {
 
 test("overflowing numbers fail closed", (t) => {
   const f = fixture(t);
-  for (const tail of ["foo = 1e9999", "foo = -1e400"]) {
+  for (const tail of ["foo = 1e9999", "foo = -1e400", "foo = 9223372036854775808", "foo = 0x8000000000000000", "foo = -9223372036854775809"]) {
     writeFileSync(join(f.codexHome, "config.toml"), FULL + tail + "\n");
     assert.equal(f.send(), "", tail);
   }
-  writeFileSync(join(f.codexHome, "config.toml"), FULL + "foo = 1e300\nbar = 9007199254740993\n");
+  writeFileSync(join(f.codexHome, "config.toml"), FULL + "foo = 1e300\nbar = 9007199254740993\nbaz = 9223372036854775807\nqux = -9223372036854775808\nhex = 0x7fff_ffff_ffff_ffff\n");
   assert.equal(f.send(), ALLOW);
 });
 

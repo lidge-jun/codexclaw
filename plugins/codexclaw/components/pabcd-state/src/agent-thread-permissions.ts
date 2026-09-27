@@ -56,9 +56,17 @@ function boundedText(path: string): string | null {
 /** Dates and times must name a real calendar day and clock time. */
 /** A decimal float or integer must be representable; `1e9999` overflows in Codex's parser. */
 function finiteNumber(token: string): boolean {
-  if (!/^[+-]?(?:\d|\.)/.test(token) || /^[+-]?(?:inf|nan)$/.test(token) || /^\d{4}-|^\d\d:/.test(token) || /^0[xob]/i.test(token)) return true;
-  const value = Number(token.replace(/_/g, ""));
-  return Number.isFinite(value) && (/[.eE]/.test(token) || Number.isSafeInteger(value) || Math.abs(value) <= 9223372036854775807);
+  if (!/^[+-]?(?:\d|\.)/.test(token) || /^[+-]?(?:inf|nan)$/.test(token) || /^\d{4}-|^\d\d:/.test(token)) return true;
+  const clean = token.replace(/_/g, "");
+  const radix = /^0[xob]/i.exec(clean);
+  if (radix || !/[.eE]/.test(clean)) {
+    // Integers of every radix must fit a signed 64-bit value, as in Codex's parser.
+    const negative = clean.startsWith("-");
+    const digits = clean.replace(/^[+-]/, "");
+    const value = BigInt(radix ? `0${digits[1].toLowerCase()}${digits.slice(2)}` : digits);
+    return negative ? value <= 9223372036854775808n : value <= 9223372036854775807n;
+  }
+  return Number.isFinite(Number(clean));
 }
 
 function validDateTime(token: string): boolean {
