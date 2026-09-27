@@ -28,6 +28,7 @@
  *    (transcript_path = parent, agent_transcript_path = child): schema.rs:576, hook_runtime.rs:302
  *  - decision:"block" + reason re-prompts the child's own turn: stop.rs:263,351 + turn.rs:323
  */
+import { readPabcdEnabled } from "./interview-policy.ts";
 import {
   existsSync,
   lstatSync,
@@ -53,7 +54,6 @@ import {
   type UnverifiedSubagent,
 } from "./state.ts";
 import type { SubagentStopPayload } from "./hook.ts";
-import { configPath } from "./interview-policy.ts";
 
 /**
  * agent_type values routed to this gate.
@@ -469,23 +469,6 @@ export function escalationDirective(): string {
  * The SubagentStop decision. Returns the codex hook stdout (a `{decision:"block",reason}`
  * JSON string to force the child to continue, or `""` to release). Total: never throws.
  */
-function readPabcdEnabled(cwd: string): boolean {
-  // WP2-012 owns the shared reader. Keep this isolated branch buildable until its
-  // predecessor lands; the policy precedence and shape match that reader.
-  const override = process.env.CODEXCLAW_PABCD?.trim().toLowerCase();
-  if (override === "off" || override === "0" || override === "false") return false;
-  if (override === "on" || override === "1" || override === "true") return true;
-  try {
-    const raw: unknown = JSON.parse(readFileSync(configPath(cwd), "utf8"));
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return true;
-    const pabcd = (raw as Record<string, unknown>).pabcd;
-    if (!pabcd || typeof pabcd !== "object" || Array.isArray(pabcd)) return true;
-    return (pabcd as Record<string, unknown>).enabled !== false;
-  } catch {
-    return true;
-  }
-}
-
 export function runSubagentStopGate(payload: SubagentStopPayload): string {
   try {
     if (!readPabcdEnabled(payload.cwd)) return "";
