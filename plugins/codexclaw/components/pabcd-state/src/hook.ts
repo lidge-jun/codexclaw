@@ -26,6 +26,7 @@ import {
   matchesDcloseRecovery,
   readState,
   STATE_DIR,
+  statePath,
   writeState,
   type Phase,
   type State,
@@ -651,7 +652,11 @@ export function handleUserPromptSubmit(
     }
   }
   if (options.pabcdEnabled === false) return "";
-  const state = readState(payload.cwd, payload.session_id);
+  let state = readState(payload.cwd, payload.session_id);
+  if (turn && existsSync(statePath(payload.cwd, payload.session_id)) && state.stopBlockTurnId !== turn) {
+    state = { ...state, stopBlockTotal: 0, stopBlockTurnId: turn, stopBlockCapNotified: false };
+    writeState(payload.cwd, state);
+  }
   if (turn && state.injectedTurns.includes(turn)) return "";
 
   // L3b: parser-first AUTHORITATIVE path. An explicit, line-anchored
@@ -1458,7 +1463,7 @@ function observeProgress(cwd: string, state: State): ProgressObservation {
   return { progressed, metricCursor, workPhaseId };
 }
 
-function bumpStopCounter(cwd: string, state: State): number | "release" {
+function bumpStopCounter(cwd: string, state: State): number | "phase-cap" | "total-cap" | "total-cap-silent" {
   const obs = observeProgress(cwd, state);
   const nextCount = obs.progressed ? 1 : state.stopBlockCount + 1;
   const nextTotal = state.stopBlockTotal + 1;
@@ -1467,9 +1472,12 @@ function bumpStopCounter(cwd: string, state: State): number | "release" {
   // regardless of how often progress recharges the per-phase counter.
   const carry = { stopMetricCursor: obs.metricCursor, stopBlockTotal: nextTotal };
   if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
-    // give up the loop: reset the counter and release so the turn can end.
-    writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null, stopBlockCount: 0 });
-    return "release";
+    const totalCap = nextTotal > MAX_STOP_BLOCKS_TOTAL;
+    const alreadyNotified = state.stopBlockCapNotified === true;
+    writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null,
+      stopBlockCount: 0, stopBlockCapNotified: totalCap ? true : state.stopBlockCapNotified });
+    if (!totalCap) return "phase-cap";
+    return alreadyNotified ? "total-cap-silent" : "total-cap";
   }
   writeState(cwd, {
     ...state,
@@ -1787,7 +1795,9 @@ export function handleStop(
     if (!state.slug || !safeReadBoundGoalplan(payload.cwd, state.slug)) return "";
     // bail: don't pile on during context-pressure/compaction recovery.
     if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
-    if (bumpStopCounter(payload.cwd, state) === "release") return "";
+    const count = bumpStopCounter(payload.cwd, state);
+    if (count === "total-cap") return `${JSON.stringify({ systemMessage: "CodexClaw Stop continuation cap (24) reached for this user turn; releasing." })}\n`;
+    if (typeof count !== "number") return "";
     return buildGoalIdleBlock(payload.cwd, state, payload.session_id, platform);
   }
 
@@ -1806,7 +1816,9 @@ export function handleStop(
   // bail: don't pile on during context-pressure/compaction recovery.
   if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
 
-  if (bumpStopCounter(payload.cwd, state) === "release") return "";
+  const count = bumpStopCounter(payload.cwd, state);
+  if (count === "total-cap") return `${JSON.stringify({ systemMessage: "CodexClaw Stop continuation cap (24) reached for this user turn; releasing." })}\n`;
+  if (typeof count !== "number") return "";
   const plateau = objectivePlateau(payload.cwd, payload.session_id);
   if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau, payload.cwd, payload.session_id);
   // 040: enrich the block reason with goalplan-derived remaining work (text-only, after

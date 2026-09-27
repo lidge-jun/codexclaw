@@ -47,6 +47,8 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
       stopBlockWorkPhaseId: null,
       stopMetricCursor: 0,
       stopBlockTotal: 0,
+      stopBlockTurnId: null,
+      stopBlockCapNotified: false,
       loopArmSeen: false,
       idleEditNudges: 0,
       memoryWriteRequested: false,
@@ -65,6 +67,31 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+test("stopBlockTurnId round trips and malformed value becomes null", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("turn-state"), stopBlockTurnId: "turn-new" });
+    assert.equal(readState(cwd, "turn-state").stopBlockTurnId, "turn-new");
+    const file = join(cwd, STATE_DIR, SESSIONS_SUBDIR, "turn-state.json");
+    const persisted = JSON.parse(readFileSync(file, "utf8"));
+    writeFileSync(file, JSON.stringify({ ...persisted, stopBlockTurnId: 42 }));
+    assert.equal(readState(cwd, "turn-state").stopBlockTurnId, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("stopBlockCapNotified defaults to false and round-trips", () => {
+  const cwd = freshCwd();
+  try {
+    assert.equal(defaultState("notice").stopBlockCapNotified, false);
+    writeState(cwd, { ...defaultState("notice"), stopBlockCapNotified: true });
+    assert.equal(readState(cwd, "notice").stopBlockCapNotified, true);
+    const file = join(cwd, STATE_DIR, SESSIONS_SUBDIR, "notice.json");
+    const persisted = JSON.parse(readFileSync(file, "utf8"));
+    writeFileSync(file, JSON.stringify({ ...persisted, stopBlockCapNotified: "true" }));
+    assert.equal(readState(cwd, "notice").stopBlockCapNotified, false);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
 test("050: a corrupt snapshot is rejected rather than coerced", () => {
