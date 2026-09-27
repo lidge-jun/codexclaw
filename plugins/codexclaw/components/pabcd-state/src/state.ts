@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join, resolve } from "node:path";
@@ -133,8 +134,12 @@ export interface State {
    * but only a cursor answers "is this new".
    */
   stopMetricCursor: number;
-  /** Stop blocks this session, never reset — the loop's absolute bound. */
+  /** Stop blocks in the current observed user turn. */
   stopBlockTotal: number;
+  /** Last genuine UserPromptSubmit turn whose total was reset. */
+  stopBlockTurnId: string | null;
+  /** Whether the current turn's absolute-cap notice was emitted. */
+  stopBlockCapNotified: boolean;
   // 260714 wp3 (IDLE-EDIT-ADVISORY-01): true once this session saw a loop-arm request
   // (detectLoopArmRequest). Retained across D-close (multi-cycle re-arm nudge is the
   // feature); cleared only by explicit reset (operator stand-down).
@@ -298,6 +303,8 @@ export function defaultState(sessionId: string, slug = ""): State {
     stopBlockWorkPhaseId: null,
     stopMetricCursor: 0,
     stopBlockTotal: 0,
+    stopBlockTurnId: null,
+    stopBlockCapNotified: false,
     loopArmSeen: false,
     idleEditNudges: 0,
     memoryWriteRequested: false,
@@ -317,7 +324,7 @@ function sessionsDir(cwd: string): string {
   return join(cwd, STATE_DIR, SESSIONS_SUBDIR);
 }
 
-function statePath(cwd: string, sessionId: string): string {
+export function statePath(cwd: string, sessionId: string): string {
   return join(sessionsDir(cwd), `${sanitizeKey(sessionId)}.json`);
 }
 
@@ -374,6 +381,7 @@ export function ensureState(
     throw new TypeError("sessionId must be a canonical state key");
   }
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, sessionId);
   const tmp = `${finalPath}.${process.pid}.${randomUUID()}.tmp`;
@@ -552,6 +560,11 @@ export function readStateStrict(cwd: string, sessionId: string): { state: State;
         typeof parsed.stopBlockTotal === "number" && Number.isFinite(parsed.stopBlockTotal) && parsed.stopBlockTotal >= 0
           ? Math.floor(parsed.stopBlockTotal)
           : 0,
+      stopBlockTurnId:
+        typeof parsed.stopBlockTurnId === "string" && parsed.stopBlockTurnId.length > 0
+          ? parsed.stopBlockTurnId
+          : null,
+      stopBlockCapNotified: parsed.stopBlockCapNotified === true,
       // 260714 wp3: strict reconstruction (old files read false/0 — backward-compatible).
       loopArmSeen: parsed.loopArmSeen === true,
       idleEditNudges:
@@ -606,6 +619,7 @@ export function readStateStrict(cwd: string, sessionId: string): { state: State;
 
 export function writeState(cwd: string, next: State): void {
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, next.sessionId);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
@@ -653,6 +667,7 @@ function sleepSyncMs(ms: number): void {
 
 export function withSessionLock<T>(cwd: string, sessionId: string, fn: () => T): T {
   const dir = sessionsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const lockPath = `${statePath(cwd, sessionId)}.lock`;
   let held = false;
@@ -680,6 +695,7 @@ export function withSessionLock<T>(cwd: string, sessionId: string, fn: () => T):
 
 export function appendLedger(cwd: string, entry: LedgerEntry): void {
   const dir = join(cwd, STATE_DIR);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, LEDGER_FILE), `${JSON.stringify(entry)}\n`);
 }
@@ -737,6 +753,7 @@ function interviewLedgerPath(cwd: string, sessionId: string): string {
  */
 export function appendInterviewEvent(cwd: string, entry: InterviewEvent): void {
   const dir = interviewsDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   appendFileSync(interviewLedgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
 }

@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * receipt-cli.ts — `cxc receipt test` (075).
  *
@@ -178,6 +179,7 @@ export function runReceiptCli(args                )                   {
     // Recorded so a reader can see WHICH rewrites the check was allowed to make.
     ...(args.generated && args.generated.length > 0 ? { generatedPaths: args.generated } : {}),
   };
+  ensureCodexclawDir(args.cwd);
   mkdirSync(join(path, ".."), { recursive: true });
   writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
   return { output: path, code: 0 };

@@ -39,6 +39,7 @@ import { captureSessionSourceIdentity } from "./session-source-identity.ts";
 import { resolveSessionSource } from "./session-source.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
 import { hasSpentBudget, unrecordableVerdictStatus } from "./subagent-evidence.ts";
+import { readPabcdEnabled } from "./interview-policy.ts";
 // Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
 // 260724 WP1: deny remedies name `cxc orchestrate ...`/`cxc loop validate` — on a
 // payload-only install those must render the resolvable invocation. Emit-time only.
@@ -206,7 +207,7 @@ function goalCompleteDenyEnvelope(reason: string): string {
  * Forensics: sessions 019f4407 (goal completed with a self-listed REMAINING queue) and
  * 019f4456 (empty goalplan would have rubber-stamped validate).
  */
-export function applyGoalCompleteGuard(payload: PreToolUsePayload): string {
+export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled = true): string {
   try {
     if (payload.hook_event_name !== "PreToolUse") return "";
     if (payload.tool_name !== UPDATE_GOAL_TOOL_NAME) return "";
@@ -223,7 +224,7 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload): string {
         `GOAL-COMPLETE-GATE-01: this session's state is unreadable, so unresolved subagent evidence failures cannot be ruled out. Restore or reset the session state after verifying the delegated work, or use update_goal status "blocked".`,
       );
     }
-    if (state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
+    if (pabcdEnabled && state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
       return goalCompleteDenyEnvelope(
         `GOAL-COMPLETE-GATE-01: a PABCD cycle is in flight at phase ${state.phase}. Close the cycle first (advance to D via \`cxc orchestrate ... --session ${payload.session_id}\`, or \`cxc orchestrate reset --session ${payload.session_id}\`), then mark the goal complete. If an external blocker prevents closing, use update_goal status "blocked" instead.`,
       );
@@ -269,7 +270,7 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload): string {
         `GOAL-COMPLETE-GATE-01: a delegated subagent exhausted its evidence-verification budget without a valid receipt. Re-verify that work and record a receipt with \`cxc evidence resolve --session ${payload.session_id} --agent <agent-id> --receipt <path>\`, or use update_goal status "blocked".`,
       );
     }
-    if (state.slug) {
+    if (pabcdEnabled && state.slug) {
       try { resolveSessionSource(payload.cwd, payload.session_id); }
       catch (err) { return goalCompleteDenyEnvelope(`SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}`); }
       const plan = readGoalplan(payload.cwd, state.slug);
@@ -314,9 +315,11 @@ export function handlePreToolUseFailClosed(raw: string, deps: GoalActiveDeps = {
   try {
     const payload = parsePreToolUse(raw);
     if (!payload) return "";
+    const enabled = readPabcdEnabled(payload.cwd);
     // Each guard is tool-name-scoped, so at most one fires.
-    return applyGoalBudgetGuard(payload) || applyGoalModeInterviewGuard(payload, deps) || applyGoalCompleteGuard(payload);
+    return applyGoalBudgetGuard(payload) || (enabled ? applyGoalModeInterviewGuard(payload, deps) : "") || applyGoalCompleteGuard(payload, enabled);
   } catch {
-    return rawLooksLikeRequestUserInput(raw) ? goalModeInterviewDenyEnvelope("unreadable") : "";
+    return readPabcdEnabled(process.cwd()) && rawLooksLikeRequestUserInput(raw)
+      ? goalModeInterviewDenyEnvelope("unreadable") : "";
   }
 }

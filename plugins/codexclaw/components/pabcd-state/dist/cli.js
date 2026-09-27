@@ -51,6 +51,14 @@ import { handleIdleEditAdvisory } from "./idle-edit.js";
 import { handleMemoryWriteGate } from "./memory-write-gate.js";
 import { handleAutomationOwnershipGate } from "./automation-ownership-gate.js";
 import { handleReviewObserver } from "./review-observer.js";
+import { readPabcdEnabled } from "./interview-policy.js";
+
+const PABCD_DISABLED_EVENTS = new Set([
+  "session-start", "stop", "post-compact", "post-tool-use",
+  "subagent-stop", "subagent-stop-review", "pre-tool-use-idle-edit",
+  "pre-tool-use-friction", "post-tool-use-friction", "post-tool-use-edit-shape",
+  "post-tool-use-render-observation",
+]);
 
 // wp10 (090 trim 4c): the ten terminal-only verb modules below are loaded with
 // dynamic import() inside their own branch instead of at module scope.
@@ -392,6 +400,17 @@ async function main()                {
     process.exit(0);
   }
 
+  let hookCwd = process.cwd();
+  try {
+    const payload          = JSON.parse(raw);
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const candidate = (payload                           ).cwd;
+      if (typeof candidate === "string" && candidate.length > 0) hookCwd = candidate;
+    }
+  } catch { /* malformed hook input keeps process cwd */ }
+  const pabcdEnabled = readPabcdEnabled(hookCwd);
+  if (!pabcdEnabled && PABCD_DISABLED_EVENTS.has(event)) process.exit(0);
+
   // pre-tool-use is handled by a dedicated FAIL-CLOSED dispatcher: a thrown
   // error on a request_user_input call must DENY (R-9), never fail open. It is
   // outside the generic fail-open try below so the swallow cannot reopen the
@@ -409,7 +428,7 @@ async function main()                {
       if (payload) output = handleSessionStart(payload); // side-effect only; always ""
     } else if (event === "user-prompt-submit") {
       const payload = parseUserPromptSubmit(raw);
-      if (payload) output = handleUserPromptSubmit(payload);
+      if (payload) output = handleUserPromptSubmit(payload, process.platform, {}, { pabcdEnabled });
     } else if (event === "stop") {
       const payload = parseStop(raw);
       if (payload) output = handleStop(payload);
@@ -439,7 +458,7 @@ async function main()                {
       // lint (deny-capable) first; a lint deny wins; otherwise the IDLE-edit advisory
       // may inject context. Both legs FAIL-OPEN; a crash must never deny the edit.
       output = handleApplyPatchLint(raw);
-      if (output === "") output = handleIdleEditAdvisory(raw);
+      if (pabcdEnabled && output === "") output = handleIdleEditAdvisory(raw);
     } else if (event === "pre-tool-use-idle-edit") {
       // 260714 wp3: FAIL-OPEN IDLE-edit advisory (IDLE-EDIT-ADVISORY-01). Allow +
       // additionalContext only; a crash here must never deny an edit.

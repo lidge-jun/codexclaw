@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /** Main-owned native spawn protocol. This module selects attempts; it never calls a provider. */
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -68,8 +69,9 @@ function taskFailure(raw: unknown): TaskFailure {
   return { kind: t.kind as TaskFailure["kind"], evidence: smallText(t.evidence, "taskFailure evidence") };
 }
 function directory(cwd: string, sessionId: string): string {
-  let dir = cwd;
-  for (const part of [".codexclaw", "dispatches", sessionId]) {
+  ensureCodexclawDir(cwd);
+  let dir = join(cwd, ".codexclaw");
+  for (const part of ["dispatches", sessionId]) {
     dir = join(dir, part);
     if (existsSync(dir)) {
       if (!lstatSync(dir).isDirectory() || lstatSync(dir).isSymbolicLink()) throw new Error("dispatch directory must not be a symlink");

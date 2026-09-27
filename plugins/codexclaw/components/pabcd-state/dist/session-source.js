@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /** Immutable per-session source binding; native state/identity never moves. */
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -180,6 +181,7 @@ export function bindSessionSource(cwd        , sessionId        , target        
   }
   const binding                = { version: 1, ownerSessionId: sessionId, nativeCwd, sourceRoot, commonDir: source.commonDir, gitDir: source.gitDir };
   const path = bindingPath(cwd, sessionId);
+  ensureCodexclawDir(cwd);
   mkdirSync(join(cwd, ".codexclaw", "sources"), { recursive: true });
   bindingPath(cwd, sessionId);
   const tmp = `${path}.${randomUUID()}.tmp`;

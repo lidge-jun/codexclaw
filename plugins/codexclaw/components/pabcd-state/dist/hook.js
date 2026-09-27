@@ -8,9 +8,9 @@
  *
  * Stop: active under a native goal only. It returns a bounded
  * `{decision:"block",reason}` continuation envelope while a PABCD cycle is in flight —
- * or, since 260709 (GOAL-IDLE-CONTINUE-01), while an ACTIVE goal is parked with no
- * in-flight cycle (arming nudge). It releases on: no active goal, phase I, context
- * pressure, or the same-phase stagnation cap (the single total-termination bound now
+ * or, since 260709 (GOAL-IDLE-CONTINUE-01), while an ACTIVE goal has a bound
+ * goalplan but no in-flight cycle (arming nudge). It releases on: no active goal,
+ * no bound plan, phase I, context pressure, or the same-phase stagnation cap (the single total-termination bound now
  * that the old unconditional `stop_hook_active` release is gone).
  *
  * Ground truth:
@@ -26,6 +26,7 @@ import {
   matchesDcloseRecovery,
   readState,
   STATE_DIR,
+  statePath,
   writeState,
 
 
@@ -230,22 +231,68 @@ export function resolveCxcInDirective(text        )         {
   }
 }
 
+/** Lines that can carry an advisory CodexClaw request, excluding quoted examples. */
+function requestLines(prompt        )           {
+  const result           = [];
+  let fenced = false;
+  for (const raw of (prompt ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (/^```/.test(line)) { fenced = !fenced; continue; }
+    if (fenced || !line || /^(?:>|[-*] |\d+[.)] )/.test(line)) continue;
+    // Explanatory leads describe a command; later mentions of docs/README do not.
+    const explanatory = /^(?:(?:please|좀)\s+)?(?:explain|describe|how do|how to|what is|what does|why)\b|^(?:좀\s*)?(?:설명|어떻게|뭐야)/i.test(line);
+    const unquoted = line
+      .replace(/`([^`]*)`/g, (match, inner        , offset        ) => {
+        if (explanatory || !/^(?:\$?(?:codexclaw:)?cxc-(?:loop|pabcd)|orchestrate\s+[ipabc])$/i.test(inner.trim())) return " ";
+        const before = line.slice(0, offset);
+        const after = line.slice(offset + match.length);
+        const addressed = /^(?:(?:please|좀)\s+)?(?:run|use|start|invoke|실행|돌려)\s*$/i.test(before)
+          || (/^(?:(?:please|좀)\s*)?$/i.test(before) && /^\s*(?:로|으로|써서)/.test(after));
+        return addressed ? inner : " ";
+      })
+      .replace(/"(?:\\.|[^"\\])*"|“[^”]*”|(?<!\w)'(?:\\.|[^'\\])*'/g, " ")
+      .trim();
+    if (!unquoted || explanatory) continue;
+    // A clause that forbids the codexclaw action itself ("do not run cxc-loop",
+    // "cxc-loop 돌리지 마") is not a request; a constraint on something else
+    // ("run cxc-loop without asking me") is. Clauses split on sentence ends and
+    // contrast words, never on commas.
+    for (const clause of unquoted.split(/[.;!?]\s*|,\s*(?=(?:please\s+)?(?:use|run|start|invoke)\b)|\s+but\s+|\s*(?:하지만|그런데)\s*/i)) {
+      const text = clause.trim();
+      if (text && !NEGATED_LEAD.test(text) && !NEGATED_TAIL.test(text)) result.push(text);
+    }
+  }
+  return result;
+}
+
 /**
- * Detect an explicit IPABCD/interview trigger. Explicit only — no goal-mode
- * branch (A3 decision, see 022.3). Both English and Korean phrasings.
- * Order matters: interview is checked first so "orchestrate i" wins over "p".
+ * English negation that governs the clause's own verb: "do not run ...", "never use ...",
+ * and indirect refusals such as "I don't want you to run ..." or "please do not ...".
  */
+const NEGATED_LEAD =
+  /^(?:(?:please|좀)\s+)?(?:(?:i|we)\s+(?:do\s+not|don't|dont)\s+(?:want|need)\b|(?:i'd|i\s+would|we'd|we\s+would)\s+(?:rather|prefer)\s+(?:not|you\s+not|you\s+didn't)\b|(?:can|could|would|will)\s+you\s+(?:not|please\s+not)\b|do\s+not|don't|dont|never|no\s+need\s+to|avoid|stop)\b/i;
+/** Korean negation attached to the mode verb right after the marker: "cxc-loop 돌리지 마", "쓰지 말고". */
+const NEGATED_TAIL =
+  /(?:cxc-?(?:loop|pabcd)|pabcd)\S*\s*(?:을|를|은|는)?\s*(?:(?:돌리|쓰|사용하|실행하|켜|하)지\s*(?:마|말)|말고|금지)/i;
+
+/** Advisory phase hints require an explicit CodexClaw marker and request. */
 export function detectTrigger(prompt        )               {
-  const p = (prompt ?? "").toLowerCase();
-  // Korean triggers are anchored to an action marker. 감사 ("audit") is
-  // ambiguous with 감사 ("thanks"), so AUDIT REQUIRES a strong do-it marker
-  // (해줘/해라/하자/좀/진행/부탁) and rejects the bare/polite thanks forms
-  // 감사 / 감사해 / 감사해요 / 감사합니다 (Galileo blocker #1).
-  if (/\binterview\b|인터뷰|\borchestrate i\b/.test(p)) return "I";
-  if (/\borchestrate p\b|plan this|계획(?:을)?\s*세워/.test(p)) return "P";
-  if (/\borchestrate a\b|audit this|감사\s*(?:해줘|해라|하자|좀|진행|부탁)/.test(p)) return "A";
-  if (/\borchestrate b\b|build this|구현\s*(?:해|하자|좀)/.test(p)) return "B";
-  if (/\borchestrate c\b|check this|검증\s*(?:해|하자|좀)/.test(p)) return "C";
+  for (const line of requestLines(prompt)) {
+    const command = /^orchestrate\s+([ipabc])(?:\s|$)/i.exec(line);
+    if (command) {
+      const phase = command[1].toUpperCase();
+      if (phase === "I" || phase === "P" || phase === "A" || phase === "B" || phase === "C") return phase;
+    }
+    const marker = /(?:\bcxc-pabcd\b|\bcodexclaw:cxc-pabcd\b|\[\$?cxc-pabcd\]\(skill:\/\/[^)]+\)|\bpabcd\s*(?:로|phase\b))/i.test(line);
+    const requested = /(?:\b(?:use|run|start|invoke|enter|apply)\b|(?:시작|진행|적용|실행|돌려|써서|으로|들어가))/i.test(line);
+    if (!marker || !requested) continue;
+    if (/\binterview\b|(?:^|\s)인터뷰(?:\s|$)|\bphase\s*i\b/i.test(line)) return "I";
+    if (/\bplan\b|\bphase\s*p\b|계획/i.test(line)) return "P";
+    if (/\baudit\b|\bphase\s*a\b|감사/i.test(line)) return "A";
+    if (/\bbuild\b|\bphase\s*b\b|구현/i.test(line)) return "B";
+    if (/\bcheck\b|\bphase\s*c\b|검증/i.test(line)) return "C";
+    if (/pabcd\s*로|\bcxc-pabcd\b/i.test(line)) return "P";
+  }
   return null;
 }
 
@@ -263,29 +310,13 @@ export function detectAgbrowseSearchRequest(prompt        )          {
   );
 }
 
-/**
- * Detect an explicit loop/goalplan/continue-until-done request (ORCH-MANDATE-01).
- * HEURISTIC and deliberately curated: bare "loop"/"루프" are excluded (a `for` loop
- * bug report must not arm PABCD ceremony) — a loop word needs an action marker, and
- * the strongest signals are the cxc-loop/HOTL/goalplan tokens themselves.
- */
+/** Advisory loop arming requires a named CodexClaw mode and an action. */
 export function detectLoopArmRequest(prompt        )          {
-  const p = (prompt ?? "").toLowerCase();
-  if (/\bcxc-?loop\b|\bhotl\b|\bgoal\s*plan\b|\bgoalplan\b|골플랜|고울플랜/.test(p)) return true;
-  // ORCH-ARM-PABCD-01: the harness's own protocol name is a first-class arming
-  // token when paired with a STRONG run/repeat marker ("pabcd 여러 번", "run
-  // pabcd", "pabcd 돌려", "pabcd repeatedly"). Bare "pabcd" alone stays excluded
-  // (a question ABOUT pabcd must not arm ceremony), and weak markers like
-  // 다시/계속/again/runs are deliberately NOT signals (260714 audit round 1).
-  if (/\bi?pabcd\b/.test(p) && /여러\s*번|반복|한\s*번\s*더|돌려|돌리|돌자|사이클|\b(?:run|loop|repeat|iterate|cycle)\b|\brepeatedly\b|\bmultiple\s+times\b/.test(p)) return true;
-  // Repeat-marker IMMEDIATELY followed by a solve/progress marker, without the
-  // literal 루프 word ("여러 번 돌려서 해결해"). Bare 실행/수행/진행 excluded:
-  // "테스트 여러 번 실행해봐" is a repeat-run ask, not a loop request.
-  if (/(?:여러\s*번|반복(?:해서|적으로)?)\s*(?:돌|해결|해라|하자)/.test(p)) return true;
-  if (/\bcontinue\s+until\s+done\b|\bkeep\s+going\s+until\b|\buntil\s+(?:it'?s\s+)?done\b/.test(p)) return true;
-  if (/\bautonomous(?:ly)?\b.*\b(?:loop|continue|run|finish)\b|\bwork[- ]phase\s+loop\b/.test(p)) return true;
-  if (/루프\s*(?:를?\s*돌|시작|모드|가동|진행)/.test(p)) return true;
-  if (/끝까지\s*(?:해|진행|돌|완성|가|마무리)|멈추지\s*말|알아서\s*(?:끝까지|다\s*해)/.test(p)) return true;
+  for (const line of requestLines(prompt)) {
+    const marker = /\bcxc-?loop\b|\bcodexclaw:cxc-loop\b|\[\$?cxc-loop\]\(skill:\/\/[^)]+\)|\bgoal\s*plan\b|\bgoalplan\b|골플랜|\bhotl\b|(?<![-/\w])i?pabcd\b/i;
+    const action = /\b(?:use|run|start|invoke|arm|create|init|repeat|cycle|resume|continue)\b|(?:실행|돌려|돌리|써서|으로|시작|등록|진행|적용|해줘|이어서|재개)/i;
+    if (marker.test(line) && action.test(line)) return true;
+  }
   return false;
 }
 
@@ -625,6 +656,7 @@ export function handleUserPromptSubmit(
   payload                         ,
   platform                  = process.platform,
   dcloseCommitHooks                        = {},
+  options                             = {},
 )         {
   if (payload.hook_event_name !== "UserPromptSubmit") return "";
   const turn = payload.turn_id ?? "";
@@ -649,7 +681,12 @@ export function handleUserPromptSubmit(
       // `cxc memory allow-write`; it must never break prompt handling.
     }
   }
-  const state = readState(payload.cwd, payload.session_id);
+  if (options.pabcdEnabled === false) return "";
+  let state = readState(payload.cwd, payload.session_id);
+  if (turn && existsSync(statePath(payload.cwd, payload.session_id)) && state.stopBlockTurnId !== turn) {
+    state = { ...state, stopBlockTotal: 0, stopBlockTurnId: turn, stopBlockCapNotified: false };
+    writeState(payload.cwd, state);
+  }
   if (turn && state.injectedTurns.includes(turn)) return "";
 
   // L3b: parser-first AUTHORITATIVE path. An explicit, line-anchored
@@ -1456,7 +1493,7 @@ function observeProgress(cwd        , state       )                      {
   return { progressed, metricCursor, workPhaseId };
 }
 
-function bumpStopCounter(cwd        , state       )                     {
+function bumpStopCounter(cwd        , state       )                                                          {
   const obs = observeProgress(cwd, state);
   const nextCount = obs.progressed ? 1 : state.stopBlockCount + 1;
   const nextTotal = state.stopBlockTotal + 1;
@@ -1465,9 +1502,12 @@ function bumpStopCounter(cwd        , state       )                     {
   // regardless of how often progress recharges the per-phase counter.
   const carry = { stopMetricCursor: obs.metricCursor, stopBlockTotal: nextTotal };
   if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
-    // give up the loop: reset the counter and release so the turn can end.
-    writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null, stopBlockCount: 0 });
-    return "release";
+    const totalCap = nextTotal > MAX_STOP_BLOCKS_TOTAL;
+    const alreadyNotified = state.stopBlockCapNotified === true;
+    writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null,
+      stopBlockCount: 0, stopBlockCapNotified: totalCap ? true : state.stopBlockCapNotified });
+    if (!totalCap) return "phase-cap";
+    return alreadyNotified ? "total-cap-silent" : "total-cap";
   }
   writeState(cwd, {
     ...state,
@@ -1643,14 +1683,12 @@ export function readStopWorkContext(cwd        , state       )                  
 }
 
 /**
- * GOAL-IDLE-CONTINUE-01 (260709) — the Stop block for "goal ACTIVE but no PABCD cycle
- * in flight". The old guard 2a released this state silently, so a session could park an
- * active goal at IDLE forever (019f4407: goal created, FSM never entered, turn ended).
+ * GOAL-IDLE-CONTINUE-01 (260709) — the Stop block for a goal ACTIVE with a bound
+ * goalplan but no PABCD cycle in flight. An unbound goal releases at IDLE.
  * The reason names the two honest exits: arm the next work-phase (`orchestrate P`), or
  * close the goal for real (`update_goal complete` — gated by GOAL-COMPLETE-GATE-01 when
- * a goalplan is bound — or `blocked` for external blockers). When a goalplan is bound,
- * the remaining work is named; when it is bound but unregistered (empty), the block says
- * to fill it; when none is bound, it points at `cxc loop init`.
+ * a goalplan is bound — or `blocked` for external blockers). The remaining work is
+ * named when present; an empty bound plan gets guidance to register work phases.
  */
 export function buildGoalIdleBlock(
   cwd        ,
@@ -1746,9 +1784,10 @@ function objectivePlateau(cwd        , sessionId        )               {
 /**
  * Stop handler — L6 active continuation with a bounded stagnation guard so the loop
  * ALWAYS terminates. Blocks (keeps the agent going) only when a PABCD cycle is genuinely
- * in flight under an active goal, OR when an ACTIVE goal is parked with no in-flight
- * cycle (GOAL-IDLE-CONTINUE-01: arming nudge). Releases via any of: no active goal,
- * phase I (interview firewall), context pressure, or the MAX_STOP_BLOCKS cap.
+ * in flight under an active goal, OR when an ACTIVE goal with a bound plan is
+ * parked at IDLE (GOAL-IDLE-CONTINUE-01: arming nudge). Releases via any of:
+ * no active goal, no bound plan at IDLE, phase I (interview firewall), context
+ * pressure, or the MAX_STOP_BLOCKS cap.
  *
  * 260709 (lazygap loop-enforcement patch):
  *  - guard 1 (`stop_hook_active` → unconditional release) is REMOVED. Under the old
@@ -1757,13 +1796,10 @@ function objectivePlateau(cwd        , sessionId        )               {
  *    phase progress, which is the "step-by-step cut" the loop doctrine forbids.
  *    Termination stays total: the per-phase MAX_STOP_BLOCKS stagnation cap (reset on
  *    every real transition) bounds every continuation chain that stops progressing.
- *  - GOAL-IDLE-CONTINUE-01: an ACTIVE goal with no in-flight cycle used to release
- *    silently (guard 2a), so "goal armed but PABCD never entered" (019f4407) ended
- *    turns freely. It now gets the same bounded block, naming the arming command
- *    (`cxc orchestrate P --session <id>`), the goalplan's remaining work when one is
- *    bound, and the honest close-out path (update_goal complete gated by E8 / blocked).
- *    Side effect by design: the counter write creates the session state file, so the
- *    suggested orchestrate command passes the G2 unknown-session guard afterwards.
+ *  - GOAL-IDLE-CONTINUE-01: an ACTIVE goal with a resolvable bound plan gets a
+ *    bounded block naming the arming command (`cxc orchestrate P --session <id>`),
+ *    remaining work, and the honest close-out path (update_goal complete gated by
+ *    E8 / blocked). An unbound or stale slug releases without a counter write.
  */
 export function handleStop(
   payload             ,
@@ -1782,13 +1818,16 @@ export function handleStop(
   const inFlight = state.orchestrationActive && state.phase !== "IDLE";
 
   // guard 2a (amended by GOAL-IDLE-CONTINUE-01): with no cycle in flight a plain
-  // interactive session releases exactly as before; an ACTIVE goal instead gets a
-  // bounded arming block — "IDLE is not the end while work remains" (LOOP-CONTINUE-01).
+  // interactive session releases exactly as before; an ACTIVE goal with a bound
+  // plan gets a bounded arming block — "IDLE is not the end while work remains".
   if (!inFlight) {
     if (!goalActive) return "";
+    if (!state.slug || !safeReadBoundGoalplan(payload.cwd, state.slug)) return "";
     // bail: don't pile on during context-pressure/compaction recovery.
     if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
-    if (bumpStopCounter(payload.cwd, state) === "release") return "";
+    const count = bumpStopCounter(payload.cwd, state);
+    if (count === "total-cap") return `${JSON.stringify({ systemMessage: "CodexClaw Stop continuation cap (24) reached for this user turn; releasing." })}\n`;
+    if (typeof count !== "number") return "";
     return buildGoalIdleBlock(payload.cwd, state, payload.session_id, platform);
   }
 
@@ -1807,7 +1846,9 @@ export function handleStop(
   // bail: don't pile on during context-pressure/compaction recovery.
   if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
 
-  if (bumpStopCounter(payload.cwd, state) === "release") return "";
+  const count = bumpStopCounter(payload.cwd, state);
+  if (count === "total-cap") return `${JSON.stringify({ systemMessage: "CodexClaw Stop continuation cap (24) reached for this user turn; releasing." })}\n`;
+  if (typeof count !== "number") return "";
   const plateau = objectivePlateau(payload.cwd, payload.session_id);
   if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau, payload.cwd, payload.session_id);
   // 040: enrich the block reason with goalplan-derived remaining work (text-only, after

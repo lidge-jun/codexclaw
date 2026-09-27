@@ -3,7 +3,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { reconcile, selectWake, writeRecord, listRecords, type BgRecord } from "../src/registry.ts";
@@ -15,6 +15,14 @@ function workspace(): string {
   ensureDir(dir);
   return dir;
 }
+
+test("issue255: bg-wake first writer creates local ignore file", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "bgreg-first-"));
+  try {
+    ensureDir(cwd);
+    assert.match(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), /^# CodexClaw wrote this/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
 
 function running(cwd: string, id: string, pid: number | null): BgRecord {
   const rec: BgRecord = {
@@ -95,4 +103,3 @@ test("ids do not collide with existing records", () => {
   running(cwd, "taken", null);
   assert.notEqual(newId(cwd, "taken"), "taken");
 });
-

@@ -10,6 +10,7 @@ At P, consult a read-only architect; at A, dispatch an independent reviewer.
 Use a supported read-only transport for both and a supported write role for bounded
 implementation (DISPATCH-AGENT-TYPE-01 and the live schema below).
 The executor role resolves to its registered native `executor` type once `cxc subagents register executor` has run; unregistered installs keep the built-in `worker`.
+When PABCD policy is enabled, the registered executor is evidence-gated on every SubagentStop; the built-in worker fallback is evidence-gated only while the parent has an active PABCD B/C cycle. When PABCD policy is disabled, both gates are silent. Outside that cycle the worker releases without a receipt.
 Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
 Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
 `TASK`, `SCOPE`, `MUST DO`, `MUST NOT`, `PROOF`, `RETURN FORMAT`, and decision boundary.

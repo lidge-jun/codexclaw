@@ -104,7 +104,7 @@ test("current with no state directory is read-only; bind creates only the child 
     assert.equal(readFileSync(f.path, "utf8"), resumed);
     assert.deepEqual(readFileSync(parentPath), parent);
   }
-  assert.deepEqual(readdirSync(join(f.cwd, ".codexclaw")), ["sessions"]);
+  assert.deepEqual(readdirSync(join(f.cwd, ".codexclaw")), [".gitignore", "sessions"]);
   assert.deepEqual(readdirSync(f.dir).sort(), [`${CHILD}.json`, `${PARENT}.json`]);
 });
 

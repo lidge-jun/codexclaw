@@ -1,7 +1,8 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * subagent-evidence.ts — SubagentStop evidence-receipt gate (lazygap_impl 010).
  *
- * A dispatched WRITE/verify subagent (agent_type "executor", or legacy "worker") cannot "finish" without a
+ * A registered executor, or a legacy worker in an active PABCD B/C cycle, cannot "finish" without a
  * non-empty evidence receipt under `.codexclaw/evidence/`. Missing/invalid receipt ->
  * `decision:"block"` with a verifier directive that re-prompts the CHILD (codex-rs
  * turn.rs:323). After MAX_ATTEMPTS the directive escalates but remains fail-closed;
@@ -28,6 +29,7 @@
  *    (transcript_path = parent, agent_transcript_path = child): schema.rs:576, hook_runtime.rs:302
  *  - decision:"block" + reason re-prompts the child's own turn: stop.rs:263,351 + turn.rs:323
  */
+import { readPabcdEnabled } from "./interview-policy.js";
 import {
   existsSync,
   lstatSync,
@@ -55,8 +57,8 @@ import {
 
 
 /**
- * agent_type values this gate refuses to release without a receipt.
- * DISPATCH-AGENT-TYPE-01: executor and legacy worker are gated. Read-only audit/research
+ * agent_type values routed to this gate.
+ * DISPATCH-AGENT-TYPE-01: executor and legacy worker are candidates. Read-only audit/research
  * dispatches MUST use agent_type:"explorer" so they bypass both the hook
  * manifest matcher (^(executor|worker)$) and this runtime gate. See
  * structure/20_pabcd_dispatch_doctrine.md §3.
@@ -214,6 +216,7 @@ export function readAttempts(cwd        , sessionId        , agentId        , tu
 export function writeAttempts(cwd        , sessionId        , agentId        , attempts        , turnId = "")          {
   try {
     const p = attemptsPath(cwd, sessionId, agentId, turnId);
+    ensureCodexclawDir(cwd);
     mkdirSync(join(cwd, STATE_DIR, EVIDENCE_ATTEMPTS_SUBDIR), { recursive: true });
     const tmp = `${p}.${process.pid}.${Date.now()}.tmp`;
     writeFileSync(tmp, `${JSON.stringify({ attempts })}\n`);
@@ -335,6 +338,7 @@ function unrecordableDir(cwd        )         {
  */
 export function writeUnrecordableMarker(cwd        , sessionId        , agentId        )       {
   const dir = unrecordableDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const p = join(dir, `${sanitizeKey(sessionId)}-${sanitizeKey(agentId)}-${Date.now()}.json`);
   writeFileSync(p, `${JSON.stringify({ sessionId, agentId, at: new Date().toISOString() })}\n`, { flag: "wx" });
@@ -350,6 +354,7 @@ export function writeUnrecordableMarker(cwd        , sessionId        , agentId 
 function markerDirWritable(cwd        )          {
   const probe = join(unrecordableDir(cwd), `.probe-${process.pid}-${Date.now()}`);
   try {
+    ensureCodexclawDir(cwd);
     mkdirSync(unrecordableDir(cwd), { recursive: true });
     writeFileSync(probe, "", { flag: "wx" });
     rmSync(probe, { force: true });
@@ -470,7 +475,12 @@ export function escalationDirective()         {
  */
 export function runSubagentStopGate(payload                     )         {
   try {
+    if (!readPabcdEnabled(payload.cwd)) return "";
     if (!GATED_AGENT_TYPES.has(payload.agent_type)) return "";
+    if (payload.agent_type === "worker") {
+      const { state, unreadable } = readStateStrict(payload.cwd, payload.session_id);
+      if (unreadable || !state.orchestrationActive || (state.phase !== "B" && state.phase !== "C")) return "";
+    }
     const agentId = payload.agent_id ?? "";
     const { cwd, session_id: sessionId } = payload;
     // Same identity as a tombstone: two turns of one agent must not share a budget.

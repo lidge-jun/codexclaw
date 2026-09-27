@@ -1,8 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync, appendFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync, appendFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { handleSessionStart } from "../src/hook.ts";
+import { ensureCodexclawDir, GITIGNORE_TEXT } from "../src/codexclaw-dir.ts";
 import {
   readState,
   writeState,
@@ -23,6 +26,113 @@ import {
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-state-"));
 }
+
+const IGNORE_TEXT = "# CodexClaw wrote this when it created .codexclaw; everything here is local runtime state.\n*\n!.gitignore\n!rules/\n!rules/*.md\n";
+
+test("issue255: helper publishes exact bytes and leaves an existing empty folder alone", () => {
+  const fresh = freshCwd(), existing = freshCwd();
+  try {
+    assert.equal(ensureCodexclawDir(fresh), join(fresh, ".codexclaw"));
+    assert.equal(readFileSync(join(fresh, ".codexclaw", ".gitignore"), "utf8"), IGNORE_TEXT);
+    assert.equal(GITIGNORE_TEXT, IGNORE_TEXT);
+    mkdirSync(join(existing, ".codexclaw"));
+    ensureCodexclawDir(existing);
+    assert.equal(existsSync(join(existing, ".codexclaw", ".gitignore")), false);
+  } finally { rmSync(fresh, { recursive: true, force: true }); rmSync(existing, { recursive: true, force: true }); }
+});
+
+test("issue255: helper leaves an existing symlink and its target untouched", (t) => {
+  const cwd = freshCwd(), target = freshCwd();
+  try {
+    try { symlinkSync(target, join(cwd, ".codexclaw"), "dir"); }
+    catch (err) {
+      if (["EPERM", "EACCES"].includes((err as NodeJS.ErrnoException).code ?? "")) { t.skip("directory symlinks unavailable"); return; }
+      throw err;
+    }
+    ensureCodexclawDir(cwd);
+    assert.deepEqual(readdirSync(target), []);
+  } finally { rmSync(cwd, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); }
+});
+
+test("issue255: identical EEXIST ignore write succeeds without overwriting", () => {
+  const cwd = freshCwd();
+  try {
+    ensureCodexclawDir(cwd, (path, data) => {
+      writeFileSync(path, data, { flag: "wx" });
+      throw Object.assign(new Error("raced"), { code: "EEXIST" });
+    });
+    assert.equal(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), IGNORE_TEXT);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("issue255: conflicting EEXIST ignore write leaves existing bytes alone", () => {
+  const cwd = freshCwd();
+  try {
+    ensureCodexclawDir(cwd, (path) => {
+      writeFileSync(path, "other rules\n", { flag: "wx" });
+      throw Object.assign(new Error("raced"), { code: "EEXIST" });
+    });
+    assert.equal(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), "other rules\n");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("issue255: ignore write failure removes its empty directory and rethrows", () => {
+  const cwd = freshCwd();
+  try {
+    assert.throws(() => ensureCodexclawDir(cwd, () => { throw Object.assign(new Error("denied"), { code: "EACCES" }); }), /denied/);
+    assert.equal(existsSync(join(cwd, ".codexclaw")), false);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("issue255: concurrent first SessionStart creators keep valid state and one ignore file", async () => {
+  const cwd = freshCwd();
+  try {
+    const moduleUrl = new URL("../dist/state.js", import.meta.url).href;
+    const script = `import { ensureState } from ${JSON.stringify(moduleUrl)}; ensureState(process.argv[1], "concurrent");`;
+    const run = () => new Promise<number | null>((resolveExit) => {
+      const child = spawn(process.execPath, ["--input-type=module", "-e", script, cwd], { stdio: "ignore" });
+      child.once("exit", (code) => resolveExit(code));
+    });
+    assert.deepEqual(await Promise.all([run(), run()]), [0, 0]);
+    assert.equal(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), IGNORE_TEXT);
+    assert.equal(JSON.parse(readFileSync(join(cwd, ".codexclaw", "sessions", "concurrent.json"), "utf8")).sessionId, "concurrent");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("issue255: SessionStart creates state and exact local ignore file", () => {
+  const cwd = freshCwd();
+  try {
+    assert.equal(handleSessionStart({ hook_event_name: "SessionStart", cwd, session_id: "issue255" }), "");
+    assert.ok(existsSync(join(cwd, ".codexclaw", "sessions", "issue255.json")));
+    assert.equal(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), IGNORE_TEXT);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("issue255: existing state directory and ignore file are untouched", () => {
+  const cwd = freshCwd();
+  try {
+    mkdirSync(join(cwd, ".codexclaw"));
+    ensureState(cwd, "existing-empty");
+    assert.equal(existsSync(join(cwd, ".codexclaw", ".gitignore")), false);
+    writeFileSync(join(cwd, ".codexclaw", ".gitignore"), "user rules\n");
+    ensureState(cwd, "existing-ignore");
+    assert.equal(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), "user rules\n");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("issue255: Git ignores runtime state and exposes only project rules without an ancestor ignore", () => {
+  const cwd = freshCwd();
+  try {
+    assert.equal(spawnSync("git", ["init", "-q", cwd]).status, 0);
+    ensureState(cwd, "x");
+    const run = (path: string) => spawnSync("git", ["-C", cwd, "check-ignore", "-q", path]).status;
+    for (const path of [".codexclaw/sessions/x.json", ".codexclaw/ledger.jsonl", ".codexclaw/goalplans/slug/goalplan.json"]) assert.equal(run(path), 0, path);
+    for (const path of [".codexclaw/.gitignore", ".codexclaw/rules/a.md"]) assert.equal(run(path), 1, path);
+    writeFileSync(join(cwd, ".gitignore"), ".codexclaw/\n");
+    assert.equal(run(".codexclaw/rules/a.md"), 0);
+    assert.equal(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), IGNORE_TEXT);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
 
 test("SessionStart ensureState: fresh session creates the exact default IDLE state without temp files", () => {
   const cwd = freshCwd();
@@ -47,6 +157,8 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
       stopBlockWorkPhaseId: null,
       stopMetricCursor: 0,
       stopBlockTotal: 0,
+      stopBlockTurnId: null,
+      stopBlockCapNotified: false,
       loopArmSeen: false,
       idleEditNudges: 0,
       memoryWriteRequested: false,
@@ -65,6 +177,31 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+test("stopBlockTurnId round trips and malformed value becomes null", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("turn-state"), stopBlockTurnId: "turn-new" });
+    assert.equal(readState(cwd, "turn-state").stopBlockTurnId, "turn-new");
+    const file = join(cwd, STATE_DIR, SESSIONS_SUBDIR, "turn-state.json");
+    const persisted = JSON.parse(readFileSync(file, "utf8"));
+    writeFileSync(file, JSON.stringify({ ...persisted, stopBlockTurnId: 42 }));
+    assert.equal(readState(cwd, "turn-state").stopBlockTurnId, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("stopBlockCapNotified defaults to false and round-trips", () => {
+  const cwd = freshCwd();
+  try {
+    assert.equal(defaultState("notice").stopBlockCapNotified, false);
+    writeState(cwd, { ...defaultState("notice"), stopBlockCapNotified: true });
+    assert.equal(readState(cwd, "notice").stopBlockCapNotified, true);
+    const file = join(cwd, STATE_DIR, SESSIONS_SUBDIR, "notice.json");
+    const persisted = JSON.parse(readFileSync(file, "utf8"));
+    writeFileSync(file, JSON.stringify({ ...persisted, stopBlockCapNotified: "true" }));
+    assert.equal(readState(cwd, "notice").stopBlockCapNotified, false);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
 test("050: a corrupt snapshot is rejected rather than coerced", () => {

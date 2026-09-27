@@ -132,6 +132,91 @@ function emptyCodexHome() {
   return { dir, env: { CODEX_HOME: dir, CODEXCLAW_HOME: join(dir, "cxc"), CODEX_SQLITE_HOME: dir } };
 }
 
+test("#252: PABCD off silences component hooks and both SubagentStop roles", () => {
+  const { distAbs } = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep);
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-pabcd-off-"));
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), '{"pabcd":{"enabled":false}}');
+    for (const [event, hook_event_name] of [
+      ["session-start", "SessionStart"], ["stop", "Stop"], ["post-compact", "PostCompact"],
+      ["subagent-stop-review", "SubagentStop"],
+    ]) {
+      const result = runHook(ep, event, { hook_event_name, session_id: "off", cwd });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "", event);
+    }
+    assert.equal(existsSync(join(cwd, ".codexclaw", "sessions", "off.json")), false);
+    mkdirSync(join(cwd, ".codexclaw", "sessions"), { recursive: true });
+    writeFileSync(join(cwd, ".codexclaw", "sessions", "off.json"),
+      JSON.stringify({ sessionId: "off", phase: "B", orchestrationActive: true }));
+    for (const agent_type of ["executor", "worker"]) {
+      const result = runHook(ep, "subagent-stop", { hook_event_name: "SubagentStop", session_id: "off", cwd,
+        agent_type, agent_id: agent_type, last_assistant_message: "done" });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "", agent_type);
+      assert.equal(existsSync(join(cwd, ".codexclaw", "evidence-attempts")), false);
+    }
+    const prompt = runHook(ep, "user-prompt-submit", { hook_event_name: "UserPromptSubmit", session_id: "off", cwd,
+      turn_id: "t1", prompt: "Plan this feature" });
+    assert.equal(prompt.status, 0, prompt.stderr);
+    assert.equal(prompt.stdout, "");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#252: env on overrides project false and gates executor", () => {
+  const { distAbs } = readHookCommand("./hooks/subagent-stop-verifying-evidence.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep);
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-pabcd-on-"));
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), '{"pabcd":{"enabled":false}}');
+    const result = runHook(ep, "subagent-stop", { hook_event_name: "SubagentStop", session_id: "on", cwd,
+      agent_type: "executor", agent_id: "a1", last_assistant_message: "done" }, { CODEXCLAW_PABCD: " ON " });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).decision, "block");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#252: PABCD off retains memory marker and independent lint and automation guards", () => {
+  const { distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep);
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-pabcd-memory-"));
+  const env = { CODEXCLAW_PABCD: "off" };
+  try {
+    const prompt = (session_id, turn_id, text) => runHook(ep, "user-prompt-submit", {
+      hook_event_name: "UserPromptSubmit", session_id, cwd, turn_id, prompt: text }, env);
+    assert.equal(prompt("remember", "t1", "Remember this: test marker").stdout, "");
+    const input = (session_id) => ({ hook_event_name: "PreToolUse", session_id, cwd,
+      tool_name: "memoriesadd_ad_hoc_note", tool_input: { filename: "note.md", note: "x" } });
+    const allowed = runHook(ep, "pre-tool-use-memory-write", input("remember"), env);
+    assert.equal(allowed.stdout, "");
+    assert.equal(prompt("ordinary", "t1", "Plan this feature").stdout, "");
+    const denied = runHook(ep, "pre-tool-use-memory-write", input("ordinary"), env);
+    assert.equal(JSON.parse(denied.stdout).hookSpecificOutput.permissionDecision, "deny");
+    const lint = runHook(ep, "pre-tool-use-edit", { hook_event_name: "PreToolUse", session_id: "ordinary", cwd,
+      tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const x = foo as any;\n" } }, env);
+    assert.equal(JSON.parse(lint.stdout).hookSpecificOutput.permissionDecision, "deny");
+    const clean = runHook(ep, "pre-tool-use-edit", { hook_event_name: "PreToolUse", session_id: "ordinary", cwd,
+      tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const x: number = 1;\n" } }, env);
+    assert.equal(clean.stdout, "", "PABCD idle-edit advisory stays silent");
+    const automation = runHook(ep, "pre-tool-use-automation-ownership", { hook_event_name: "PreToolUse",
+      session_id: "ordinary", cwd, tool_name: "mcp__codex_app__automation_update",
+      tool_input: { mode: "delete", id: "foreign" } }, env);
+    assert.equal(JSON.parse(automation.stdout).hookSpecificOutput.permissionDecision, "deny");
+    const managed = join(cwd, "worktrees", "slot", "repo");
+    mkdirSync(managed, { recursive: true });
+    writeFileSync(join(managed, ".git"), "gitdir: /fake/worktree\n");
+    const worktree = runHook(ep, "worktree-guard-pretool", { hook_event_name: "PreToolUse",
+      session_id: "ordinary", cwd: managed, tool_name: "Bash",
+      tool_input: { command: `git worktree remove ${managed}` } },
+      { ...env, CODEX_HOME: cwd });
+    assert.equal(JSON.parse(worktree.stdout).hookSpecificOutput.permissionDecision, "deny");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   // 260804: 18 -> 21 with the worktree-guard hooks (session-start-detecting-
@@ -186,6 +271,8 @@ test("SessionStart state bootstrap: fresh compiled hook creates exact IDLE state
       stopBlockWorkPhaseId: null,
       stopMetricCursor: 0,
       stopBlockTotal: 0,
+      stopBlockTurnId: null,
+      stopBlockCapNotified: false,
       loopArmSeen: false,
       idleEditNudges: 0,
       memoryWriteRequested: false,
@@ -572,9 +659,9 @@ test("WP7/G19: session-start provider hook e2e - exit 0 + parseable SessionStart
   } finally { rmSync(emptyPath, { recursive: true, force: true }); }
 });
 
-// Real registered dist entry: natural hints emit guidance/dedup only; explicit
+// Real registered dist entry: explicit phase requests emit guidance/dedup only;
 // commands below prove legal entry. Use an isolated inactive-goal environment.
-test("WP22/G19: natural plan hint emits PLAN advice with IDLE footer, never activates", () => {
+test("WP22/G19: explicit plan request emits PLAN advice with IDLE footer, never activates", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
   assert.equal(event, "UserPromptSubmit");
   const ep = snapshotEntrypoint(distAbs);
@@ -585,7 +672,7 @@ test("WP22/G19: natural plan hint emits PLAN advice with IDLE footer, never acti
     writeFileSync(join(tmp, "codexclaw.json"), JSON.stringify({ interview: "off" }));
     const res = runHook(ep, hookEvent, {
       hook_event_name: "UserPromptSubmit", session_id: "s1", cwd: tmp, turn_id: "t1",
-      prompt: "plan this",
+      prompt: "Use cxc-pabcd to start Plan phase",
     }, home.env);
     assert.equal(res.status, 0, res.stderr);
     const out = JSON.parse(res.stdout);
@@ -623,7 +710,7 @@ test("wp3: advisory snapshot then agent CLI entry reports real state and preserv
       const boot = runHook(ep, start.hookEvent, { hook_event_name: "SessionStart", session_id: sessionId, cwd }, home.env);
       assert.equal(boot.status, 0, boot.stderr);
       const hint = runHook(ep, prompt.hookEvent, { hook_event_name: "UserPromptSubmit",
-        session_id: sessionId, cwd, turn_id: "hint", prompt: phase === "P" ? "plan this" : "인터뷰만 해줘" }, home.env);
+        session_id: sessionId, cwd, turn_id: "hint", prompt: phase === "P" ? "Use cxc-pabcd to start Plan phase" : "Use cxc-pabcd to start Interview phase" }, home.env);
       assert.equal(hint.status, 0, hint.stderr);
       assert.match(JSON.parse(hint.stdout).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
       assert.match(cli("status").stdout, /phase=IDLE/);
@@ -736,7 +823,12 @@ for (const agentType of ["executor", "worker"]) test(`L010: subagent-stop hook e
   if (!ep) return;
   const tmp = mkdtempSync(join(tmpdir(), "ccx-sas-"));
   try {
-    // 1) worker, no receipt -> block with the EVIDENCE_RECORDED contract.
+    // The legacy worker gate requires the parent's active B/C state.
+    if (agentType === "worker") {
+      mkdirSync(join(tmp, ".codexclaw", "sessions"), { recursive: true });
+      for (const id of ["s1", "s3"]) writeFileSync(join(tmp, ".codexclaw", "sessions", `${id}.json`), JSON.stringify({ phase: "B", orchestrationActive: true }));
+    }
+    // 1) armed worker or executor, no receipt -> block with the EVIDENCE_RECORDED contract.
     const blocked = runHook(ep, hookEvent, {
       hook_event_name: "SubagentStop", session_id: "s1", cwd: tmp,
       agent_type: agentType, agent_id: "a1", last_assistant_message: "all done!",
@@ -764,6 +856,37 @@ for (const agentType of ["executor", "worker"]) test(`L010: subagent-stop hook e
     });
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(ok.stdout.trim(), "", "valid receipt must release");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("251: built SubagentStop releases unarmed worker and policy-disabled roles", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/subagent-stop-verifying-evidence.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "built hook entrypoint required");
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-sas-251-"));
+  const run = (agent_type, env = {}) => runHook(ep, hookEvent, {
+    hook_event_name: "SubagentStop", session_id: "s1", cwd: tmp,
+    agent_type, agent_id: agent_type, last_assistant_message: null,
+  }, env);
+  try {
+    const free = run("worker");
+    assert.equal(free.status, 0, free.stderr);
+    assert.equal(free.stdout, "");
+    assert.equal(existsSync(join(tmp, ".codexclaw")), false);
+
+    mkdirSync(join(tmp, ".codexclaw", "sessions"), { recursive: true });
+    writeFileSync(join(tmp, ".codexclaw", "sessions", "s1.json"), JSON.stringify({ phase: "C", orchestrationActive: true }));
+    for (const role of ["executor", "worker"]) {
+      const disabled = run(role, { CODEXCLAW_PABCD: "off" });
+      assert.equal(disabled.status, 0, disabled.stderr);
+      assert.equal(disabled.stdout, "");
+      assert.equal(existsSync(join(tmp, ".codexclaw", "evidence-attempts")), false);
+      assert.deepEqual(JSON.parse(readFileSync(join(tmp, ".codexclaw", "sessions", "s1.json"), "utf8")), { phase: "C", orchestrationActive: true });
+    }
+    writeFileSync(join(tmp, "codexclaw.json"), JSON.stringify({ pabcd: { enabled: false } }));
+    const enabled = run("executor", { CODEXCLAW_PABCD: "on" });
+    assert.equal(enabled.status, 0, enabled.stderr);
+    assert.equal(JSON.parse(enabled.stdout).decision, "block");
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -1095,7 +1218,7 @@ test("subagent-guard: user-prompt-submit with agent fields is silent and writes 
   try {
     const res = runHook(ep, hookEvent, {
       hook_event_name: "UserPromptSubmit", session_id: "s-parent", cwd: tmp, turn_id: "t1",
-      prompt: "interview me, then plan this", // root hints emit guidance/dedup; child guard must remain silent
+      prompt: "Use cxc-pabcd to start Interview phase", // root request emits guidance/dedup; child guard must remain silent
       agent_id: "agent-1", agent_type: "worker",
     });
     assert.equal(res.status, 0, res.stderr);
