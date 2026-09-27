@@ -285,3 +285,14 @@ Cross-phase integration test (required, in `agent-thread-permissions.test.ts`): 
 ## Out of scope
 
 No upstream Codex patch, runtime permission-profile change, automatic global opt-in, repo-local permission setting, forked-thread allowance, trust-state forging, or network/sandbox widening. `021_wp3_dispatch_guidance.md` owns the separate dispatch and #265 checkpoint text.
+
+
+## wp3 re-verification against codex/issue-train-wp2 (supersedes stale anchors above)
+
+Architect handle `01a0e3b8-436b-7203-a4f6-97d24b865814` re-checked this plan after wp2 landed (HEAD 5178e261). Binding corrections:
+
+- **CLI placement (W3-2):** dispatch both verbs in `pabcd-state/src/cli.ts` right after stdin overflow handling and `const raw = stdin.raw` (`cli.ts:341-347`), before the hook recorder (`:348`), the subagent early exit (`:399-401`) and the PABCD switch (`:403-412`). On stdin overflow both verbs exit 0 with empty stdout. The generic SessionStart handler is now at `cli.ts:426-428`; `config interview` is at `cli.ts:217-252`.
+- **Switch (W3-3):** neither `permission-request` nor `session-start-permission-advisory` is added to `PABCD_DISABLED_EVENTS` (`cli.ts:56-61`).
+- **MCP names (W3-4, AD-4):** `coveredTool` accepts an MCP name only when it matches `/^mcp__[^_](?:[^]*?[^_])?__[^_].*$/` style two nonempty segments, implemented as `/^mcp__(.+?)__(.+)$/` with both captures nonempty after trimming underscores. Tests: `mcp__codex_app__create_thread` allowed; `mcp__`, `mcp__server`, `mcp____tool`, `mcp__server__` get no decision.
+- **Switch tests (W3-5):** the built-CLI integration test runs both verbs twice, once with `CODEXCLAW_PABCD=off` and once with project `codexclaw.json` `{"pabcd":{"enabled":false}}`, each in a fresh cwd, asserting the allow bytes, the advisory JSON and no `<cwd>/.codexclaw`.
+- **Counts:** manifest hooks 29 -> 31 (`plugin.json:22-52`); test baseline 3650 before this phase; README hook badges at line 18, tests badges at line 16.
