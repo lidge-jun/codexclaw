@@ -61,6 +61,18 @@ cxc orchestrate reset
 
 ## Stop continuation
 
+### Disable PABCD hooks
+
+Set `CODEXCLAW_PABCD=off` (also accepts `0` or `false`), or add this to the project-root `codexclaw.json`:
+
+```json
+{ "pabcd": { "enabled": false } }
+```
+
+The environment setting takes precedence: `on`, `1`, or `true` enables PABCD hooks even when the project setting is false. Values are case-insensitive and surrounding spaces are ignored. An unrecognized value uses the project setting. PABCD hooks are enabled by default when the setting is absent or the config is malformed.
+
+This switch silences PABCD hook dispatch in this component. Worktree, memory-write, automation-ownership, apply-patch lint, and independent goal safety guards remain active. It does not erase session state or disable CLI commands. `cxc config interview off` changes only Interview promotion; it does not disable PABCD hooks.
+
 Under an **active native goal**, the `Stop` hook returns
 `{"decision":"block","reason":...}` to keep the agent advancing — both mid-cycle
 (continue the current phase) and at IDLE with no in-flight cycle

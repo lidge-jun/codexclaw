@@ -132,6 +132,91 @@ function emptyCodexHome() {
   return { dir, env: { CODEX_HOME: dir, CODEXCLAW_HOME: join(dir, "cxc"), CODEX_SQLITE_HOME: dir } };
 }
 
+test("#252: PABCD off silences component hooks and both SubagentStop roles", () => {
+  const { distAbs } = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep);
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-pabcd-off-"));
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), '{"pabcd":{"enabled":false}}');
+    for (const [event, hook_event_name] of [
+      ["session-start", "SessionStart"], ["stop", "Stop"], ["post-compact", "PostCompact"],
+      ["subagent-stop-review", "SubagentStop"],
+    ]) {
+      const result = runHook(ep, event, { hook_event_name, session_id: "off", cwd });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "", event);
+    }
+    assert.equal(existsSync(join(cwd, ".codexclaw", "sessions", "off.json")), false);
+    mkdirSync(join(cwd, ".codexclaw", "sessions"), { recursive: true });
+    writeFileSync(join(cwd, ".codexclaw", "sessions", "off.json"),
+      JSON.stringify({ sessionId: "off", phase: "B", orchestrationActive: true }));
+    for (const agent_type of ["executor", "worker"]) {
+      const result = runHook(ep, "subagent-stop", { hook_event_name: "SubagentStop", session_id: "off", cwd,
+        agent_type, agent_id: agent_type, last_assistant_message: "done" });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "", agent_type);
+      assert.equal(existsSync(join(cwd, ".codexclaw", "evidence-attempts")), false);
+    }
+    const prompt = runHook(ep, "user-prompt-submit", { hook_event_name: "UserPromptSubmit", session_id: "off", cwd,
+      turn_id: "t1", prompt: "Plan this feature" });
+    assert.equal(prompt.status, 0, prompt.stderr);
+    assert.equal(prompt.stdout, "");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#252: env on overrides project false and gates executor", () => {
+  const { distAbs } = readHookCommand("./hooks/subagent-stop-verifying-evidence.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep);
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-pabcd-on-"));
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), '{"pabcd":{"enabled":false}}');
+    const result = runHook(ep, "subagent-stop", { hook_event_name: "SubagentStop", session_id: "on", cwd,
+      agent_type: "executor", agent_id: "a1", last_assistant_message: "done" }, { CODEXCLAW_PABCD: " ON " });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).decision, "block");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#252: PABCD off retains memory marker and independent lint and automation guards", () => {
+  const { distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep);
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-pabcd-memory-"));
+  const env = { CODEXCLAW_PABCD: "off" };
+  try {
+    const prompt = (session_id, turn_id, text) => runHook(ep, "user-prompt-submit", {
+      hook_event_name: "UserPromptSubmit", session_id, cwd, turn_id, prompt: text }, env);
+    assert.equal(prompt("remember", "t1", "Remember this: test marker").stdout, "");
+    const input = (session_id) => ({ hook_event_name: "PreToolUse", session_id, cwd,
+      tool_name: "memoriesadd_ad_hoc_note", tool_input: { filename: "note.md", note: "x" } });
+    const allowed = runHook(ep, "pre-tool-use-memory-write", input("remember"), env);
+    assert.equal(allowed.stdout, "");
+    assert.equal(prompt("ordinary", "t1", "Plan this feature").stdout, "");
+    const denied = runHook(ep, "pre-tool-use-memory-write", input("ordinary"), env);
+    assert.equal(JSON.parse(denied.stdout).hookSpecificOutput.permissionDecision, "deny");
+    const lint = runHook(ep, "pre-tool-use-edit", { hook_event_name: "PreToolUse", session_id: "ordinary", cwd,
+      tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const x = foo as any;\n" } }, env);
+    assert.equal(JSON.parse(lint.stdout).hookSpecificOutput.permissionDecision, "deny");
+    const clean = runHook(ep, "pre-tool-use-edit", { hook_event_name: "PreToolUse", session_id: "ordinary", cwd,
+      tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const x: number = 1;\n" } }, env);
+    assert.equal(clean.stdout, "", "PABCD idle-edit advisory stays silent");
+    const automation = runHook(ep, "pre-tool-use-automation-ownership", { hook_event_name: "PreToolUse",
+      session_id: "ordinary", cwd, tool_name: "mcp__codex_app__automation_update",
+      tool_input: { mode: "delete", id: "foreign" } }, env);
+    assert.equal(JSON.parse(automation.stdout).hookSpecificOutput.permissionDecision, "deny");
+    const managed = join(cwd, "worktrees", "slot", "repo");
+    mkdirSync(managed, { recursive: true });
+    writeFileSync(join(managed, ".git"), "gitdir: /fake/worktree\n");
+    const worktree = runHook(ep, "worktree-guard-pretool", { hook_event_name: "PreToolUse",
+      session_id: "ordinary", cwd: managed, tool_name: "Bash",
+      tool_input: { command: `git worktree remove ${managed}` } },
+      { ...env, CODEX_HOME: cwd });
+    assert.equal(JSON.parse(worktree.stdout).hookSpecificOutput.permissionDecision, "deny");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   // 260804: 18 -> 21 with the worktree-guard hooks (session-start-detecting-
