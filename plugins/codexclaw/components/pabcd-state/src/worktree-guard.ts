@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * worktree-guard.ts — Codex-app managed-worktree identity guard (260804 unit,
  * devlog/_plan/260804_worktree_identity_guardian/010 rev2).
@@ -524,6 +525,7 @@ function alreadyInjected(cwd: string, sessionId: string): boolean {
 function markInjected(cwd: string, sessionId: string, slot: string | null): void {
   try {
     const path = markerPath(cwd, sessionId);
+    ensureCodexclawDir(cwd);
     mkdirSync(resolve(path, ".."), { recursive: true });
     writeFileSync(path, JSON.stringify({ injectedAt: new Date().toISOString(), slot }), {
       encoding: "utf8",

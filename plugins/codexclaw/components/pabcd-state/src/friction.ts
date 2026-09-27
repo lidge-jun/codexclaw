@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * friction.ts — project-local friction ledger (lazygap_impl 080.1).
  *
@@ -17,7 +18,7 @@
  * (a read/parse error yields no verdict, so callers allow).
  */
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { splitLines } from "./text-lines.ts";
 
@@ -124,7 +125,7 @@ export function recordFriction(cwd: string, tool: string, errorText: string): Fr
   const verdict = verdictForCount(count);
   const entry: FrictionEntry = { ts: new Date().toISOString(), key, tool, normalized, count, verdict };
   try {
-    mkdirSync(join(cwd, STATE_DIR), { recursive: true });
+    ensureCodexclawDir(cwd);
     appendFileSync(frictionPath(cwd), `${JSON.stringify(entry)}\n`);
   } catch {
     // best-effort; the verdict is still meaningful to the caller

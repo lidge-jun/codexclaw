@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * db.ts — bridge state substrate (messenger-bridge Phase 1).
  *
@@ -1036,6 +1037,7 @@ ALTER TABLE agents ADD COLUMN tool_progress TEXT NOT NULL DEFAULT 'new'
 /** Open (creating if needed) the project-scoped bridge DB with 600 perms. */
 export function openBridgeDb(cwd: string): BridgeDb {
   const dir = join(cwd, ".codexclaw");
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = join(dir, "bridge.db");
   const db = new BridgeDb(file);

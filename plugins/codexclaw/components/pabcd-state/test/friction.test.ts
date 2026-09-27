@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -17,6 +17,14 @@ import {
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-friction-"));
 }
+
+test("issue255: friction as first PABCD writer creates local ignore file", () => {
+  const cwd = tmp();
+  try {
+    assert.equal(recordFriction(cwd, "Bash", "first error"), "retry");
+    assert.match(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), /^# CodexClaw wrote this/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
 
 test("080.1: verdict math retry(1)/escalate(>=2)/stop(>=3)", () => {
   assert.equal(verdictForCount(1), "retry");

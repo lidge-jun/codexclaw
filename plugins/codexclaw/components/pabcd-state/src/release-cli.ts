@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * release-cli.ts — `cxc release`: assemble a candidate manifest from real receipts
  * and refuse publication when the evidence does not describe the candidate commit.
@@ -131,7 +132,8 @@ function readCandidate(path: string): { manifest: CandidateManifest } | { error:
 }
 
 /** Atomic write so a crashed step never leaves a half-written candidate. */
-function writeCandidate(path: string, manifest: CandidateManifest): void {
+function writeCandidate(path: string, manifest: CandidateManifest, projectCwd?: string): void {
+  if (projectCwd) ensureCodexclawDir(projectCwd);
   mkdirSync(dirname(path), { recursive: true });
   const tmp = path + ".tmp";
   writeFileSync(tmp, JSON.stringify(manifest, null, 2) + "\n");
@@ -177,7 +179,7 @@ function runInit(argv: string[], cwd: string): ReleaseCliResult {
     scorecard: {},
     nonGoals: [],
   };
-  writeCandidate(path, manifest);
+  writeCandidate(path, manifest, explicit ? undefined : cwd);
   return {
     code: 0,
     output:
@@ -196,7 +198,7 @@ function mutate(
   if ("error" in read) return { code: 1, output: "release: " + read.error };
   const outcome = fn(read.manifest);
   if (typeof outcome !== "string") return outcome;
-  writeCandidate(resolved.path, read.manifest);
+  writeCandidate(resolved.path, read.manifest, argv.includes("--candidate") ? undefined : cwd);
   return { code: 0, output: outcome };
 }
 
@@ -329,7 +331,7 @@ function runVerify(argv: string[], cwd: string): ReleaseCliResult {
   // skipped, rather than leaving it in a CI log nobody reads.
   if (allowDeferred && manifest.allowedDeferred !== true) {
     manifest.allowedDeferred = true;
-    writeCandidate(resolved.path, manifest);
+    writeCandidate(resolved.path, manifest, argv.includes("--candidate") ? undefined : cwd);
   }
 
   if (asJson) {

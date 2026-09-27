@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
@@ -129,12 +130,13 @@ export function recordObjectiveMetric(cwd: string, input: RecordObjectiveMetricI
     best: Math.max(previousBest, input.value),
     source: input.source,
   };
-  mkdirSync(codexclawDir(cwd), { recursive: true });
+  ensureCodexclawDir(cwd);
   appendFileSync(metricsPath(cwd), `${JSON.stringify(next)}\n`);
   return next;
 }
 
 export function writeObjectiveKind(cwd: string, sessionId: string, kind: ObjectiveKind): void {
+  ensureCodexclawDir(cwd);
   mkdirSync(objectiveKindDir(cwd), { recursive: true });
   const finalPath = objectiveKindPath(cwd, sessionId);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;

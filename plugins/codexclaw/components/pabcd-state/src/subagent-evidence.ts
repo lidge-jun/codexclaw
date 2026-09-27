@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * subagent-evidence.ts — SubagentStop evidence-receipt gate (lazygap_impl 010).
  *
@@ -215,6 +216,7 @@ export function readAttempts(cwd: string, sessionId: string, agentId: string, tu
 export function writeAttempts(cwd: string, sessionId: string, agentId: string, attempts: number, turnId = ""): boolean {
   try {
     const p = attemptsPath(cwd, sessionId, agentId, turnId);
+    ensureCodexclawDir(cwd);
     mkdirSync(join(cwd, STATE_DIR, EVIDENCE_ATTEMPTS_SUBDIR), { recursive: true });
     const tmp = `${p}.${process.pid}.${Date.now()}.tmp`;
     writeFileSync(tmp, `${JSON.stringify({ attempts })}\n`);
@@ -336,6 +338,7 @@ function unrecordableDir(cwd: string): string {
  */
 export function writeUnrecordableMarker(cwd: string, sessionId: string, agentId: string): void {
   const dir = unrecordableDir(cwd);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true });
   const p = join(dir, `${sanitizeKey(sessionId)}-${sanitizeKey(agentId)}-${Date.now()}.json`);
   writeFileSync(p, `${JSON.stringify({ sessionId, agentId, at: new Date().toISOString() })}\n`, { flag: "wx" });
@@ -351,6 +354,7 @@ export function writeUnrecordableMarker(cwd: string, sessionId: string, agentId:
 function markerDirWritable(cwd: string): boolean {
   const probe = join(unrecordableDir(cwd), `.probe-${process.pid}-${Date.now()}`);
   try {
+    ensureCodexclawDir(cwd);
     mkdirSync(unrecordableDir(cwd), { recursive: true });
     writeFileSync(probe, "", { flag: "wx" });
     rmSync(probe, { force: true });
