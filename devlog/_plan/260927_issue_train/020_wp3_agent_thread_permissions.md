@@ -31,7 +31,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 const MAX_META_LINE_BYTES = 64 * 1024;
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const ALLOW = '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}';
-const MODEL_ADVICE = "This Codex Desktop agent-created thread may show approval prompts even though the user Codex config requests full access. Request escalation explicitly for network or git operations when needed; do not assume this hook changes sandbox or network access.";
+const MODEL_ADVICE = "This Codex Desktop agent-created thread may show approval prompts even though the user Codex config requests full access. Request escalation explicitly for network or git operations when needed. If the user enabled permissions.agentCreatedThreadAutoAllow, codexclaw answers pending approvals, including one-time network requests, without prompting; it never changes this thread's sandbox.";
 const USER_ADVICE = "This agent-created thread started in the default approval mode despite your full-access Codex config, so approval prompts may appear. You can switch this thread to Full Access in the composer or enable permissions.agentCreatedThreadAutoAllow in your user-global Codexclaw config.";
 
 type JsonObject = Record<string, unknown>;
@@ -294,7 +294,7 @@ Cross-phase integration test (required, in `agent-thread-permissions.test.ts`): 
 
 ## Out of scope
 
-No upstream Codex patch, runtime permission-profile change, automatic global opt-in, repo-local permission setting, forked-thread allowance, trust-state forging, or network/sandbox widening. `021_wp3_dispatch_guidance.md` owns the separate dispatch and #265 checkpoint text.
+No upstream Codex patch, runtime permission-profile change, automatic global opt-in, repo-local permission setting, forked-thread allowance, trust-state forging, or sandbox changes. One-time network-access approvals are answered under the opt-in (see the audit folds), which is disclosed in the opt-in documentation and the model advice. `021_wp3_dispatch_guidance.md` owns the separate dispatch and #265 checkpoint text.
 
 
 ## wp3 re-verification against codex/issue-train-wp2 (supersedes stale anchors above)
@@ -314,3 +314,10 @@ Architect handle `01a0e3b8-436b-7203-a4f6-97d24b865814` re-checked this plan aft
 - **Malformed TOML fails closed.** Table headers must have paired delimiters (`[name]` or `[[name]]`); `[[profiles]`, `[profiles]]` and any other line starting with `[` return no decision. Tests: both malformed headers plus a valid `[features]` header after the two keys.
 - **`request_permissions` is out of scope.** The current host routes it straight to Guardian without PermissionRequest hooks (`codex-rs/core/src/session/mod.rs:2985-3008`, `approvals.rs:866-868`), so listing it would be a coverage claim no live path exercises. It is removed from `coveredTool` and the tests; revisit if the host starts routing it through hooks.
 - **A project cannot grant the opt-in.** The handler requires a string `cwd` in the hook input and ignores a `CODEXCLAW_HOME` that resolves inside that cwd. Test: absolute `CODEXCLAW_HOME=<cwd>/.codexclaw` with `agentCreatedThreadAutoAllow: true` gets no decision; a sibling temp dir outside cwd with the same file allows.
+
+
+## wp3 audit folds (round 2, supersede the reader code above where they differ)
+
+- **Whole-file TOML validation.** `codexConfigFullAccess` validates the entire file before trusting the two top-level keys; it no longer stops at the first header. A small structural scanner (no new dependency) walks the file: blank lines and `#` comments; table headers with paired delimiters; `key = value` statements where the value is a closed basic or literal string, a number, a boolean, an offset date-time, an inline table, or an array. Arrays and inline tables may span lines (the user's own config has `writable_roots = [` across lines); the scanner tracks bracket and brace depth outside strings and requires depth 0 at each statement end. Multi-line strings (`"""`, `'''`) are accepted when closed. Anything else, including an unclosed bracket at EOF, a stray token, or a duplicate top-level `approval_policy`/`sandbox_mode`, returns no decision. Tests: the user's pattern (keys, then `[features]`, then a multi-line `writable_roots` array) allows; `not_valid = [` at EOF after a valid table, `[[profiles]`, `[profiles]]`, `x = "unterminated` and `x = 1 2` get no decision.
+- **Canonical containment for overrides only.** The default `~/.codexclaw/config.json` is user-global by definition and is always eligible, including for a thread whose cwd is the home directory. When `CODEXCLAW_HOME` is set, the handler resolves the real path of the config file it will read (`realpathSync`) and the real path of `cwd`, and gives no decision if the file lies inside the cwd tree. Tests: override `<cwd>/.codexclaw` (no decision), override outside cwd that is a symlink into `<cwd>/.codexclaw` (no decision), outside `config.json` symlinked to a project file (no decision), plain outside override (allow), default home with cwd = home (allow).
+- **Advice and scope text.** `MODEL_ADVICE` and the out-of-scope line now say that the opt-in answers one-time network requests and never changes the sandbox. The opt-in documentation states the same.
