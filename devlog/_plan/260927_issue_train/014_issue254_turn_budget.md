@@ -68,10 +68,16 @@ For `total-cap`, return `JSON.stringify({ systemMessage: "CodexClaw Stop continu
 
 Exercise absent turn ID, duplicate turn ID, new turn ID, old-schema state, missing state, same-turn continuation, per-phase cap, and absolute cap. Tier: PABCD Stop-hook limit. Executing surface: UserPromptSubmit bookkeeping plus Stop decision. Known bypass: direct state edits or a native implementation that routes internal response items as user input; residual risk: future Codex runtime routing drift. Wording: “24 blocks per observed genuine user turn on the verified runtime.” Final enforcement layer: Stop `bumpStopCounter`. Out of scope: changing the 24/3 constants, host model retry budgets, or native Codex code.
 
+## wp2 final cap-notice rule (supersedes both W2-4 paragraphs that were here)
 
-## wp2 architect amendment (W2-4)
+Field chain for `stopBlockCapNotified: boolean`:
 
-The total-cap message is one-shot per user turn. Persist `stopBlockCapNotified: string | null` (the turn id already notified) beside `stopBlockTurnId`, with the same default, strict reconstruction and serialization chain. On `total-cap`, emit the `systemMessage` only when `stopBlockCapNotified !== stopBlockTurnId`, then record it; later Stops in that turn return `""`. A new genuine turn resets `stopBlockTotal` and the notice becomes eligible again. Tests: Stop 25 returns the message, Stop 26 returns `""`, a new turn's 25th Stop returns the message again.
+- Type: add to `State` beside `stopBlockTotal` and `stopBlockTurnId` (`state.ts:135-137`).
+- Default: `false` in `defaultState` (`state.ts:299-301`).
+- Reconstruction: `parsed.stopBlockCapNotified === true` in the strict reader beside `state.ts:551-554`; anything else is `false`. Old files read as `false`.
+- Serialization: `writeState` writes the whole object (`state.ts:607-615`); nothing extra.
+- Reset: the new-turn reset in `handleUserPromptSubmit` writes `{ stopBlockTotal: 0, stopBlockTurnId: turn, stopBlockCapNotified: false }`.
+- Cap write: `bumpStopCounter` returns `"block" | "phase-cap" | "total-cap" | "total-cap-silent"`. On a total-cap release it writes `stopBlockCapNotified: true` in the same `writeState` call and returns `"total-cap"` when the flag was false before, `"total-cap-silent"` when it was already true.
+- Caller output: both callers (`hook.ts:1791` IDLE path and `hook.ts:1810` in-flight path) map `"total-cap"` to `JSON.stringify({ systemMessage: "CodexClaw Stop continuation cap (24) reached for this user turn; releasing." }) + "\n"` and every other release code to `""`.
 
-
-The notice latch is a boolean `stopBlockCapNotified: boolean` (default false), reset to false together with `stopBlockTotal` when a new genuine turn arrives. It works the same with or without a `turn_id`: Stop 25 emits and sets it, Stop 26 sees it set. This replaces the turn-id-valued latch above. Tests: Stops 25 and 26 with a turn id, Stops 25 and 26 with no turn id, and a new turn re-arming the notice.
+Tests in `hook-continuation.test.ts`: `cap notice once per turn (turn id)` (Stop 25 returns the message, Stop 26 returns ""), `cap notice once per turn (no turn id)` (same with no `turn_id` in any payload), `new turn re-arms the cap notice`; in `state.test.ts`: `stopBlockCapNotified defaults to false and round-trips`.
