@@ -231,22 +231,50 @@ export function resolveCxcInDirective(text: string): string {
   }
 }
 
-/**
- * Detect an explicit IPABCD/interview trigger. Explicit only — no goal-mode
- * branch (A3 decision, see 022.3). Both English and Korean phrasings.
- * Order matters: interview is checked first so "orchestrate i" wins over "p".
- */
+/** Lines that can carry an advisory CodexClaw request, excluding quoted examples. */
+function requestLines(prompt: string): string[] {
+  const result: string[] = [];
+  let fenced = false;
+  for (const raw of (prompt ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (/^```/.test(line)) { fenced = !fenced; continue; }
+    if (fenced || !line || /^(?:>|[-*] |\d+[.)] )/.test(line)) continue;
+    // Explanatory leads describe a command; later mentions of docs/README do not.
+    const explanatory = /^(?:(?:please|좀)\s+)?(?:explain|describe|how do|how to|what is|what does|why)\b|^(?:좀\s*)?(?:설명|어떻게|뭐야)/i.test(line);
+    const unquoted = line
+      .replace(/`([^`]*)`/g, (match, inner: string, offset: number) => {
+        if (explanatory || !/^(?:\$?(?:codexclaw:)?cxc-(?:loop|pabcd)|orchestrate\s+[ipabc])$/i.test(inner.trim())) return " ";
+        const before = line.slice(0, offset);
+        const after = line.slice(offset + match.length);
+        const addressed = /^(?:(?:please|좀)\s+)?(?:run|use|start|invoke|실행|돌려)\s*$/i.test(before)
+          || (/^(?:(?:please|좀)\s*)?$/i.test(before) && /^\s*(?:로|으로|써서)/.test(after));
+        return addressed ? inner : " ";
+      })
+      .replace(/"(?:\\.|[^"\\])*"|“[^”]*”|(?<!\w)'(?:\\.|[^'\\])*'/g, " ")
+      .trim();
+    if (unquoted && !explanatory) result.push(unquoted);
+  }
+  return result;
+}
+
+/** Advisory phase hints require an explicit CodexClaw marker and request. */
 export function detectTrigger(prompt: string): Phase | null {
-  const p = (prompt ?? "").toLowerCase();
-  // Korean triggers are anchored to an action marker. 감사 ("audit") is
-  // ambiguous with 감사 ("thanks"), so AUDIT REQUIRES a strong do-it marker
-  // (해줘/해라/하자/좀/진행/부탁) and rejects the bare/polite thanks forms
-  // 감사 / 감사해 / 감사해요 / 감사합니다 (Galileo blocker #1).
-  if (/\binterview\b|인터뷰|\borchestrate i\b/.test(p)) return "I";
-  if (/\borchestrate p\b|plan this|계획(?:을)?\s*세워/.test(p)) return "P";
-  if (/\borchestrate a\b|audit this|감사\s*(?:해줘|해라|하자|좀|진행|부탁)/.test(p)) return "A";
-  if (/\borchestrate b\b|build this|구현\s*(?:해|하자|좀)/.test(p)) return "B";
-  if (/\borchestrate c\b|check this|검증\s*(?:해|하자|좀)/.test(p)) return "C";
+  for (const line of requestLines(prompt)) {
+    const command = /^orchestrate\s+([ipabc])(?:\s|$)/i.exec(line);
+    if (command) {
+      const phase = command[1].toUpperCase();
+      if (phase === "I" || phase === "P" || phase === "A" || phase === "B" || phase === "C") return phase;
+    }
+    const marker = /(?:\bcxc-pabcd\b|\bcodexclaw:cxc-pabcd\b|\[\$?cxc-pabcd\]\(skill:\/\/[^)]+\)|\bpabcd\s*(?:로|phase\b))/i.test(line);
+    const requested = /(?:\b(?:use|run|start|invoke|enter|apply)\b|(?:시작|진행|적용|실행|돌려|써서|으로|들어가))/i.test(line);
+    if (!marker || !requested) continue;
+    if (/\binterview\b|(?:^|\s)인터뷰(?:\s|$)|\bphase\s*i\b/i.test(line)) return "I";
+    if (/\bplan\b|\bphase\s*p\b|계획/i.test(line)) return "P";
+    if (/\baudit\b|\bphase\s*a\b|감사/i.test(line)) return "A";
+    if (/\bbuild\b|\bphase\s*b\b|구현/i.test(line)) return "B";
+    if (/\bcheck\b|\bphase\s*c\b|검증/i.test(line)) return "C";
+    if (/pabcd\s*로|\bcxc-pabcd\b/i.test(line)) return "P";
+  }
   return null;
 }
 
@@ -264,29 +292,13 @@ export function detectAgbrowseSearchRequest(prompt: string): boolean {
   );
 }
 
-/**
- * Detect an explicit loop/goalplan/continue-until-done request (ORCH-MANDATE-01).
- * HEURISTIC and deliberately curated: bare "loop"/"루프" are excluded (a `for` loop
- * bug report must not arm PABCD ceremony) — a loop word needs an action marker, and
- * the strongest signals are the cxc-loop/HOTL/goalplan tokens themselves.
- */
+/** Advisory loop arming requires a named CodexClaw mode and an action. */
 export function detectLoopArmRequest(prompt: string): boolean {
-  const p = (prompt ?? "").toLowerCase();
-  if (/\bcxc-?loop\b|\bhotl\b|\bgoal\s*plan\b|\bgoalplan\b|골플랜|고울플랜/.test(p)) return true;
-  // ORCH-ARM-PABCD-01: the harness's own protocol name is a first-class arming
-  // token when paired with a STRONG run/repeat marker ("pabcd 여러 번", "run
-  // pabcd", "pabcd 돌려", "pabcd repeatedly"). Bare "pabcd" alone stays excluded
-  // (a question ABOUT pabcd must not arm ceremony), and weak markers like
-  // 다시/계속/again/runs are deliberately NOT signals (260714 audit round 1).
-  if (/\bi?pabcd\b/.test(p) && /여러\s*번|반복|한\s*번\s*더|돌려|돌리|돌자|사이클|\b(?:run|loop|repeat|iterate|cycle)\b|\brepeatedly\b|\bmultiple\s+times\b/.test(p)) return true;
-  // Repeat-marker IMMEDIATELY followed by a solve/progress marker, without the
-  // literal 루프 word ("여러 번 돌려서 해결해"). Bare 실행/수행/진행 excluded:
-  // "테스트 여러 번 실행해봐" is a repeat-run ask, not a loop request.
-  if (/(?:여러\s*번|반복(?:해서|적으로)?)\s*(?:돌|해결|해라|하자)/.test(p)) return true;
-  if (/\bcontinue\s+until\s+done\b|\bkeep\s+going\s+until\b|\buntil\s+(?:it'?s\s+)?done\b/.test(p)) return true;
-  if (/\bautonomous(?:ly)?\b.*\b(?:loop|continue|run|finish)\b|\bwork[- ]phase\s+loop\b/.test(p)) return true;
-  if (/루프\s*(?:를?\s*돌|시작|모드|가동|진행)/.test(p)) return true;
-  if (/끝까지\s*(?:해|진행|돌|완성|가|마무리)|멈추지\s*말|알아서\s*(?:끝까지|다\s*해)/.test(p)) return true;
+  for (const line of requestLines(prompt)) {
+    const marker = /\bcxc-?loop\b|\bcodexclaw:cxc-loop\b|\[\$?cxc-loop\]\(skill:\/\/[^)]+\)|\bgoal\s*plan\b|\bgoalplan\b|골플랜|\bhotl\b|(?<![-/\w])i?pabcd\b/i;
+    const action = /\b(?:use|run|start|invoke|arm|create|init|repeat|cycle)\b|(?:실행|돌려|돌리|써서|으로|시작|등록|진행|적용|해줘)/i;
+    if (marker.test(line) && action.test(line)) return true;
+  }
   return false;
 }
 

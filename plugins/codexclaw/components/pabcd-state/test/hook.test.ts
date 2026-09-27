@@ -60,43 +60,123 @@ function ups(prompt: string, cwd: string, sessionId: string, turnId?: string): U
   };
 }
 
-test("detectTrigger: explicit triggers map to phases (EN + Korean)", () => {
-  assert.equal(detectTrigger("please interview me"), "I");
-  assert.equal(detectTrigger("인터뷰 시작하자"), "I");
-  assert.equal(detectTrigger("orchestrate I"), "I");
-  assert.equal(detectTrigger("orchestrate P now"), "P");
-  assert.equal(detectTrigger("plan this feature"), "P");
-  assert.equal(detectTrigger("계획 세워줘"), "P");
-  assert.equal(detectTrigger("orchestrate A"), "A");
-  assert.equal(detectTrigger("audit this plan"), "A");
-  assert.equal(detectTrigger("이거 감사해줘"), "A");
-  assert.equal(detectTrigger("orchestrate B"), "B");
-  assert.equal(detectTrigger("build this"), "B");
-  assert.equal(detectTrigger("이거 구현해"), "B");
-  assert.equal(detectTrigger("orchestrate C"), "C");
-  assert.equal(detectTrigger("check this output"), "C");
-  assert.equal(detectTrigger("검증 좀"), "C");
+test("detectTrigger: explicit CodexClaw phase requests map to phases", () => {
+  for (const [prompt, phase] of [
+    ["Use cxc-pabcd to start Interview phase", "I"],
+    ["cxc-pabcd로 인터뷰 시작해", "I"],
+    ["orchestrate I", "I"],
+    ["Use cxc-pabcd to start Plan phase", "P"],
+    ["cxc-pabcd로 계획 진행해", "P"],
+    ["orchestrate P now", "P"],
+    ["Run cxc-pabcd Audit phase", "A"],
+    ["cxc-pabcd로 감사 진행해", "A"],
+    ["orchestrate A", "A"],
+    ["Run cxc-pabcd Build phase", "B"],
+    ["cxc-pabcd로 구현 진행해", "B"],
+    ["orchestrate B", "B"],
+    ["Run cxc-pabcd Check phase", "C"],
+    ["cxc-pabcd로 검증 진행해", "C"],
+    ["orchestrate C", "C"],
+  ] as const) assert.equal(detectTrigger(prompt), phase, prompt);
 });
 
-test("detectTrigger: interview wins over plan when both present", () => {
-  assert.equal(detectTrigger("interview then plan this"), "I");
+test("detectTrigger: phase priority applies only within an explicit request line", () => {
+  assert.equal(detectTrigger("Use cxc-pabcd to start Interview then Plan phase"), "I");
+  assert.equal(detectTrigger("Summarize interview notes\nUse cxc-pabcd to start Plan phase"), "P");
 });
 
-test("detectTrigger: non-trigger -> null", () => {
-  assert.equal(detectTrigger("just a normal message"), null);
-  assert.equal(detectTrigger(""), null);
+test("detectTrigger: ordinary words stay silent", () => {
+  for (const prompt of ["just a normal message", "", "감사합니다", "정말 감사해요 도와주셔서",
+    "계획을 세워줘", "이거 감사해줘", "기능 구현해줘", "검증 좀 해줘", "please interview me"])
+    assert.equal(detectTrigger(prompt), null, prompt);
 });
 
-test("detectTrigger: everyday Korean words do NOT misfire (Galileo blocker #1)", () => {
-  assert.equal(detectTrigger("감사합니다"), null); // "thank you" must NOT trigger AUDIT
-  assert.equal(detectTrigger("정말 감사해요 도와주셔서"), null);
+const ISSUE_250_PROMPTS = [
+  ["order_line", "Keep going until Done means holds. ..."],
+  ["wn_workflow_name", "... workflow 인터뷰엔진 must keep its name."],
+  ["author_ko_build", "이 기능 구현해 두고 결과 보고해"],
+  ["author_ko_verify", "검증해 보고 알려줘"],
+  ["author_ko_finish", "끝까지 진행해"],
+  ["english_mention", "Summarize the interview notes in file X"],
+  ["neg_thanks", "감사합니다"],
+  ["neg_for_loop", "fix the for loop bug in parser.ts"],
+  ["neg_plain", "list the files in out/"],
+] as const;
+
+test("issue 250: nine reported prompts stay silent", () => {
+  for (const [label, prompt] of ISSUE_250_PROMPTS) {
+    assert.equal(detectTrigger(prompt), null, label);
+    assert.equal(detectLoopArmRequest(prompt), false, label);
+  }
 });
 
-test("detectTrigger: natural Korean with particles/suffixes still matches", () => {
-  assert.equal(detectTrigger("계획을 세워줘"), "P");
-  assert.equal(detectTrigger("이거 감사해줘"), "A");
-  assert.equal(detectTrigger("기능 구현해줘"), "B");
-  assert.equal(detectTrigger("검증 좀 해줘"), "C");
+test("issue 250: incidental prompt emits no context and does not arm", () => {
+  for (const [label, prompt] of ISSUE_250_PROMPTS) {
+    const cwd = freshCwd();
+    try {
+      writeState(cwd, defaultState(label));
+      const state = readState(cwd, label);
+      assert.equal(handleUserPromptSubmit(ups(prompt, cwd, label, "t1")), "", label);
+      const after = readState(cwd, label);
+      assert.equal(after.loopArmSeen, false, label);
+      assert.deepEqual(after.injectedTurns, state.injectedTurns, label);
+      assert.deepEqual(after, state, label);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
+test("issue 250: explicit skill request arms once", () => {
+  const cwd = freshCwd();
+  try {
+    const prompt = "Use [$cxc-pabcd](skill:///Users/jun/.codex/plugins/cache/codexclaw/codexclaw/0.2.39+codex.20260924082502/skills/pabcd/SKILL.md) to start Plan phase";
+    assert.equal(detectTrigger(prompt), "P");
+    const first = handleUserPromptSubmit(ups(prompt, cwd, "explicit-phase", "t1"));
+    assert.match(first, /codexclaw: (INTERVIEW|PLAN)/);
+    assert.equal(handleUserPromptSubmit(ups(prompt, cwd, "explicit-phase", "t1")), "");
+    assert.deepEqual(readState(cwd, "explicit-phase").injectedTurns, ["t1"]);
+    assert.equal(detectLoopArmRequest("Run cxc-loop for this task"), true);
+    assert.match(handleUserPromptSubmit(ups("Run cxc-loop for this task", cwd, "explicit-loop", "t1")), /arming mandate/);
+    assert.equal(readState(cwd, "explicit-loop").loopArmSeen, true);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("issue 250: inline quoted requests are data", () => {
+  for (const prompt of [
+    'Summarize this quoted request: "Use cxc-pabcd to start plan phase".',
+    'Summarize this quoted request: “Run cxc-loop for this task”.',
+    "Summarize this quoted request: 'Use cxc-pabcd to start plan phase'.",
+    "Summarize this quoted request: `Run cxc-loop for this task`.",
+    "Summarize `cxc-loop`로 written instructions.",
+    'Summarize: "Run cxc-loop for this task" and "Use cxc-pabcd to start plan phase".',
+    '> Run cxc-loop for this task',
+    '- Use cxc-pabcd to start Plan phase',
+    '```\nRun cxc-loop for this task\nUse cxc-pabcd to start Plan phase\n```',
+    'Explain how to run `cxc-loop` from the README',
+  ]) {
+    const cwd = freshCwd();
+    try {
+      assert.equal(detectTrigger(prompt), null, prompt);
+      assert.equal(detectLoopArmRequest(prompt), false, prompt);
+      writeState(cwd, defaultState("quoted"));
+      const state = readState(cwd, "quoted");
+      assert.equal(handleUserPromptSubmit(ups(prompt, cwd, "quoted", "t1")), "", prompt);
+      assert.deepEqual(readState(cwd, "quoted"), state, prompt);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
+test("issue 250: backtick command requests and mixed lines remain explicit", () => {
+  for (const [prompt, phase, loop] of [
+    ["Run `cxc-loop` for this task", null, true],
+    ["Run `cxc-loop` to update docs", null, true],
+    ["Use `cxc-pabcd` to start Plan phase", "P", false],
+    ["Use `cxc-pabcd` to plan the README", "P", false],
+    ["Summarize interview notes\nUse cxc-pabcd to start Plan phase", "P", false],
+    ["orchestrate i", "I", false],
+  ] as const) {
+    assert.equal(detectTrigger(prompt), phase, prompt);
+    assert.equal(detectLoopArmRequest(prompt), loop, prompt);
+  }
 });
 
 test("phase directives use resolvable skill mentions for spawn messages", () => {
@@ -173,45 +253,26 @@ test("260914: hook P output carries the architect sequence; A output carries the
 
 const WP3_ORIGINAL_C2_PROMPT = "README 계약에 맞게 기존 내부 메모 생성/목록 기능을 완성해줘. 네트워크 서버나 공개 API는 아니고 src/route.mjs와 src/service.mjs의 기존 빈 구현을 채우는 작업이야. src/store.mjs와 test/notes.test.mjs는 수정하지 마. 기존 번호 문서에 결과를 기록하고 node --test test/notes.test.mjs로 실제 검증해줘. 새 의존성/추상화/파일, goal/FSM 변경, 커밋, 서브에이전트 파견은 하지 마.";
 
-test("wp3: original Korean C2 still reaches scoped CHECK without entering C", () => {
+test("wp3: ordinary Korean C2 remains silent without a CodexClaw request", () => {
   for (const turn of ["t1", ""] as const) {
     const cwd = freshCwd();
     try {
       const session = "wp3-original-c2";
+      writeState(cwd, defaultState(session));
       const before = readState(cwd, session);
-      assert.equal(detectTrigger(WP3_ORIGINAL_C2_PROMPT), "C");
+      assert.equal(detectTrigger(WP3_ORIGINAL_C2_PROMPT), null);
       assert.equal(detectLoopArmRequest(WP3_ORIGINAL_C2_PROMPT), false);
-      const payload = ups(WP3_ORIGINAL_C2_PROMPT, cwd, session, turn);
-      const output = handleUserPromptSubmit(payload, "linux");
-      const envelope = JSON.parse(output).hookSpecificOutput;
-      assert.equal(envelope.hookEventName, "UserPromptSubmit");
-      const ctx = envelope.additionalContext as string;
-      assert.match(ctx, /^\[codexclaw: CHECK\]/);
-      assert.match(ctx, /No-delegation means no dispatch/);
-      assert.match(ctx, /No-tests forbids tests, not separately authorized build\/typecheck/);
-      assert.match(ctx, /Independent review needs owner applicability and dispatch permission/);
-      assert.match(ctx, /Report unmet review; inline review is not its proof/);
-      assert.match(ctx, /A lexical phase hint is not execution authority/);
-      assert.match(ctx, /Only if a phase transition is authorized/);
-      assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
-      assert.doesNotMatch(ctx, /pass, dispatch with|retain independent review/);
-      const after = readState(cwd, session);
-      assert.equal(after.phase, before.phase);
-      assert.equal(after.orchestrationActive, before.orchestrationActive);
-      assert.equal(after.lastInjectedPhase, before.lastInjectedPhase);
-      assert.deepEqual(after.flags, before.flags);
-      assert.equal(after.loopArmSeen, before.loopArmSeen);
-      assert.deepEqual(after.injectedTurns, turn ? [turn] : []);
+      assert.equal(handleUserPromptSubmit(ups(WP3_ORIGINAL_C2_PROMPT, cwd, session, turn)), "");
+      assert.deepEqual(readState(cwd, session), before);
       assert.equal(existsSync(join(cwd, STATE_DIR, LEDGER_FILE)), false);
-      if (turn) assert.equal(handleUserPromptSubmit(payload, "linux"), "");
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
 });
 
 test("wp3: CHECK negatives retain lexical trigger and the actual persisted phase", () => {
   const prompts = [
-    "검증해줘. 읽기 전용으로 코드만 검토해. 수정, 테스트/빌드/타입검사, goal/FSM 변경, 서브에이전트 파견 금지.",
-    "Check this code by reading it only; no edits, no tests, no build, no typecheck, no goals, no FSM changes, no delegation.",
+    "Use cxc-pabcd to start Check phase.\n검증해줘. 읽기 전용으로 코드만 검토해. 수정, 테스트/빌드/타입검사, goal/FSM 변경, 서브에이전트 파견 금지.",
+    "Use cxc-pabcd to start Check phase.\nCheck this code by reading it only; no edits, no tests, no build, no typecheck, no goals, no FSM changes, no delegation.",
   ];
   for (const prompt of prompts) {
     for (const phase of ["IDLE", "P", "B", "C"] as const) {
@@ -254,9 +315,9 @@ test("wp3: neutral C2 remains an ordinary non-trigger control", () => {
 
 test("wp3: CHECK preserves separately allowed build and read-only state inspection", () => {
   for (const prompt of [
-    "Check this. No-tests, but npm run build is explicitly allowed. No delegation or goal/FSM mutations.",
-    "검증해줘. 테스트는 금지지만 빌드와 타입검사는 허용해. goal/FSM 생성과 변경은 금지하고 상태 조회는 허용해. 파견 금지.",
-    "Check this read-only. No-goal/no-FSM mutations; inspect get_goal and orchestrate status only. No edits, tests, build, typecheck or delegation.",
+    "Use cxc-pabcd to start Check phase.\nNo-tests, but npm run build is explicitly allowed. No delegation or goal/FSM mutations.",
+    "cxc-pabcd로 검증 진행해.\n테스트는 금지지만 빌드와 타입검사는 허용해. goal/FSM 생성과 변경은 금지하고 상태 조회는 허용해. 파견 금지.",
+    "Use cxc-pabcd to start Check phase read-only.\nNo-goal/no-FSM mutations; inspect get_goal and orchestrate status only. No edits, tests, build, typecheck or delegation.",
   ]) {
     const cwd = freshCwd();
     try {
@@ -330,8 +391,8 @@ test("handleUserPromptSubmit: idempotent within same (session,turn)", () => {
   const cwd = freshCwd();
   try {
     // loose-trigger path (parser returns null for prose) — exercises turn dedup.
-    const first = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t1"));
-    const second = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t1"));
+    const first = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase", cwd, "s1", "t1"));
+    const second = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase", cwd, "s1", "t1"));
     assert.notEqual(first, "");
     assert.equal(second, "");
   } finally {
@@ -342,8 +403,8 @@ test("handleUserPromptSubmit: idempotent within same (session,turn)", () => {
 test("handleUserPromptSubmit: new turn re-injects", () => {
   const cwd = freshCwd();
   try {
-    const first = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t1"));
-    const second = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t2"));
+    const first = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase", cwd, "s1", "t1"));
+    const second = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase", cwd, "s1", "t2"));
     assert.notEqual(first, "");
     assert.notEqual(second, "");
   } finally {
@@ -354,8 +415,8 @@ test("handleUserPromptSubmit: new turn re-injects", () => {
 test("handleUserPromptSubmit: different sessions are independent", () => {
   const cwd = freshCwd();
   try {
-    const a = handleUserPromptSubmit(ups("plan this", cwd, "alpha", "t1"));
-    const b = handleUserPromptSubmit(ups("plan this", cwd, "beta", "t1"));
+    const a = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase", cwd, "alpha", "t1"));
+    const b = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase", cwd, "beta", "t1"));
     assert.notEqual(a, "");
     assert.notEqual(b, "");
   } finally {
@@ -458,40 +519,19 @@ test("posix arming directive is byte-identical to its pinned snapshot", () => {
   assert.equal(loopArmDirective("darwin"), expected);
 });
 
-test("ORCH-MANDATE-01: detectLoopArmRequest catches loop/goalplan/continue-until-done intent (EN+KO)", () => {
-  assert.equal(detectLoopArmRequest("cxc-loop로 진행하자"), true);
-  assert.equal(detectLoopArmRequest("HOTL 모드로 돌려줘"), true);
-  assert.equal(detectLoopArmRequest("goalplan 잡고 시작해"), true);
-  assert.equal(detectLoopArmRequest("골플랜부터 등록해"), true);
-  assert.equal(detectLoopArmRequest("continue until done, no pauses"), true);
-  assert.equal(detectLoopArmRequest("루프 돌려서 처리해"), true);
-  assert.equal(detectLoopArmRequest("알아서 끝까지 해줘"), true);
-  assert.equal(detectLoopArmRequest("멈추지 말고 진행해"), true);
-  // Negatives: code-talk about loops must NOT arm PABCD ceremony.
-  assert.equal(detectLoopArmRequest("fix the for loop in parser.ts"), false);
-  assert.equal(detectLoopArmRequest("이 loop 버그 좀 봐줘"), false);
-  assert.equal(detectLoopArmRequest("루프백 오디오 설정"), false);
-  assert.equal(detectLoopArmRequest("계속해"), false);
-});
-
-test("ORCH-ARM-PABCD-01: pabcd + strong run/repeat marker arms; questions/repeat-runs do not (260714)", () => {
-  // Positives — natural phrasings for "run PABCD repeatedly".
-  assert.equal(detectLoopArmRequest("pabcd 여러 번 돌려서 해결해"), true);
-  assert.equal(detectLoopArmRequest("PABCD를 여러 번 돌려서 이 문제 해결해라"), true);
-  assert.equal(detectLoopArmRequest("run pabcd repeatedly until this is fixed"), true);
-  assert.equal(detectLoopArmRequest("pabcd multiple times please"), true);
-  assert.equal(detectLoopArmRequest("ipabcd 사이클로 돌리자"), true);
-  assert.equal(detectLoopArmRequest("여러 번 반복해서 해결해"), true);
-  // Negatives — questions ABOUT pabcd and ordinary repeat-run asks must stay cold.
-  assert.equal(detectLoopArmRequest("what is pabcd?"), false);
-  assert.equal(detectLoopArmRequest("pabcd 문서 다시 보여줘"), false);
-  assert.equal(detectLoopArmRequest("explain how pabcd runs internally"), false);
-  assert.equal(detectLoopArmRequest("pabcd가 뭐야? 계속 헷갈리네"), false);
-  assert.equal(detectLoopArmRequest("이 함수 여러 번 호출되는 버그 고쳐"), false);
-  assert.equal(detectLoopArmRequest("이 테스트 여러 번 실행해봐"), false);
-  assert.equal(detectLoopArmRequest("앱 아이콘 여러 번 실행해도 안 열려"), false);
-  assert.equal(detectLoopArmRequest("빌드 반복 실행해서 flaky 잡아줘"), false);
-  assert.equal(detectLoopArmRequest("여러 번 진행된 마이그레이션 롤백해줘"), false);
+test("ORCH-MANDATE-01: explicit loop requests arm; incidental persistence does not", () => {
+  for (const prompt of ["Run cxc-loop for this task", "cxc-loop로 진행하자", "HOTL 모드로 돌려줘",
+    "Start goalplan for this task", "골플랜부터 등록해", "run PABCD repeatedly until this is fixed",
+    "PABCD를 여러 번 돌려서 이 문제 해결해라", "ipabcd 사이클로 돌리자"])
+    assert.equal(detectLoopArmRequest(prompt), true, prompt);
+  for (const prompt of ["cxc-loop", "goalplan", "continue until done, no pauses",
+    "루프 돌려서 처리해", "알아서 끝까지 해줘", "멈추지 말고 진행해", "여러 번 반복해서 해결해",
+    "fix the for loop in parser.ts", "이 loop 버그 좀 봐줘", "루프백 오디오 설정", "계속해",
+    "what is pabcd?", "pabcd 문서 다시 보여줘", "explain how pabcd runs internally",
+    "pabcd가 뭐야? 계속 헷갈리네", "이 함수 여러 번 호출되는 버그 고쳐",
+    "이 테스트 여러 번 실행해봐", "앱 아이콘 여러 번 실행해도 안 열려",
+    "빌드 반복 실행해서 flaky 잡아줘", "여러 번 진행된 마이그레이션 롤백해줘"])
+    assert.equal(detectLoopArmRequest(prompt), false, prompt);
 });
 
 test("260714 wp3: loop-arm prompt persists loopArmSeen on the un-armed branch (even turnless)", () => {
@@ -514,7 +554,7 @@ test("260714 wp3: loop-arm prompt persists loopArmSeen on the un-armed branch (e
 test("040: trigger + loop phrase on an un-armed FSM yields the mandate, not a phase", () => {
   const cwd = freshCwd();
   try {
-    const out = handleUserPromptSubmit(ups("plan this and then 루프 돌려서 끝까지 해줘", cwd, "la3", "t1"));
+    const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase and run cxc-loop for this task", cwd, "la3", "t1"));
     const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
     assert.match(ctx, /arming mandate/);
     const st = readState(cwd, "la3");
@@ -563,7 +603,7 @@ test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mand
 test("040: on an un-armed FSM the loop-arm mandate wins over a phase trigger", () => {
   const cwd = freshCwd();
   try {
-    const out = handleUserPromptSubmit(ups("plan this and then loop until done", cwd, "s1", "t1"));
+    const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase and run cxc-loop until done", cwd, "s1", "t1"));
     const parsed = JSON.parse(out.trimEnd());
     const ctx = parsed.hookSpecificOutput.additionalContext as string;
     assert.match(ctx, /arming mandate/);
@@ -591,12 +631,10 @@ test("ORCH-MANDATE-01: loop-arm and agbrowse directives compose when both are re
 
 test("wp3: loop arming output is scope-first and does not activate a phase", () => {
   for (const prompt of [
-    "cxc-loop",
-    "cxc-loop, interview-only; do not create a goal",
-    "cxc-loop, plan-only; no implementation",
+    "Run cxc-loop, interview-only; do not create a goal",
+    "Run cxc-loop, plan-only; no implementation",
     "cxc-loop로 인터뷰만 해줘. goal 만들지 마",
     "cxc-loop로 계획만 작성해줘. 구현하지 마",
-    "Explain the quoted example cxc-loop; read-only, no FSM changes",
   ]) {
     const cwd = freshCwd();
     try {
@@ -619,11 +657,9 @@ test("wp3: loop arming output is scope-first and does not activate a phase", () 
 test("wp3: arming limits precede recipes on both platforms and never arm a phase", () => {
   for (const platform of ["linux", "win32"] as const) {
     for (const prompt of [
-      "cxc-loop",
-      "cxc-loop, plan-only; no-goal, no-FSM, no-tests, no-delegation; read-only",
+      "Run cxc-loop, plan-only; no-goal, no-FSM, no-tests, no-delegation; read-only",
       "cxc-loop로 인터뷰만 해줘. goal/FSM 변경, 테스트, 수정, 파견 금지.",
-      "Explain the quoted cxc-loop example; read-only, no-goal, no-FSM, no-tests, no-delegation.",
-      "cxc-loop, explicit HITL; no-delegation; tests only on macmini, no local tests",
+      "Run cxc-loop, explicit HITL; no-delegation; tests only on macmini, no local tests",
     ]) {
       const cwd = freshCwd();
       try {
@@ -674,7 +710,7 @@ test("handleUserPromptSubmit: agbrowse request is idempotent within same turn", 
 test("handleUserPromptSubmit: PABCD hint wins over agbrowse without phase entry", () => {
   const cwd = freshCwd();
   try {
-    const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1", "t1"));
+    const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase with agbrowse", cwd, "s1", "t1"));
     const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
     assert.equal(ctx, withFooter(`${interviewDirective()}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
     assert.doesNotMatch(ctx, /agbrowse fetch/);
@@ -691,7 +727,7 @@ test("wp4: interview policy off selects PLAN advice without phase entry", () => 
   const cwd = freshCwd();
   try {
     writeFileSync(join(cwd, "codexclaw.json"), JSON.stringify({ interview: "off" }), "utf8");
-    const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1off", "t1"));
+    const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase with agbrowse", cwd, "s1off", "t1"));
     const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
     assert.equal(ctx, withFooter(`${phaseDirective("P")}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
     assert.doesNotMatch(ctx, /agbrowse fetch/);
@@ -842,7 +878,7 @@ test("L3b: same-turn re-fire does NOT double-append the ledger", () => {
 test("L3b: no command falls through to advisory detectTrigger without a transition", () => {
   const cwd = freshCwd();
   try {
-    const out = handleUserPromptSubmit(ups("plan this feature", cwd, "s7", "t1"));
+    const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase for this feature", cwd, "s7", "t1"));
     assert.equal(JSON.parse(out).hookSpecificOutput.additionalContext,
       withFooter(`${interviewDirective()}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
     const state = readState(cwd, "s7");
@@ -973,7 +1009,7 @@ test("chat D-close succeeds once the tasks are done", () => {
 test("040: a natural-language build trigger from IDLE leaves the phase alone", () => {
   const cwd = freshCwd();
   try {
-    const out = handleUserPromptSubmit(ups("이거 구현해줘", cwd, "ta1", "t1"));
+    const out = handleUserPromptSubmit(ups("cxc-pabcd로 구현 진행해줘", cwd, "ta1", "t1"));
     const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
     assert.match(ctx, /BUILD/);
     assert.match(ctx, /TRIGGER-AUTHORITY-01/);
@@ -987,9 +1023,9 @@ test("040: a natural-language build trigger from IDLE leaves the phase alone", (
 
 test("wp3: plain P/I hints never enter or advance, including explicit no-FSM", () => {
   for (const prompt of [
-    "plan this", "interview me", "계획을 세워줘", "인터뷰만 해줘",
-    "Plan this read-only; no FSM mutations, goals, tests or delegation.",
-    "인터뷰만 해줘. FSM 변경, goal 생성, 파일 수정, 테스트, 서브에이전트 파견 금지.",
+    "Use cxc-pabcd to start Plan phase", "Use cxc-pabcd to start Interview phase", "cxc-pabcd로 계획 진행해", "cxc-pabcd로 인터뷰 시작해",
+    "Use cxc-pabcd to start Plan phase read-only; no FSM mutations, goals, tests or delegation.",
+    "cxc-pabcd로 인터뷰 시작해. FSM 변경, goal 생성, 파일 수정, 테스트, 서브에이전트 파견 금지.",
   ]) {
     for (const phase of ["IDLE", "P", "B"] as const) {
       for (const turn of ["t1", ""] as const) {
@@ -1025,7 +1061,7 @@ test("040: a mid-cycle trigger cannot move the phase and the footer reports the 
   const cwd = freshCwd();
   try {
     writeState(cwd, { ...defaultState("ta3"), phase: "P", orchestrationActive: true, lastInjectedPhase: "P" });
-    const out = handleUserPromptSubmit(ups("이거 구현해줘", cwd, "ta3", "t1"));
+    const out = handleUserPromptSubmit(ups("cxc-pabcd로 구현 진행해줘", cwd, "ta3", "t1"));
     const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
     assert.match(ctx, /TRIGGER-AUTHORITY-01/);
     assert.match(ctx, /IPABCD: P/); // the phase on disk, not the one asked for
@@ -1075,7 +1111,7 @@ test("040: same through mode 3 (same phase, header only)", () => {
 test("040: turnless hints preserve phase while loop requests persist bookkeeping", () => {
   const cwdA = freshCwd();
   try {
-    const out = handleUserPromptSubmit(ups("plan this", cwdA, "tl1", ""));
+    const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Plan phase", cwdA, "tl1", ""));
     assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
     const state = readState(cwdA, "tl1");
     assert.equal(state.phase, "IDLE");

@@ -84,14 +84,14 @@ test("compiled dist rewrote .ts import specifiers to .js", () => {
   }
 });
 
-test("compiled pabcd-state natural I hint emits advice and dedup without phase entry", () => {
+test("compiled pabcd-state explicit I request emits advice and dedup without phase entry", () => {
   runBuild();
   const cli = join(pluginRoot, "components", "pabcd-state", "dist", "cli.js");
   const tmp = mkdtempSync(join(tmpdir(), "ccx-build-"));
   const home = mkdtempSync(join(tmpdir(), "ccx-build-goals-"));
   try {
     const payload = JSON.stringify({
-      hook_event_name: "UserPromptSubmit", prompt: "interview me about this feature",
+      hook_event_name: "UserPromptSubmit", prompt: "Use cxc-pabcd to start Interview phase for this feature",
       cwd: tmp, session_id: "s-build-test", turn_id: "t1",
     });
     const res = spawnSync("node", [cli, "hook", "user-prompt-submit"], {

@@ -73,7 +73,7 @@ test("L11: active goal suppresses I-trigger (no directive, no interview state)",
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "sg1", status: "active" }], () => {
-      const out = handleUserPromptSubmit(ups("please interview me", cwd, "sg1", "t1"));
+      const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Interview phase", cwd, "sg1", "t1"));
       assert.equal(out, "", "I-trigger must be suppressed while the native goal is active");
       const st = readState(cwd, "sg1");
       assert.equal(st.orchestrationActive, false, "suppressed I must not activate orchestration");
@@ -87,7 +87,7 @@ test("L11: inactive goal allows I advice without automatic phase entry", () => {
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "sg2", status: "complete" }], () => {
-      const out = handleUserPromptSubmit(ups("please interview me", cwd, "sg2", "t1"));
+      const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Interview phase", cwd, "sg2", "t1"));
       assert.notEqual(out, "", "inactive goal must allow the interview directive");
       const st = readState(cwd, "sg2");
       assert.equal(st.phase, "IDLE");
@@ -205,7 +205,7 @@ test("WP4 delivery: the explicit I trigger carries the grounding rules", () => {
   const cwd = freshCwd();
   try {
     writeState(cwd, { ...defaultState("gr2"), phase: "IDLE" });
-    const ctx = groundingContext(handleUserPromptSubmit(ups("interview me about this", cwd, "gr2", "t-gr2")));
+    const ctx = groundingContext(handleUserPromptSubmit(ups("Use cxc-pabcd to start Interview phase", cwd, "gr2", "t-gr2")));
     assert.match(ctx, /INTERVIEW-GROUND-01/);
     assert.match(ctx, /--map/);
     assert.equal(readState(cwd, "gr2").phase, "IDLE");
@@ -259,7 +259,7 @@ test("wp3: I preserves Mind delivery and explicitly scopes it under no-delegatio
   try {
     withGoalsDb([], () => {
       const ctx = groundingContext(handleUserPromptSubmit(ups(
-        "Interview me only; no delegation, no tests, no implementation.", cwd, "wp3-i", "i1")));
+        "Use cxc-pabcd to start Interview phase only; no delegation, no tests, no implementation.", cwd, "wp3-i", "i1")));
       assert.match(ctx, /No-delegation means no dispatch/);
       assert.match(ctx, /This also scopes the Mind instructions below/);
       assert.match(ctx, /Mind dispatch/);
