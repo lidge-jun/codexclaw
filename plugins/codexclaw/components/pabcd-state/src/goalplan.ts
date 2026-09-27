@@ -130,10 +130,22 @@ export interface GoalplanWorkPhase {
   criteriaIds: string[];
   /** Work-phase ids in this plan that must be `done` first; see GoalplanTask.dependsOn. */
   dependsOn?: string[];
+  /** Decision ids; any open target pauses this phase without changing status. */
+  awaitsDecision?: string[];
   /** why a `blocked` phase cannot proceed; cleared when it is unblocked. */
   blockedReason?: string;
   /** the phase that took over the work; required on a `superseded` phase. */
   supersededBy?: string;
+}
+
+export interface GoalplanDecision {
+  id: string;
+  question: string;
+  recommendation?: string;
+  status: "open" | "decided";
+  answer?: string;
+  askedAt: string;
+  decidedAt?: string;
 }
 
 export interface GoalplanHostLink {
@@ -222,6 +234,7 @@ export interface Goalplan {
   /** the durable work-phase cursor the FSM does NOT hold across a D-close. */
   activeWorkPhaseId: string | null;
   workPhases: GoalplanWorkPhase[];
+  decisions?: GoalplanDecision[];
   criteria: GoalplanCriterion[];
   host: GoalplanHostLink;
   /** review rounds, oldest first. Absent on plans created before 010. */
@@ -504,6 +517,37 @@ function reviveDependsOn(value: unknown): string[] | undefined | "invalid" {
   return ids;
 }
 
+function validIsoTime(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const date = new Date(value);
+  return Number.isFinite(date.valueOf()) && date.toISOString() === value;
+}
+
+function reviveDecisions(value: unknown): GoalplanDecision[] | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return "invalid";
+  const decisions: GoalplanDecision[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) return "invalid";
+    const d = item as Record<string, unknown>;
+    if (typeof d.id !== "string" || !LIFECYCLE_ID_RE.test(d.id)
+      || typeof d.question !== "string" || !d.question.trim()
+      || !validIsoTime(d.askedAt)
+      || (d.recommendation !== undefined && (typeof d.recommendation !== "string" || !d.recommendation.trim()))) return "invalid";
+    if (d.status === "open") {
+      if (d.answer !== undefined || d.decidedAt !== undefined) return "invalid";
+      decisions.push({ id: d.id, question: d.question, status: "open", askedAt: d.askedAt,
+        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation as string }) });
+    } else if (d.status === "decided") {
+      if (typeof d.answer !== "string" || !d.answer.trim() || !validIsoTime(d.decidedAt)) return "invalid";
+      decisions.push({ id: d.id, question: d.question, status: "decided", answer: d.answer,
+        askedAt: d.askedAt, decidedAt: d.decidedAt,
+        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation as string }) });
+    } else return "invalid";
+  }
+  return decisions;
+}
+
 /** Best-effort structural validation; a malformed object reads as absent (null). */
 function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
@@ -525,6 +569,8 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
     if (typeof w.id !== "string" || typeof w.title !== "string") return null;
     const phaseDependsOn = reviveDependsOn(w.dependsOn);
     if (phaseDependsOn === "invalid") return null;
+    const awaitsDecision = reviveDependsOn(w.awaitsDecision);
+    if (awaitsDecision === "invalid") return null;
     const status: WorkPhaseStatus =
       w.status === "in_progress" || w.status === "done" || w.status === "blocked" || w.status === "superseded"
         ? w.status
@@ -548,6 +594,7 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
       : [];
     const phase: GoalplanWorkPhase = { id: w.id, title: w.title, status, tasks, criteriaIds };
     if (phaseDependsOn !== undefined) phase.dependsOn = phaseDependsOn;
+    if (awaitsDecision !== undefined) phase.awaitsDecision = awaitsDecision;
     if (typeof w.blockedReason === "string") phase.blockedReason = w.blockedReason;
     if (typeof w.supersededBy === "string") phase.supersededBy = w.supersededBy;
     workPhases.push(phase);
@@ -580,6 +627,8 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
   };
 
   const reviewRounds = reviveReviewRounds(o.reviewRounds);
+  const decisions = reviveDecisions(o.decisions);
+  if (decisions === "invalid") return null;
 
   const plan: Goalplan = {
     objective: o.objective,
@@ -594,6 +643,7 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
   // Only attach the 010 fields when they are actually present, so a plan written
   // before this feature round-trips byte-identical.
   if (reviewRounds !== undefined) plan.reviewRounds = reviewRounds;
+  if (decisions !== undefined) plan.decisions = decisions;
   if (typeof o.activePlanAuditRoundId === "string") plan.activePlanAuditRoundId = o.activePlanAuditRoundId;
   if (typeof o.activeFinalGateRoundId === "string") plan.activeFinalGateRoundId = o.activeFinalGateRoundId;
   if (typeof o.schemaVersion === "number" && Number.isFinite(o.schemaVersion)) {
@@ -822,6 +872,7 @@ function firstInvalidField(parsed: unknown): string {
   for (const rawWp of o.workPhases) {
     const wp = rawWp as Record<string, unknown>;
     if (reviveDependsOn(wp.dependsOn) === "invalid") return "workPhases[].dependsOn";
+    if (reviveDependsOn(wp.awaitsDecision) === "invalid") return "workPhases[].awaitsDecision";
     for (const rawTask of Array.isArray(wp.tasks) ? wp.tasks : []) {
       if (typeof rawTask !== "object" || rawTask === null) continue;
       const task = rawTask as Record<string, unknown>;
@@ -839,6 +890,7 @@ function firstInvalidField(parsed: unknown): string {
   if (typeof o.host !== "object" || o.host === null || typeof (o.host as Record<string, unknown>).armed !== "boolean") {
     return "host (needs armed/armedAt/source)";
   }
+  if (reviveDecisions(o.decisions) === "invalid") return "decisions";
   if (o.steeringLog !== undefined && !Array.isArray(o.steeringLog)) return "steeringLog";
   return "(unknown)";
 }
@@ -983,11 +1035,21 @@ function taskDependenciesMet(phase: GoalplanWorkPhase, task: GoalplanTask): bool
   );
 }
 
+export function openDecisionIdsForPhase(plan: Goalplan, wp: GoalplanWorkPhase): string[] {
+  // Only a unique, decided target releases a reference. Missing/duplicate ids fail closed.
+  return [...new Set(wp.awaitsDecision ?? [])].filter((id) => {
+    const matches = (plan.decisions ?? []).filter((decision) => decision.id === id);
+    return !(matches.length === 1 && matches[0].status === "decided");
+  });
+}
+
+function workPhaseReadyConditionsMet(plan: Goalplan, wp: GoalplanWorkPhase): boolean {
+  return workPhaseDependenciesMet(plan, wp) && openDecisionIdsForPhase(plan, wp).length === 0;
+}
+
 function isRunnablePhase(plan: Goalplan, wp: GoalplanWorkPhase): boolean {
-  return (
-    (wp.status === "pending" || wp.status === "in_progress")
-    && workPhaseDependenciesMet(plan, wp)
-  );
+  return (wp.status === "pending" || wp.status === "in_progress")
+    && workPhaseReadyConditionsMet(plan, wp);
 }
 
 export function readyWorkPhases(plan: Goalplan): GoalplanWorkPhase[] {
@@ -1060,6 +1122,8 @@ export function dependencyWaitReasons(plan: Goalplan): string[] {
         unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
       ));
     }
+    const decisionIds = openDecisionIdsForPhase(plan, wp);
+    if (decisionIds.length > 0) reasons.push(`work-phase ${wp.id} awaits decision ${decisionIds.join(", ")}`);
     if (wp.status !== "pending" && wp.status !== "in_progress") continue;
     for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
       const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
@@ -1097,6 +1161,8 @@ export function dependencyDeadlock(plan: Goalplan): DependencyDeadlock | null {
       reasons.push(
         `work-phase ${wp.id} is blocked${wp.blockedReason ? ` (${wp.blockedReason})` : ""}`,
       );
+      const decisionIds = openDecisionIdsForPhase(plan, wp);
+      if (decisionIds.length > 0) reasons.push(`work-phase ${wp.id} awaits decision ${decisionIds.join(", ")}`);
       continue;
     }
     const unmetPhaseDependencies = unmetPhaseDependencyIds(plan, wp);
@@ -1105,8 +1171,10 @@ export function dependencyDeadlock(plan: Goalplan): DependencyDeadlock | null {
         `work-phase ${wp.id}`,
         unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
       ));
-      continue;
     }
+    const decisionIds = openDecisionIdsForPhase(plan, wp);
+    if (decisionIds.length > 0) reasons.push(`work-phase ${wp.id} awaits decision ${decisionIds.join(", ")}`);
+    if (unmetPhaseDependencies.length > 0) continue;
     for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
       const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
       if (unmetTaskDependencies.length > 0) {
@@ -1120,12 +1188,86 @@ export function dependencyDeadlock(plan: Goalplan): DependencyDeadlock | null {
   return reasons.length > 0 ? { reasons } : null;
 }
 
+/** IDLE can yield only when actual open user decisions account for all remaining work. */
+export function remainingWorkAwaitsDecisions(plan: Goalplan): boolean {
+  const remaining = remainingWorkPhases(plan);
+  if (remaining.length === 0) return false;
+  const byId = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
+  const waiting = (phase: GoalplanWorkPhase, visiting: Set<string>): boolean => {
+    if (phase.status !== "pending" && phase.status !== "in_progress") return false;
+    if ((phase.awaitsDecision ?? []).some((id) => {
+      const matches = (plan.decisions ?? []).filter((decision) => decision.id === id);
+      return matches.length === 1 && matches[0].status === "open";
+    })) return true;
+    if (visiting.has(phase.id)) return false;
+    visiting.add(phase.id);
+    const result = (phase.dependsOn ?? []).some((id) => {
+      const dependency = byId.get(id);
+      return dependency !== undefined && dependency.status !== "done" && waiting(dependency, visiting);
+    });
+    visiting.delete(phase.id);
+    return result;
+  };
+  const waitingPhases = remaining.filter((phase) => waiting(phase, new Set()));
+  if (waitingPhases.length !== remaining.length) return false;
+  return unmetCriteria(plan).every((criterion) => waitingPhases.some((phase) => phase.criteriaIds.includes(criterion.id)));
+}
+
 const LIFECYCLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 export type GoalplanLifecycleResult =
   | { kind: "changed"; plan: Goalplan }
   | { kind: "unchanged"; plan: Goalplan; reason: string }
   | { kind: "rejected"; reason: string };
+
+export function askGoalplanDecision(
+  plan: Goalplan,
+  input: { id: string; question: string; recommendation?: string; workPhaseIds: string[]; askedAt: string },
+): GoalplanLifecycleResult {
+  const id = input.id.trim();
+  const question = input.question.trim();
+  const recommendation = input.recommendation?.trim();
+  const workPhaseIds = input.workPhaseIds.map((phaseId) => phaseId.trim());
+  if (!LIFECYCLE_ID_RE.test(id)) return { kind: "rejected", reason: "decision id must be a short lowercase id, e.g. dec-1" };
+  if (!question) return { kind: "rejected", reason: "decision question must not be empty" };
+  if (input.recommendation !== undefined && !recommendation) return { kind: "rejected", reason: "decision recommendation must not be empty" };
+  if (!validIsoTime(input.askedAt)) return { kind: "rejected", reason: "decision askedAt must be an ISO timestamp" };
+  if (plan.decisions?.some((decision) => decision.id === id)) return { kind: "rejected", reason: `decision '${id}' is already in this plan` };
+  const duplicate = plan.decisions?.find((decision) => decision.status === "open" && decision.question.trim() === question);
+  if (duplicate) return { kind: "rejected", reason: `question is already open as decision '${duplicate.id}'` };
+  if (workPhaseIds.some((phaseId) => !phaseId) || new Set(workPhaseIds).size !== workPhaseIds.length) {
+    return { kind: "rejected", reason: "--work-phase requires distinct non-empty ids" };
+  }
+  for (const phaseId of workPhaseIds) {
+    const phase = plan.workPhases.find((wp) => wp.id === phaseId);
+    if (!phase) return { kind: "rejected", reason: `work phase '${phaseId}' is not in this plan` };
+    if (phase.status === "done" || phase.status === "superseded") {
+      return { kind: "rejected", reason: `work phase '${phaseId}' is ${phase.status} and cannot await a decision` };
+    }
+  }
+  const decision: GoalplanDecision = { id, question, status: "open", askedAt: input.askedAt,
+    ...(recommendation === undefined ? {} : { recommendation }) };
+  const next: Goalplan = { ...plan, decisions: [...(plan.decisions ?? []), decision],
+    workPhases: plan.workPhases.map((wp) => workPhaseIds.includes(wp.id)
+      ? { ...wp, awaitsDecision: [...(wp.awaitsDecision ?? []), id] } : wp) };
+  const reasons = goalplanDefinitionIntegrityReasons(next);
+  return reasons.length ? { kind: "rejected", reason: reasons.join("; ") } : { kind: "changed", plan: next };
+}
+
+export function decideGoalplanDecision(
+  plan: Goalplan, id: string, answer: string, decidedAt: string,
+): GoalplanLifecycleResult {
+  const decision = plan.decisions?.find((candidate) => candidate.id === id.trim());
+  if (!decision) return { kind: "rejected", reason: `decision '${id.trim()}' is not in this plan` };
+  if (!answer.trim()) return { kind: "rejected", reason: "decision answer must not be empty" };
+  if (!validIsoTime(decidedAt)) return { kind: "rejected", reason: "decision decidedAt must be an ISO timestamp" };
+  if (decision.status === "decided") return decision.answer === answer.trim()
+    ? { kind: "unchanged", plan, reason: `decision '${id.trim()}' is already decided` }
+    : { kind: "rejected", reason: `decision '${id.trim()}' already has a different answer` };
+  const next: Goalplan = { ...plan, decisions: plan.decisions!.map((candidate) => candidate.id === decision.id
+    ? { ...candidate, status: "decided" as const, answer: answer.trim(), decidedAt } : candidate) };
+  return { kind: "changed", plan: next };
+}
 
 export function addGoalplanTask(
   plan: Goalplan,
@@ -1316,6 +1458,22 @@ export function goalplanDefinitionIntegrityReasons(plan: Goalplan): string[] {
   const phaseIds = new Set(plan.workPhases.map((phase) => phase.id));
   for (const id of duplicateIds(plan.workPhases.map((phase) => phase.id))) {
     reasons.push(`duplicate work phase id '${id}' makes dependency references ambiguous`);
+  }
+  const decisionsById = new Map((plan.decisions ?? []).map((decision) => [decision.id, decision]));
+  for (const id of duplicateIds((plan.decisions ?? []).map((decision) => decision.id))) {
+    reasons.push(`duplicate decision id '${id}' makes awaitsDecision references ambiguous`);
+  }
+  for (const phase of plan.workPhases) {
+    for (const id of duplicateIds(phase.awaitsDecision ?? [])) {
+      reasons.push(`work phase ${phase.id} awaits decision '${id}' more than once`);
+    }
+    for (const id of new Set(phase.awaitsDecision ?? [])) {
+      const decision = decisionsById.get(id);
+      if (!decision) reasons.push(`work phase ${phase.id} awaits unknown decision '${id}'`);
+      else if (phase.status === "done" && decision.status === "open") {
+        reasons.push(`work phase ${phase.id} is done while decision ${id} is open`);
+      }
+    }
   }
   for (const phase of plan.workPhases) {
     // 감사 라운드 1 BLOCKER 1: 같은 참조를 여러 번 쓴 dependsOn이 같은 사유를 반복하면
@@ -1795,8 +1953,11 @@ export function closeFixedWorkPhase(
   // status alone let a target through whose dependency turned blocked after the
   // marker was written — advanceWorkPhase() answers no_active there, and recovery
   // must not answer ok.
-  if (!workPhaseDependenciesMet(plan, current)) {
-    return { kind: "dependencies_unmet", unmet: unmetPhaseDependencyIds(plan, current) };
+  if (!workPhaseReadyConditionsMet(plan, current)) {
+    return { kind: "dependencies_unmet", unmet: [
+      ...unmetPhaseDependencyIds(plan, current),
+      ...openDecisionIdsForPhase(plan, current).map((id) => `decision:${id}`),
+    ] };
   }
 
   // CYCLE-COMPLETION-01, unchanged wording and unchanged variant: an open task keeps
@@ -1823,10 +1984,10 @@ export function closeFixedWorkPhase(
   let next: { id: string } | undefined;
   if (recordedNext === undefined) {
     const after = closedWorkPhases.slice(currentIdx + 1).find(
-      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+      (wp) => wp.status === "pending" && isRunnablePhase(closedPlan, wp),
     );
     next = after ?? closedWorkPhases.slice(0, currentIdx).find(
-      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+      (wp) => wp.status === "pending" && isRunnablePhase(closedPlan, wp),
     );
   } else if (recordedNext === null) {
     next = undefined;
@@ -1871,11 +2032,11 @@ export function closeFixedWorkPhase(
       // and it can only do that against a normalized cursor.
       next = closedWorkPhases.find(
         (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
-          && wp.status === "in_progress" && workPhaseDependenciesMet(closedPlan, wp),
+          && wp.status === "in_progress" && workPhaseReadyConditionsMet(closedPlan, wp),
       );
     } else if (named.status !== "pending" && named.status !== "in_progress") {
       return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
-    } else if (!workPhaseDependenciesMet(closedPlan, named)) {
+    } else if (!workPhaseReadyConditionsMet(closedPlan, named)) {
       return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
     } else {
       next = named;
@@ -1925,7 +2086,7 @@ export function absentSuccessorDetail(
     ? "is gone too"
     : reason === "not_runnable"
       ? "can no longer be started"
-      : "now waits for another work-phase";
+      : "now waits for a prerequisite or decision";
 }
 
 export type ResumeAbsentTargetResult =
@@ -1954,7 +2115,7 @@ export function resumeAbsentTarget(
   // successor waiting on the same unmet dependency was refused with the target present and
   // activated with it gone. A dangling dependsOn reads as not-done here by design, and the
   // pending branch already refused that plan.
-  if (!workPhaseDependenciesMet(plan, named)) {
+  if (!workPhaseReadyConditionsMet(plan, named)) {
     return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
   }
   // Running: the activation happened too, but only if the cursor agrees. §45 established
@@ -2044,11 +2205,11 @@ export function effectiveActiveWorkPhaseId(plan: Goalplan): string | null {
     if (cur && isRunnablePhase(plan, cur)) return cur.id;
   }
   const inProgress = plan.workPhases.find(
-    (wp) => wp.status === "in_progress" && workPhaseDependenciesMet(plan, wp),
+    (wp) => wp.status === "in_progress" && isRunnablePhase(plan, wp),
   );
   if (inProgress) return inProgress.id;
   const pending = plan.workPhases.find(
-    (wp) => wp.status === "pending" && workPhaseDependenciesMet(plan, wp),
+    (wp) => wp.status === "pending" && isRunnablePhase(plan, wp),
   );
   return pending?.id ?? null;
 }
