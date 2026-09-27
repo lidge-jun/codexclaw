@@ -26,3 +26,16 @@ This phase lands nothing new; it proves the merged state and records the issue d
 ## Acceptance
 
 All goalplan criteria met with captured evidence; `cxc loop validate` passes; `origin/dev` contains the three merge commits; no PR into `main` was opened by this unit.
+
+
+## wp5 executable plan (2026-09-28)
+
+State at entry: PR #269 (wp2) merged as b558d84e and PR #270 (wp3) merged as c550d78e, both after all 13 checks passed on their heads; PR #271 (wp4) open at the codex/issue-train-wp4 head.
+
+1. Wait for PR #271's hosted CI on its head SHA; merge with a merge commit (same method as #269 and #270, so later branches stay clean) using `--match-head-commit`.
+2. Close the fixed issues with a comment that names the merged PR: #250, #251, #253 and #252, #254 (implemented) through #269. #262 gets a partial-implementation comment naming what #271 shipped (open/decided decisions, phase links, readiness and Stop behavior) and what it did not (`options[]`, validation that the recommendation is one of them, `withdrawn`); it stays open. #255 gets a comment that the `.gitignore` half shipped in #269 and lazy session-state creation is deferred (reason in 001), and it stays open.
+3. Comment on each deferred issue (#209, #213, #247, #256, #257, #258, #259, #260, #263, #264, #266, #267, #268) with the one-line reason from 001 and a link to `devlog/_plan/260927_issue_train/001_research.md` on dev; they stay open. #261 gets the decline reason and is closed as not planned. #265 gets a comment linking the guidance in #270 and stays open for the deferred CLI.
+4. Write `041_delivery.md` (PRs, merge commits, CI run evidence, issue dispositions, residual risks, the plugin-cache and log observations) and deliver it through a small docs PR to dev (CI, merge).
+5. Verify: every closed issue shows the closing comment; `origin/dev` contains the four merge commits; `cxc loop validate` passes.
+
+No architect consultation: this phase makes no design decisions (cxc-dev §0.1 fast path for ops and docs); the independent A review covers the disposition list.
