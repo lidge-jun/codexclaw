@@ -67,3 +67,8 @@ For `total-cap`, return `JSON.stringify({ systemMessage: "CodexClaw Stop continu
 ## Activation and bypass record
 
 Exercise absent turn ID, duplicate turn ID, new turn ID, old-schema state, missing state, same-turn continuation, per-phase cap, and absolute cap. Tier: PABCD Stop-hook limit. Executing surface: UserPromptSubmit bookkeeping plus Stop decision. Known bypass: direct state edits or a native implementation that routes internal response items as user input; residual risk: future Codex runtime routing drift. Wording: “24 blocks per observed genuine user turn on the verified runtime.” Final enforcement layer: Stop `bumpStopCounter`. Out of scope: changing the 24/3 constants, host model retry budgets, or native Codex code.
+
+
+## wp2 architect amendment (W2-4)
+
+The total-cap message is one-shot per user turn. Persist `stopBlockCapNotified: string | null` (the turn id already notified) beside `stopBlockTurnId`, with the same default, strict reconstruction and serialization chain. On `total-cap`, emit the `systemMessage` only when `stopBlockCapNotified !== stopBlockTurnId`, then record it; later Stops in that turn return `""`. A new genuine turn resets `stopBlockTotal` and the notice becomes eligible again. Tests: Stop 25 returns the message, Stop 26 returns `""`, a new turn's 25th Stop returns the message again.

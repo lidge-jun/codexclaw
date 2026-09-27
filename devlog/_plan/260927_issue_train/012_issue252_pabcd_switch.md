@@ -93,3 +93,8 @@ Exercise every matrix row, root/subagent payloads, executor/worker SubagentStop 
 ## Note from the roadmap reflection
 
 The wp3 hook verbs `permission-request` and `session-start-permission-advisory` (020) are not PABCD policy. The switch must not list them, and wp3's integration test asserts they still run with `CODEXCLAW_PABCD=off`.
+
+
+## wp2 architect amendment (W2-2)
+
+The memory-write authorization marker written in `handleUserPromptSubmit` (`hook.ts:632-653`, consumed by `memory-write-gate.ts:30`) is not PABCD policy. With the switch off, `user-prompt-submit` still runs the memory-request marker step and only skips the PABCD branches that follow it (explicit chat orchestrate, loop arm, trigger hints, passive reinjection). Test: `PABCD off still authorizes a user-requested memory write`: with `CODEXCLAW_PABCD=off`, a prompt asking to remember something followed by the memory PreToolUse call is allowed, and a prompt without such a request still denies.

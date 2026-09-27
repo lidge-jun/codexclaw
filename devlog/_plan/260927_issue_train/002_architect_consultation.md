@@ -55,3 +55,8 @@ Reviewer handle `01a0e340-8900-7930-99db-9101bd95d661` (gpt-6-sol, CXC-ROLE: rev
 | 4 | GO-WITH-FIXES | 4 (Medium) | Folded as "Audit round 4" amendments in 011 (parent ignore limit, atomic staging rename, self-contained helper copies with drift test, build order) and 016 (structural explanatory framing) |
 
 A>B exited as near-pass on round 4 with every blocker folded.
+
+
+## wp2 consultation (handle 01a0e36e-38aa-79e0-b94c-de2b217e695f)
+
+Proposal W2-1..W2-6 with reflection MISALIGNED on three partial mappings; W2-3, W2-5, W2-6 aligned. Main dispositions: W2-1 accepted, 011 now publishes with non-recursive `mkdirSync` plus empty-folder recovery; W2-2 accepted, 012 keeps the memory-request marker under the switch; W2-4 accepted, 014 makes the cap notice one-shot per turn. Merge rule accepted: branches may be built in parallel, merges are serial in 010's order, with test reconciliation after each merge.
