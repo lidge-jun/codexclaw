@@ -45,6 +45,18 @@ test("allows opted-in agent-created root thread for covered tools", (t) => {
 });
 
 
+test("overflowing numbers fail closed", (t) => {
+  const f = fixture(t);
+  for (const tail of ["foo = 1e9999", "foo = -1e400"]) {
+    writeFileSync(join(f.codexHome, "config.toml"), FULL + tail + "\n");
+    assert.equal(f.send(), "", tail);
+  }
+  writeFileSync(join(f.codexHome, "config.toml"), FULL + "foo = 1e300\nbar = 9007199254740993\n");
+  assert.equal(f.send(), ALLOW);
+});
+
+
+
 test("symlinked default directories into the home-cwd project cannot grant permission", (t) => {
   const f = fixture(t);
   const env = { CODEX_HOME: "", CODEXCLAW_HOME: "", HOME: f.root };

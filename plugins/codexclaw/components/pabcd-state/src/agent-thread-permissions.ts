@@ -54,6 +54,13 @@ function boundedText(path: string): string | null {
 }
 
 /** Dates and times must name a real calendar day and clock time. */
+/** A decimal float or integer must be representable; `1e9999` overflows in Codex's parser. */
+function finiteNumber(token: string): boolean {
+  if (!/^[+-]?(?:\d|\.)/.test(token) || /^[+-]?(?:inf|nan)$/.test(token) || /^\d{4}-|^\d\d:/.test(token) || /^0[xob]/i.test(token)) return true;
+  const value = Number(token.replace(/_/g, ""));
+  return Number.isFinite(value) && (/[.eE]/.test(token) || Number.isSafeInteger(value) || Math.abs(value) <= 9223372036854775807);
+}
+
 function validDateTime(token: string): boolean {
   const date = /^(\d{4})-(\d\d)-(\d\d)/.exec(token);
   if (date) {
@@ -289,7 +296,7 @@ function validValue(source: string): boolean {
       return false;
     }
     const bare = /^[^\s,\]\}#]+/.exec(source.slice(index));
-    if (!bare || !scalar.test(bare[0]) || !validDateTime(bare[0])) return false;
+    if (!bare || !scalar.test(bare[0]) || !validDateTime(bare[0]) || !finiteNumber(bare[0])) return false;
     index += bare[0].length;
     return true;
   };
