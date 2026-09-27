@@ -10,8 +10,8 @@ the choice is made, and its V1/V2 section owns the tool schemas.
 different mechanisms answer to those words and they are not substitutes:
 
 - A **subagent** is a leaf spawned with the collab tools (`spawn_agent` in the
-  `multi_agent_v1` or `collaboration` namespace). It runs **in the parent's own
-  working directory**. It has no session state, no host goal and no PABCD FSM.
+  `multi_agent_v1` or `collaboration` namespace). Its native cwd inherits the
+  parent's working directory. It has no session state, no host goal and no PABCD FSM.
 - A **thread** is a separate Codex task created with the desktop task tools
   (`create_thread` and its family). With `environment: worktree` it gets its own
   checkout; with `environment: local` it shares the project checkout. Either way
@@ -20,11 +20,15 @@ different mechanisms answer to those words and they are not substitutes:
 
 Isolation comes from the environment, not from being a task. A `local` thread is
 an independent owner sharing one checkout; a `worktree` thread is an independent
-owner with its own. Lane work needs the second.
+owner with its own. An independent task lane needs the second.
 
-A **lane** is thread work; a **worker inside a lane** is subagent work. N lanes
-means N worktree threads, and the workers inside each lane are that lane's
-subagents — they cannot collide across lanes because the worktrees differ.
+An **independent task lane** owns a goal, PABCD cycle or long-running branch/CI
+lifecycle: use one worktree thread per lane. A **bounded checkout worker** needs
+only a disjoint checkout and returns a patch or evidence to the coordinator:
+create a managed worktree, then give its absolute path to a subagent. The
+subagent's native cwd still inherits the coordinator's; the packet must require
+that path as the shell workdir on every command. Workers do not acquire their
+own goal or PABCD state. Different workers must use different worktrees.
 
 Say which one you are creating, in those words, before you create it.
 
@@ -32,9 +36,9 @@ Say which one you are creating, in those words, before you create it.
 
 | | Subagent (`spawn_agent`) | Thread (`create_thread`) |
 |---|---|---|
-| Working directory | the parent's, unchanged; never a copy | its own, with `environment: worktree`; the shared project checkout with `local` |
-| Git branch and HEAD | the parent's | its own under `worktree`; shared under `local` |
-| Edits visible to the parent | immediately, as the parent's own uncommitted changes | only through git |
+| Working directory | native cwd inherits the parent's; a bounded worker must pass its assigned managed-worktree path as the shell workdir on every command | its own, with `environment: worktree`; the shared project checkout with `local` |
+| Git branch and HEAD | native cwd points at the parent's; commands run in an assigned managed worktree see that worktree's branch and HEAD | its own under `worktree`; shared under `local` |
+| Edits visible to the parent | immediately in the selected checkout; a managed worktree has its own branch and files | only through git |
 | Thread id | yes, its own | yes, its own |
 | `.codexclaw` session state | none | its own |
 | Host goal | none; it must not call `create_goal` | its own, keyed to the task |
@@ -48,7 +52,7 @@ Say which one you are creating, in those words, before you create it.
 A distinct thread id is the trap. A subagent has one, which is why "thread" feels
 like the right word for it. It proves nothing about the filesystem.
 
-## DISPATCH-SHARED-TREE-01 (STRICT) — subagents share your checkout
+## DISPATCH-SHARED-TREE-01 (STRICT) — subagents inherit your cwd
 
 A spawned child inherits the parent's cwd. Measured on 2026-09-13: a probe
 subagent reported the parent's `pwd`, the parent's `git rev-parse --show-toplevel`,
@@ -59,46 +63,60 @@ paths; no worktree is created anywhere on that path.
 
 Therefore:
 
-- Write scopes across concurrent subagents must not overlap.
-- **Never** run two subagents that perform branch-level git operations at the
-  same time. `checkout`, `switch`, `branch`, `stash`, `reset`, `rebase`, `merge`
-  and `pull` act on one shared HEAD; two children doing that corrupt each other's
-  work regardless of how their file scopes were divided. A per-file write scope
-  does not make concurrent branch work safe.
-- Tell the child it shares your tree. It cannot infer this: on V1 the host tool
+- Write scopes across concurrent subagents must not overlap. A coordinator
+  assigning separate managed worktrees must give each worker a different path.
+- **Never** run concurrent branch-level git operations in one checkout.
+  `checkout`, `switch`, `branch`, `stash`, `reset`, `rebase`, `merge` and `pull`
+  change that checkout's HEAD or index; a per-file write scope does not separate
+  them. Operations in different worktrees do not share one HEAD, but each branch
+  still needs one owner and an explicit integration order.
+- Tell the child its native cwd is your tree. It cannot infer this: on V1 the host tool
   description says the opposite, instructing the caller to have the child "edit
   files directly in its forked workspace". There is no forked workspace.
   `fork_context` and `fork_turns` fork conversation history, not the filesystem.
   Only the V2 usage hint states the shared directory, so a V1 session is never
   told it by the runtime.
+- For a managed-worktree worker, instruct the subagent to pass the absolute
+  worktree path as the shell tool's workdir on **every** command, including
+  `git status`, tests and reads. Use absolute paths for file edits. Its native
+  cwd and relative-path defaults do not move when the worktree is created.
 
 ## DISPATCH-ROUTE-01 (STRICT) — routing the work
 
 Route by what the work needs to own, not by how parallel it is:
 
-- Needs its own branch, checkout, or long-running merge/CI lane -> **thread**,
-  one per lane, created with `environment: worktree`. A `local` thread does not
-  give the lane a checkout of its own.
-- Needs its own goal or its own PABCD cycle -> **thread**.
-- Is a bounded slice inside a lane that already owns its checkout -> **subagent**
-  of that lane's thread.
-- Is a bounded slice of the tree you are already editing, returning evidence or a
-  patch rather than owning a branch -> **subagent**.
-- Is read-only research -> **subagent**, by default. It cannot collide because it
-  writes nothing, which is also why read-only fan-out is not a template for
-  parallel write work.
+- Needs its own goal, PABCD cycle, user-visible task, or long-running
+  merge/CI lifecycle -> **thread**, one per independent task lane, with
+  `environment: worktree` for an isolated checkout. A `local` thread shares
+  the checkout.
+- Needs an isolated checkout for a bounded, coordinator-owned write packet
+  while the coordinator is full-access -> call `create_worktree`, wait for its
+  completed absolute workspace path, then spawn a **subagent** with that path
+  and an instruction to pass it as the shell workdir on every command. Give
+  concurrent workers disjoint worktrees and prohibit concurrent branch
+  operations in one checkout. The coordinator owns goal/PABCD and integration.
+- Is a bounded slice inside a thread lane that already owns its checkout ->
+  **subagent** of that thread.
+- Is a bounded slice of the checkout you are already editing, returning
+  evidence or a patch -> **subagent** with disjoint file scope.
+- Is read-only research -> **subagent**, by default. Read-only fan-out is not
+  a template for parallel writes.
 
-"Merge these lanes in parallel", "prepare N stacks at once", "run these branches
-concurrently" are thread work. Spawning N subagents for N branches puts N writers
-on one HEAD.
+`create_thread` children may start with reduced approval permission, including
+projectless targets. Confirm their actual permission state before planning an
+unattended write lane. The bounded worktree/subagent route does not grant new
+permissions; it uses the coordinator's inherited subagent permission and an
+explicit checkout path. When a lane needs independent goal/PABCD ownership,
+keep the thread route and handle its actual permission state.
 
 ## DISPATCH-AUTHORITY-01 — asking for lane work is asking for the lanes
 
 Creating a thread is user-visible, so it needs a user request. A request for
-parallel branch or worktree lanes **is** that request: the lanes are the
-mechanism the work needs, not a separate deliverable the user forgot to ask for.
-Do not read the general "create a task only when the user explicitly asks" rule
-as a reason to downgrade lane work onto the shared tree — that trades a visible
+independent task lanes **is** that request: the lanes are the mechanism the work
+needs, not a separate deliverable the user forgot to ask for. Bounded checkout
+workers stay under the coordinator and follow DISPATCH-ROUTE-01. Do not read
+the general "create a task only when the user explicitly asks" rule as a reason
+to put independent task lanes onto the shared tree — that trades a visible
 question for a silent collision.
 
 Where the shape is genuinely unclear, ask once and name what you would create
@@ -107,9 +125,11 @@ do not treat silence as a refusal of the surface the work requires.
 
 ## Parallel lanes, and the shape that works
 
-N independent lanes means N `worktree` threads, N checkouts, N FSMs. The parent
-coordinates with `wait_threads` and integrates; it does not advance any child's
-FSM, and a child does not advance the parent's.
+N independent task lanes mean N `worktree` threads, N checkouts and N FSMs.
+The coordinator uses `wait_threads` and integrates; neither side advances the
+other's FSM. N bounded checkout workers mean N managed worktrees and N
+subagents, with one coordinator goal/FSM. The coordinator uses the returned
+subagent handles and checks each worktree's files before integration.
 
 ### Record the lane before you need it (DISPATCH-LANE-ID-01, DEFAULT)
 
@@ -181,9 +201,10 @@ fails outright with `agent thread limit reached`, at six per session by default
 (`agents.max_threads`; on V2 `max_concurrent_threads_per_session` minus one for the
 session itself).
 
-So cross-branch fan-out belongs to lanes, and concurrency inside one lane's tree belongs
-to that lane's subagents — run them in waves, say the wave size, and close finished
-agents, because a completed agent holds its slot until it is closed. "Unlimited parallel
+Independent task fan-out belongs to thread lanes. Bounded checkout workers are
+subagents even in separate worktrees, so they share the session's subagent cap.
+Run them in waves, say the wave size, and close finished agents, because a
+completed agent holds its slot until it is closed. "Unlimited parallel
 subagents" is not a shape the host offers.
 
 Lanes and the parent watching them usually draw on the same credentials and the same
@@ -198,19 +219,21 @@ reserve headroom for the workers. Back off on evidenced limit responses. Do not 
 every 403 is exhaustion, that every account has the same allowance, or that rate-limit
 categories are interchangeable. This is guidance for the coordinator, not a limiter.
 
-Threads and subagents then compose. A lane thread spawns its own subagents inside
-its own worktree, and subagents belonging to different lanes cannot collide
-**because those worktrees differ** — not because their parents are different
-tasks. Two `local` threads on one checkout collide exactly like two subagents do.
-The shape that scales is worktrees for isolation and subagents for concurrency
-within an isolated tree.
+Threads and subagents compose in independent task lanes: each worktree thread
+spawns bounded subagents inside its checkout. A full-access coordinator can
+also assign separate managed worktrees directly to bounded subagents. In both
+forms, different worktrees provide file and HEAD isolation; different thread
+ids do not. Two `local` threads on one checkout still collide.
 
 ### The lane manifest (DISPATCH-LANE-MANIFEST-01, DEFAULT)
 
-Lanes are independent tasks, so nothing in the system knows two of them were handed the
+Independent task lanes are separate tasks, so nothing in the system knows two were handed the
 same issue until their pull requests collide. One shared record makes that visible before
 the branches diverge. Per lane: repository, lane id, task and host id, worktree, branch,
 base ref and sha, head sha, issue, owner, scope and status.
+A bounded worktree worker remains under its coordinator and does not invent a
+thread id or its own FSM. Record its worktree path and assigned scope in the
+coordinator's packet or progress record instead.
 
 ```json
 {
