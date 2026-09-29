@@ -10,7 +10,7 @@ codexclaw 0.2.40 is published and is the latest release: https://github.com/lidg
 | #279 | #275 INTERVIEW-ASSUME-01 | `6e7bd3eb` | `58a8a174` | 14/14 (CI 36608949299, Packed install 36608949301) |
 | #280 | #262 decision options | `7e4b90a3` | `99c9df6a` | 14/14 (CI 36611468113, Packed install 36611468104) |
 | #281 | version 0.2.40, CHANGELOG | `1f02cfd4` | `ff3f5af5` | 14/14 (CI 36613312947, Packed install 36613313066) |
-| #282 | promotion `dev` -> `main` | `ff3f5af5` | `3c1459ac` | all green; `dev` push CI 36614079312, Packed install 36614079283, WSL 36614079194 |
+| #282 | promotion `dev` -> `main` | `ff3f5af5` | `3c1459ac` | 28/28 (PR CI 36615865372, Packed install 36615865506; `dev` push CI 36614079312, Packed install 36614079283, WSL 36614079194) |
 
 `main` at `3c1459ac`: push CI 36616839395, Packed install 36616839230, WSL 36616839277 and Docs 36616839247 all success.
 
@@ -30,7 +30,7 @@ codexclaw 0.2.40 is published and is the latest release: https://github.com/lidg
 
 ## Review record
 
-Every work phase ran P -> A -> B -> C -> D with persisted transitions. The architect (one V1 subagent) proposed D1-D28 and reflected on the plan (MISALIGNED with one gap, folded). At every A, a reviewer and a PABCD-initiative verifier (checking `pabcd_initiative/skills/dev-pabcd`) audited in parallel; at every implementation C, a fresh reviewer and a fresh initiative verifier ran in parallel against the final text and code. All agents inherited this session's model, so review independence is context-only (REVIEW-DECORRELATE-01 not established; disclosed in 000). Findings that changed the work: the roadmap's c-10 criterion contradicted architect D25 and was corrected at P with a recorded rationale; the privacy grep and the npm-ci precondition were broken in the first plan draft; the #277 prose contradicted the preflight rule; malformed-input paths threw; the #275 guidance failed a fresh-reader pass and was rewritten twice; two option-rendering branches were unobserved until C.
+Every work phase ran P -> A -> B -> C -> D with persisted transitions; wp4 closes to IDLE after this record lands. Parallel lanes per phase (agent ids in each decade doc): A used reviewer `01a0ee1f-b88c` with initiative verifier `01a0ee1f-b983` for every phase; C used fresh pairs for wp2 (`01a0ee2f-7b70`/`01a0ee2f-7cbd`), wp3 (`01a0ee49-6e1e`/`01a0ee49-6f1d`), wp5 (`01a0ee5f-7c4f`/`01a0ee5f-7d90`) and wp4 (`01a0eea5-aa63` release reviewer PASS, `01a0eea5-aba9` initiative verifier with record-keeping fixes); wp1, docs only, reused its A round-2 PASS at C instead of a fresh pair. The architect (one V1 subagent) proposed D1-D28 and reflected on the plan (MISALIGNED with one gap, folded). At every A, a reviewer and a PABCD-initiative verifier (checking `pabcd_initiative/skills/dev-pabcd`) audited in parallel; at every implementation C, a fresh reviewer and a fresh initiative verifier ran in parallel against the final text and code. All agents inherited this session's model, so review independence is context-only (REVIEW-DECORRELATE-01 not established; disclosed in 000). Findings that changed the work: the roadmap's c-10 criterion contradicted architect D25 and was corrected at P with a recorded rationale; the privacy grep and the npm-ci precondition were broken in the first plan draft; the #277 prose contradicted the preflight rule; malformed-input paths threw; the #275 guidance failed a fresh-reader pass and was rewritten twice; two option-rendering branches were unobserved until C.
 
 ## Residual risks
 
@@ -38,6 +38,7 @@ Every work phase ran P -> A -> B -> C -> D with persisted transitions. The archi
 - INTERVIEW-ASSUME-01 is agent-followed guidance: nothing checks an answer reference against the ledger.
 - Builds older than 0.2.40 drop a decision's `options` if they rewrite the plan.
 - A timing assertion (`subagent-config/test/spawn-attach-hook.test.ts:920`) failed once locally under concurrent load and passed 3/3 in isolation and in every hosted run.
+- The wp1 C receipt path under `.codexclaw/evidence/` was overwritten by later check epochs; each phase's gate output is quoted in its C->D attestation.
 - The installed plugin cache (0.2.36) and remote hosts were not updated; that was outside this train's scope.
 
 ## Operational notes
