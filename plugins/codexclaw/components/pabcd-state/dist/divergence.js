@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { renameWithRetry } from "./atomic-write.js";
@@ -120,6 +121,7 @@ export function writeDivergenceMode(
     reason: input.reason,
     updatedAt: input.now?.() ?? new Date().toISOString(),
   };
+  ensureCodexclawDir(cwd);
   mkdirSync(divergenceDir(cwd), { recursive: true });
   const finalPath = modePath(cwd, input.sessionId);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
@@ -191,6 +193,7 @@ export function recordDivergenceCandidate(cwd        , input                    
     ...(input.changeClass ? { changeClass: input.changeClass } : {}),
     ...(input.killedAtPhase ? { killedAtPhase: input.killedAtPhase } : {}),
   };
+  ensureCodexclawDir(cwd);
   mkdirSync(divergenceDir(cwd), { recursive: true });
   appendFileSync(candidatesPath(cwd), `${JSON.stringify(candidate)}\n`);
   return candidate;

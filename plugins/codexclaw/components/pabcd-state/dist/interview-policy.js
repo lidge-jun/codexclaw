@@ -43,6 +43,20 @@ export function configPath(cwd        )         {
   return join(cwd, CONFIG_FILENAME);
 }
 
+/** PABCD hook policy: a recognized environment value overrides project config. */
+export function readPabcdEnabled(cwd        , env                    = process.env)          {
+  const override = env.CODEXCLAW_PABCD?.trim().toLowerCase();
+  if (override === "off" || override === "0" || override === "false") return false;
+  if (override === "on" || override === "1" || override === "true") return true;
+  try {
+    const raw          = JSON.parse(readFileSync(configPath(cwd), "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return true;
+    const pabcd = (raw                           ).pabcd;
+    if (!pabcd || typeof pabcd !== "object" || Array.isArray(pabcd)) return true;
+    return (pabcd                           ).enabled !== false;
+  } catch { return true; }
+}
+
 /**
  * Read the policy for this repo. Missing file, unreadable file, malformed JSON and
  * unknown values all fall back to the default: a hook must never throw on a prompt.

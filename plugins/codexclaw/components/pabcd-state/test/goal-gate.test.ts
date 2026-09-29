@@ -456,3 +456,26 @@ test("GOAL-COMPLETE-GATE-01: fires through the fail-closed dispatcher", () => {
     assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason, /GOAL-COMPLETE-GATE-01/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
+
+test("#252: PABCD off allows request_user_input but retains budget and evidence denials", () => {
+  const cwd = freshGateCwd();
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), '{"pabcd":{"enabled":false}}');
+    const raw = (tool_name: string, tool_input: unknown) => JSON.stringify({
+      hook_event_name: "PreToolUse", session_id: "switch", cwd, tool_name, tool_input,
+    });
+    assert.equal(handlePreToolUseFailClosed(raw("request_user_input", {}), depsWithStatus("active")), "");
+    assert.equal(handlePreToolUseFailClosed(raw("request_user_input", {}), depsWithStatus("complete")), "");
+    assert.match(handlePreToolUseFailClosed(raw("create_goal", { objective: "x", token_budget: 1 })), /token_budget/);
+    writeState(cwd, { ...defaultState("switch"), phase: "B", orchestrationActive: true });
+    assert.equal(handlePreToolUseFailClosed(raw("update_goal", { status: "complete" })), "");
+    const plan = buildGoalplan({ objective: "still open", criteria: [{ scenario: "test", expectedEvidence: "green" }] });
+    writeGoalplan(cwd, plan);
+    writeState(cwd, { ...defaultState("switch"), slug: plan.slug });
+    assert.equal(handlePreToolUseFailClosed(raw("update_goal", { status: "complete" })), "");
+    writeState(cwd, { ...defaultState("switch"), phase: "B", orchestrationActive: true,
+      unverifiedSubagents: [{ agentId: "a1", turnId: "t1", agentType: "worker", attempts: 3,
+        receiptClaimed: "", recordedAt: "2026-09-28T00:00:00Z", resolvable: true }] });
+    assert.match(handlePreToolUseFailClosed(raw("update_goal", { status: "complete" })), /unverified|evidence verification/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});

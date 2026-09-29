@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * render-observations.ts — L2 render-observation ledger (C-RENDER-GROUNDING-01).
  *
@@ -18,7 +19,7 @@
  * All IO is project-local under `cwd`. Every reader FAILS-OPEN (missing file or
  * parse error yields []).
  */
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import type { PostToolUsePayload } from "./hook.ts";
 import { fileEditShapes } from "./edit-shape.ts";
@@ -69,7 +70,7 @@ function ledgerPath(cwd: string): string {
 
 function appendRow(cwd: string, row: RenderObsRow): void {
   try {
-    mkdirSync(join(cwd, STATE_DIR), { recursive: true });
+    ensureCodexclawDir(cwd);
     appendFileSync(ledgerPath(cwd), `${JSON.stringify(row)}\n`);
   } catch {
     // best-effort; advisory logic runs on in-memory state
@@ -124,7 +125,7 @@ export function readRenderObsRows(cwd: string): RenderObsRow[] {
  */
 export function resetRenderLedger(cwd: string): void {
   try {
-    mkdirSync(join(cwd, STATE_DIR), { recursive: true });
+    ensureCodexclawDir(cwd);
     writeFileSync(ledgerPath(cwd), "");
   } catch {
     // best-effort

@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildStageHeader,
   handleUserPromptSubmit,
+  handleSessionStart,
   handleStop,
   MAX_STOP_BLOCKS,
   MAX_STOP_BLOCKS_TOTAL,
@@ -72,7 +73,7 @@ test("L11: active goal suppresses I-trigger (no directive, no interview state)",
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "sg1", status: "active" }], () => {
-      const out = handleUserPromptSubmit(ups("please interview me", cwd, "sg1", "t1"));
+      const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Interview phase", cwd, "sg1", "t1"));
       assert.equal(out, "", "I-trigger must be suppressed while the native goal is active");
       const st = readState(cwd, "sg1");
       assert.equal(st.orchestrationActive, false, "suppressed I must not activate orchestration");
@@ -86,7 +87,7 @@ test("L11: inactive goal allows I advice without automatic phase entry", () => {
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "sg2", status: "complete" }], () => {
-      const out = handleUserPromptSubmit(ups("please interview me", cwd, "sg2", "t1"));
+      const out = handleUserPromptSubmit(ups("Use cxc-pabcd to start Interview phase", cwd, "sg2", "t1"));
       assert.notEqual(out, "", "inactive goal must allow the interview directive");
       const st = readState(cwd, "sg2");
       assert.equal(st.phase, "IDLE");
@@ -204,7 +205,7 @@ test("WP4 delivery: the explicit I trigger carries the grounding rules", () => {
   const cwd = freshCwd();
   try {
     writeState(cwd, { ...defaultState("gr2"), phase: "IDLE" });
-    const ctx = groundingContext(handleUserPromptSubmit(ups("interview me about this", cwd, "gr2", "t-gr2")));
+    const ctx = groundingContext(handleUserPromptSubmit(ups("Use cxc-pabcd to start Interview phase", cwd, "gr2", "t-gr2")));
     assert.match(ctx, /INTERVIEW-GROUND-01/);
     assert.match(ctx, /--map/);
     assert.equal(readState(cwd, "gr2").phase, "IDLE");
@@ -258,7 +259,7 @@ test("wp3: I preserves Mind delivery and explicitly scopes it under no-delegatio
   try {
     withGoalsDb([], () => {
       const ctx = groundingContext(handleUserPromptSubmit(ups(
-        "Interview me only; no delegation, no tests, no implementation.", cwd, "wp3-i", "i1")));
+        "Use cxc-pabcd to start Interview phase only; no delegation, no tests, no implementation.", cwd, "wp3-i", "i1")));
       assert.match(ctx, /No-delegation means no dispatch/);
       assert.match(ctx, /This also scopes the Mind instructions below/);
       assert.match(ctx, /Mind dispatch/);
@@ -501,29 +502,33 @@ test("L6: guard 2a — IDLE / inactive orchestration releases for a plain sessio
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-// ── 260709 GOAL-IDLE-CONTINUE-01: active goal + no in-flight cycle = bounded arming block ──
+// ── GOAL-IDLE-CONTINUE-01: only a bound goalplan arms the IDLE block ──
 
-test("GOAL-IDLE-CONTINUE-01: active goal at IDLE blocks with the arming command", () => {
+test("GOAL-IDLE-CONTINUE-01: active goal without bound plan releases without state write", () => {
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "gi1", status: "active" }], () => {
-      // no state file at all (019f4407 shape: goal created, FSM never entered)
-      const out = handleStop(stop(cwd, "gi1"), "linux");
-      const parsed = JSON.parse(out.trim());
-      assert.equal(parsed.decision, "block");
-      assert.match(parsed.reason, /goal continuation/);
-      assert.match(parsed.reason, /GOAL-IDLE-CONTINUE-01/);
-      // `--attest` is a PREFIX of `--attest-file`, so the old assertion passed on
-      // win32 by accident. Pin the POSIX form explicitly; the win32 branch is
-      // asserted separately below.
-      assert.match(parsed.reason, /cxc orchestrate P --session gi1 --attest '\{/);
-      assert.match(parsed.reason, /update_goal/);
-      assert.match(parsed.reason, /LOOP-UNIT-CHAIN-01/, "IDLE block must teach heterogeneous work-phase chaining");
-      assert.match(parsed.reason, /cxc loop init/, "unbound session must be pointed at loop init");
-      // the counter write bootstraps the session file, keyed at IDLE
-      const st = readState(cwd, "gi1");
-      assert.equal(st.stopBlockPhase, "IDLE");
-      assert.equal(st.stopBlockCount, 1);
+      assert.equal(handleStop(stop(cwd, "gi1"), "linux"), "");
+      assert.equal(existsSync(join(cwd, ".codexclaw")), false);
+      assert.equal(handleStop(stop(cwd, "gi1"), "linux"), "");
+      assert.equal(existsSync(join(cwd, ".codexclaw")), false);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-IDLE-CONTINUE-01: SessionStart state and gitignore survive unbound IDLE Stop", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi-start", status: "active" }], () => {
+      assert.equal(handleSessionStart({ hook_event_name: "SessionStart", session_id: "gi-start", cwd }), "");
+      const sessionPath = join(cwd, ".codexclaw", "sessions", "gi-start.json");
+      const ignorePath = join(cwd, ".codexclaw", ".gitignore");
+      writeFileSync(ignorePath, "pre-existing ignore\n");
+      const stateBefore = readFileSync(sessionPath, "utf8");
+      const ignoreBefore = readFileSync(ignorePath, "utf8");
+      assert.equal(handleStop(stop(cwd, "gi-start")), "");
+      assert.equal(readFileSync(sessionPath, "utf8"), stateBefore);
+      assert.equal(readFileSync(ignorePath, "utf8"), ignoreBefore);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
@@ -536,6 +541,9 @@ test("GOAL-IDLE-CONTINUE-01: the win32 block teaches the file flag, not inline a
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "gi1", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Win32 IDLE continuation" });
+      writeGoalplan(cwd, plan);
+      writeState(cwd, { ...defaultState("gi1"), slug: plan.slug });
       const parsed = JSON.parse(handleStop(stop(cwd, "gi1"), "win32").trim());
       assert.equal(parsed.decision, "block");
       assert.doesNotMatch(parsed.reason, /--attest '\{/);
@@ -555,6 +563,9 @@ test("GOAL-IDLE-CONTINUE-01: bounded — releases after MAX_STOP_BLOCKS blocks a
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "gi2", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Bounded IDLE continuation" });
+      writeGoalplan(cwd, plan);
+      writeState(cwd, { ...defaultState("gi2"), slug: plan.slug });
       for (let i = 0; i < MAX_STOP_BLOCKS; i++) {
         assert.notEqual(handleStop(stop(cwd, "gi2")), "", `IDLE block ${i + 1} should block`);
       }
@@ -595,6 +606,20 @@ test("GOAL-IDLE-CONTINUE-01: bound but EMPTY goalplan is told to register the pl
       writeState(cwd, { ...defaultState("gi4"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
       const reason = JSON.parse(handleStop(stop(cwd, "gi4")).trim()).reason;
       assert.match(reason, /EMPTY: register workPhases/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-IDLE-CONTINUE-01: stale slug releases without counter write", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi-stale", status: "active" }], () => {
+      writeState(cwd, { ...defaultState("gi-stale"), slug: "missing-plan", stopBlockTotal: 7 });
+      const sessionPath = join(cwd, ".codexclaw", "sessions", "gi-stale.json");
+      const before = readFileSync(sessionPath, "utf8");
+      assert.equal(handleStop(stop(cwd, "gi-stale")), "");
+      assert.equal(readState(cwd, "gi-stale").stopBlockTotal, 7);
+      assert.equal(readFileSync(sessionPath, "utf8"), before);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
@@ -1040,15 +1065,111 @@ test("050 S10/S14: the absolute cap holds against forged progress", () => {
   try {
     withGoalsDb([{ thread_id: "s10", status: "active" }], () => {
       metricSession(cwd, "s10");
-      let released = 0;
+      let notice = "";
       for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL + 1; i++) {
         record(cwd, "s10", "score", i);
-        if (handleStop(stop(cwd, "s10")) === "") released = i;
+        const out = handleStop(stop(cwd, "s10"));
+        if (i <= MAX_STOP_BLOCKS_TOTAL) assert.equal(JSON.parse(out).decision, "block", `block ${i}`);
+        else notice = out;
       }
-      assert.equal(released, MAX_STOP_BLOCKS_TOTAL + 1, "released exactly at the absolute cap");
+      const parsed = JSON.parse(notice);
+      assert.match(parsed.systemMessage, /continuation cap \(24\) reached/);
+      assert.equal(parsed.decision, undefined, "the notice does not block");
       const st = readState(cwd, "s10");
       assert.equal(st.stopBlockTotal, MAX_STOP_BLOCKS_TOTAL + 1, "the total never resets");
       assert.equal(st.stopMetricCursor, MAX_STOP_BLOCKS_TOTAL + 1, "the cursor advances on release too");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("absolute Stop cap resets once on new real UserPromptSubmit turn", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "turn-reset", status: "active" }], () => {
+      writeState(cwd, { ...defaultState("turn-reset"), phase: "B", orchestrationActive: true,
+        stopBlockTotal: 24, stopBlockTurnId: "old", stopBlockCapNotified: true,
+        stopBlockCount: 2, stopMetricCursor: 7 });
+      handleUserPromptSubmit(ups("continue", cwd, "turn-reset", "new"));
+      let state = readState(cwd, "turn-reset");
+      assert.equal(state.stopBlockTotal, 0);
+      assert.equal(state.stopBlockTurnId, "new");
+      assert.equal(state.stopBlockCapNotified, false);
+      assert.equal(state.stopBlockCount, 2, "a new turn preserves phase progress");
+      assert.equal(state.stopMetricCursor, 7, "a new turn preserves observed metrics");
+      assert.equal(JSON.parse(handleStop(stop(cwd, "turn-reset"))).decision, "block");
+      handleUserPromptSubmit(ups("continue", cwd, "turn-reset", "new"));
+      assert.equal(readState(cwd, "turn-reset").stopBlockTotal, 1, "duplicate prompt cannot reset");
+      handleUserPromptSubmit(ups("continue", cwd, "turn-reset", "next"));
+      state = readState(cwd, "turn-reset");
+      assert.equal(state.stopBlockTotal, 0);
+      assert.equal(state.stopBlockTurnId, "next");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("UserPromptSubmit without SessionStart does not create a state file for the cap reset", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("continue", cwd, "missing-state", "new"));
+    assert.equal(readState(cwd, "missing-state").stopBlockTurnId, null);
+    assert.equal(readState(cwd, "missing-state").stopBlockTotal, 0);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("Stop continuation never invokes reset path", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "same-turn", status: "active" }], () => {
+      metricSession(cwd, "same-turn");
+      handleUserPromptSubmit(ups("continue", cwd, "same-turn", "t1"));
+      for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL; i++) {
+        record(cwd, "same-turn", "score", i);
+        assert.equal(JSON.parse(handleStop(stop(cwd, "same-turn", true))).decision, "block");
+      }
+      record(cwd, "same-turn", "score", 25);
+      const out = JSON.parse(handleStop(stop(cwd, "same-turn", true)));
+      assert.match(out.systemMessage, /continuation cap \(24\) reached/);
+      assert.equal(out.decision, undefined);
+      assert.equal(readState(cwd, "same-turn").stopBlockTotal, 25);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+for (const turnId of ["t1", undefined]) {
+  test(`cap notice once per turn (${turnId ? "turn id" : "no turn id"})`, () => {
+    const cwd = freshCwd();
+    try {
+      withGoalsDb([{ thread_id: "notice-once", status: "active" }], () => {
+        metricSession(cwd, "notice-once");
+        if (turnId) handleUserPromptSubmit(ups("continue", cwd, "notice-once", turnId));
+        for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL + 1; i++) {
+          record(cwd, "notice-once", "score", i);
+          const payload = { ...stop(cwd, "notice-once"), turn_id: turnId };
+          const out = handleStop(payload);
+          if (i === MAX_STOP_BLOCKS_TOTAL + 1) assert.match(JSON.parse(out).systemMessage, /continuation cap \(24\) reached/);
+        }
+        record(cwd, "notice-once", "score", 26);
+        assert.equal(handleStop({ ...stop(cwd, "notice-once"), turn_id: turnId }), "");
+        assert.equal(readState(cwd, "notice-once").stopBlockCapNotified, true);
+      });
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+}
+
+test("new turn re-arms the cap notice", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "rearm", status: "active" }], () => {
+      metricSession(cwd, "rearm");
+      writeState(cwd, { ...readState(cwd, "rearm"), stopBlockTotal: 24,
+        stopBlockTurnId: "old", stopBlockCapNotified: true });
+      handleUserPromptSubmit(ups("continue", cwd, "rearm", "new"));
+      assert.equal(readState(cwd, "rearm").stopBlockCapNotified, false);
+      for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL + 1; i++) {
+        record(cwd, "rearm", "score", i);
+        const out = handleStop(stop(cwd, "rearm"));
+        if (i === MAX_STOP_BLOCKS_TOTAL + 1) assert.match(JSON.parse(out).systemMessage, /continuation cap \(24\) reached/);
+      }
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
@@ -1329,4 +1450,86 @@ test("wp6: Stop reason keeps a single blocked phase when no work is ready", () =
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+function decisionStopPlan(cwd: string, sessionId: string, phases: ReturnType<typeof buildGoalplan>["workPhases"], criteria: ReturnType<typeof buildGoalplan>["criteria"] = []): ReturnType<typeof buildGoalplan> {
+  const plan = buildGoalplan({ objective: `decision stop ${sessionId}` });
+  plan.workPhases = phases;
+  plan.criteria = criteria;
+  plan.decisions = [{ id: "dec-1", question: "Choose API", status: "open", askedAt: "2026-09-28T00:00:00.000Z" }];
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(sessionId), slug: plan.slug });
+  return plan;
+}
+
+const waitingPhase = (id: string, criteriaIds: string[] = []) => ({ id, title: id, status: "pending" as const, tasks: [], criteriaIds, awaitsDecision: ["dec-1"] });
+
+test("IDLE Stop releases when every remaining phase awaits an open decision", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-idle", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-idle", [waitingPhase("linked")]);
+    assert.equal(handleStop(stop(cwd, "dec-idle")), "");
+    assert.equal(readState(cwd, "dec-idle").stopBlockTotal, 0);
+  });
+});
+
+test("IDLE Stop still blocks when an independent phase is runnable", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-free", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-free", [waitingPhase("linked"), { id: "free", title: "free", status: "pending", tasks: [], criteriaIds: [] }]);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-free")).trim()).decision, "block");
+  });
+});
+
+test("IDLE Stop blocks again after decide releases the wait", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-answered", status: "active" }], () => {
+    const plan = decisionStopPlan(cwd, "dec-answered", [waitingPhase("linked")]);
+    assert.equal(handleStop(stop(cwd, "dec-answered")), "");
+    plan.decisions = [{ ...plan.decisions![0], status: "decided", answer: "Use v2", decidedAt: "2026-09-28T01:00:00.000Z" }];
+    writeGoalplan(cwd, plan);
+    assert.match(JSON.parse(handleStop(stop(cwd, "dec-answered")).trim()).reason, /cxc orchestrate P/);
+  });
+});
+
+test("IDLE Stop still blocks when one phase waits on a decision and another is blocked for another reason", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-blocked", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-blocked", [waitingPhase("linked"), { id: "blocked", title: "blocked", status: "blocked", blockedReason: "vendor", tasks: [], criteriaIds: [] }]);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-blocked")).trim()).decision, "block");
+  });
+});
+
+test("IDLE Stop releases when an in-progress phase gained an open decision mid-cycle and its dependents wait on it", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-chain", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-chain", [{ ...waitingPhase("root"), status: "in_progress" }, { id: "child", title: "child", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["root"] }]);
+    assert.equal(handleStop(stop(cwd, "dec-chain")), "");
+  });
+});
+
+test("IDLE Stop still blocks when an independent criterion is unmet", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-criterion", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-criterion", [waitingPhase("linked")], [{ id: "c-1", scenario: "independent", expectedEvidence: "proof", capturedEvidence: null, status: "open" }]);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-criterion")).trim()).decision, "block");
+  });
+});
+
+test("IDLE Stop releases when every unmet criterion belongs to a decision-waiting phase", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-criterion-linked", status: "active" }], () => {
+    decisionStopPlan(cwd, "dec-criterion-linked", [waitingPhase("linked", ["c-1"])], [{ id: "c-1", scenario: "linked", expectedEvidence: "proof", capturedEvidence: null, status: "open" }]);
+    assert.equal(handleStop(stop(cwd, "dec-criterion-linked")), "");
+  });
+});
+
+test("dangling decision reference does not release IDLE Stop", () => {
+  const cwd = freshCwd();
+  withGoalsDb([{ thread_id: "dec-dangling", status: "active" }], () => {
+    const plan = decisionStopPlan(cwd, "dec-dangling", [waitingPhase("linked")]);
+    plan.decisions = [];
+    writeGoalplan(cwd, plan);
+    assert.equal(JSON.parse(handleStop(stop(cwd, "dec-dangling")).trim()).decision, "block");
+  });
 });

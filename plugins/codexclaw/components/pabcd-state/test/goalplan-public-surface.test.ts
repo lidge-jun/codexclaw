@@ -7,7 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  advanceWorkPhase, buildGoalplan, goalplanDir, readGoalplan, readyTasks,
+  advanceWorkPhase, askGoalplanDecision, buildGoalplan, goalplanDir, readGoalplan, readyTasks,
   readyWorkPhases, writeGoalplan, type Goalplan,
 } from "../src/goalplan.ts";
 import {
@@ -492,7 +492,7 @@ test("help lists repeated dependency syntax and required outcome", () => {
   // unknown-verb 거부 문구가 새 동사 넷을 포함하고 기존 여섯을 순서대로 남긴다.
   // 다음 verb 추가가 이 문구를 다시 빠뜨리면 여기서 RED가 난다.
   assert.deepEqual(parseGoalplanCliArgs(["redy"], "/tmp"), {
-    error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help",
+    error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide); run cxc loop --help",
   });
 });
 
@@ -680,3 +680,215 @@ test("the built CLI rejects a misplaced or misspelled flag before any write", ()
     }
   }
 });
+
+test("ask records an open decision and hides only linked work phases", () => {
+  const plan = fixture();
+  plan.workPhases.push({ id: "wp-free", title: "free", status: "pending", tasks: [{ id: "free-task", title: "free", status: "pending" }], criteriaIds: [] });
+  const { cwd, session } = workspace(plan);
+  const asked = cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--recommendation", "Use v2", "--work-phase", "wp-live"]);
+  assert.equal(asked.code, 0, asked.output);
+  const back = readGoalplan(cwd, plan.slug)!;
+  assert.equal(back.decisions?.[0]?.status, "open");
+  assert.match(back.decisions?.[0]?.askedAt ?? "", /^\d{4}-\d\d-\d\dT/);
+  assert.deepEqual(back.workPhases.find((wp) => wp.id === "wp-live")?.awaitsDecision, ["dec-1"]);
+  assert.deepEqual(readyWorkPhases(back).map((wp) => wp.id), ["wp-free"]);
+  assert.deepEqual(readyTasks(back).map(({ workPhaseId }) => workPhaseId), ["wp-free"]);
+  const ready = cli(cwd, ["ready", "--session", session, "--json"]);
+  assert.equal(ready.code, 0, ready.output);
+  const data = JSON.parse(ready.output);
+  assert.equal(data.openDecisions[0].id, "dec-1");
+  assert.deepEqual(data.awaitingDecisions, [{ workPhaseId: "wp-live", decisionIds: ["dec-1"] }]);
+  assert.match(cli(cwd, ["show", "--session", session]).output, /Choose API[\s\S]*waiting: wp-live/);
+});
+
+test("decide releases linked phases without unblocking explicit blocks", () => {
+  const plan = fixture();
+  plan.workPhases.push({ id: "wp-explicit", title: "explicit", status: "blocked", blockedReason: "vendor", tasks: [], criteriaIds: [] });
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--work-phase", "wp-live", "--work-phase", "wp-explicit"]).code, 0);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v2"]).code, 0);
+  const back = readGoalplan(cwd, plan.slug)!;
+  assert.equal(back.decisions?.[0]?.answer, "Use v2");
+  assert.equal(back.decisions?.[0]?.status, "decided");
+  assert.match(back.decisions?.[0]?.decidedAt ?? "", /^\d{4}-/);
+  assert.deepEqual(readyWorkPhases(back).map((wp) => wp.id), ["wp-live"]);
+  assert.equal(back.workPhases.find((wp) => wp.id === "wp-explicit")?.blockedReason, "vendor");
+  assert.deepEqual(JSON.parse(cli(cwd, ["ready", "--session", session, "--json"]).output).awaitingDecisions, []);
+});
+
+test("ask rejects duplicate open question and unknown phase without a write", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--work-phase", "wp-live"]).code, 0);
+  const before = planText(cwd, plan.slug), ledger = ledgerText(cwd, plan.slug);
+  const duplicate = cli(cwd, ["ask", "--session", session, "--id", "dec-2", "--question", " Choose API "]);
+  assert.equal(duplicate.code, 1);
+  assert.match(duplicate.output, /dec-1/);
+  const unknown = cli(cwd, ["ask", "--session", session, "--id", "dec-2", "--question", "Other", "--work-phase", "ghost"]);
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.output, /ghost/);
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(ledgerText(cwd, plan.slug), ledger);
+});
+
+test("ask and decide enforce per-verb flags before writing", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const before = planText(cwd, plan.slug), ledger = ledgerText(cwd, plan.slug);
+  for (const argv of [
+    ["ask", "--session", session, "--id", "dec-1", "--answer", "x"],
+    ["decide", "--session", session, "--id", "dec-1", "--question", "x"],
+    ["ask", "--session", session, "--id", "dec-1", "--question", "x", "--question", "y"],
+    ["ask", "--session", session, "--id", "dec-1", "--question", "x", "--work-phase", "wp-live", "--work-phase", "wp-live"],
+    ["ask", "--session", session, "--id", "dec-1", "--question="],
+    ["decide", "--session", session, "--id", "dec-1", "--answer"],
+  ]) assert.equal("error" in parseGoalplanCliArgs(argv, cwd), true, argv.join(" "));
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(ledgerText(cwd, plan.slug), ledger);
+  assert.match(renderGoalplanHelp(), /ask --session <id> --id <id> --question <text>/);
+  assert.match(renderGoalplanHelp(), /decide --session <id> --id <id> --answer <text>/);
+});
+
+test("decide is idempotent only for the same answer", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API"]);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v2"]).code, 0);
+  const before = planText(cwd, plan.slug);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v2"]).code, 0);
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "Use v3"]).code, 1);
+  assert.equal(planText(cwd, plan.slug), before);
+});
+
+test("ready rejects dangling and duplicate decision references", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  plan.workPhases.find((wp) => wp.id === "wp-live")!.awaitsDecision = ["ghost"];
+  writeGoalplan(cwd, plan);
+  const dangling = cli(cwd, ["ready", "--session", session]);
+  assert.equal(dangling.code, 1);
+  assert.match(dangling.output, /awaits unknown decision 'ghost'/);
+  plan.decisions = [{ id: "ghost", question: "Choose", status: "open", askedAt: "2026-09-28T00:00:00.000Z" }];
+  plan.workPhases.find((wp) => wp.id === "wp-live")!.awaitsDecision = ["ghost", "ghost"];
+  writeGoalplan(cwd, plan);
+  assert.match(cli(cwd, ["ready", "--session", session]).output, /more than once/);
+  plan.workPhases.find((wp) => wp.id === "wp-live")!.awaitsDecision = ["ghost"];
+  plan.decisions.push({ ...plan.decisions[0], question: "Again" });
+  writeGoalplan(cwd, plan);
+  assert.match(cli(cwd, ["ready", "--session", session]).output, /duplicate decision id/);
+});
+
+
+// #262 follow-up (issue train 0930, devlog/_plan/260930_issue_train/030): decision options
+
+test("ask records options and ready/show expose them", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const asked = cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API",
+    "--option", "A", "--option", "B", "--recommendation", "A", "--work-phase", "wp-live"]);
+  assert.equal(asked.code, 0, asked.output);
+  assert.deepEqual(readGoalplan(cwd, plan.slug)!.decisions?.[0]?.options, ["A", "B"]);
+  const data = JSON.parse(cli(cwd, ["ready", "--session", session, "--json"]).output);
+  assert.deepEqual(data.openDecisions[0].options, ["A", "B"]);
+  assert.match(cli(cwd, ["show", "--session", session]).output, /options: A \| B \(recommended: A\)/);
+  assert.match(renderGoalplanHelp(), /\[--option <text>\]\.\.\./);
+});
+
+test("ask rejects a recommendation outside the options without a write", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const before = planText(cwd, plan.slug), ledger = ledgerText(cwd, plan.slug);
+  const res = cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API",
+    "--option", "A", "--option", "B", "--recommendation", "C"]);
+  assert.equal(res.code, 1);
+  assert.match(res.output, /must be one of the options/);
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(ledgerText(cwd, plan.slug), ledger);
+});
+
+test("ask rejects blank and repeated options at parse time", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const before = planText(cwd, plan.slug);
+  const blank = parseGoalplanCliArgs(["ask", "--session", session, "--id", "dec-1", "--question", "Q", "--option", " "], cwd);
+  assert.match((blank as { error: string }).error, /--option requires one non-empty value/);
+  const repeated = parseGoalplanCliArgs(["ask", "--session", session, "--id", "dec-1", "--question", "Q", "--option", "A", "--option", " A"], cwd);
+  assert.match((repeated as { error: string }).error, /--option must not repeat 'A'/);
+  const misplaced = parseGoalplanCliArgs(["decide", "--session", session, "--id", "dec-1", "--answer", "x", "--option", "A"], cwd);
+  assert.match((misplaced as { error: string }).error, /unknown flag '--option/);
+  const equalsForm = parseGoalplanCliArgs(["ask", "--session", session, "--id", "dec-1", "--question", "Q", "--option=A", "--option=--x"], cwd);
+  assert.deepEqual((equalsForm as GoalplanCliArgs).options, ["A", "--x"]);
+  assert.equal(planText(cwd, plan.slug), before);
+});
+
+test("ask without --option stores no options key", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API"]).code, 0);
+  const raw = JSON.parse(planText(cwd, plan.slug));
+  assert.equal("options" in raw.decisions[0], false);
+  const data = JSON.parse(cli(cwd, ["ready", "--session", session, "--json"]).output);
+  assert.equal("options" in data.openDecisions[0], false);
+});
+
+test("decide keeps options and accepts a free-form answer", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--option", "A", "--option", "B"]);
+  const decided = cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "something else"]);
+  assert.equal(decided.code, 0, decided.output);
+  const back = readGoalplan(cwd, plan.slug)!.decisions![0];
+  assert.equal(back.status, "decided");
+  assert.equal(back.answer, "something else");
+  assert.deepEqual(back.options, ["A", "B"]);
+  cli(cwd, ["ask", "--session", session, "--id", "dec-2", "--question", "Pick a region", "--option", "eu", "--option", "us"]);
+  const shown = cli(cwd, ["show", "--session", session]).output;
+  assert.match(shown, /options: eu \| us$/m);
+  assert.doesNotMatch(shown, /recommended: undefined/);
+});
+
+test("reviver fails closed on malformed options", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--option", "A", "--recommendation", "A"]).code, 0);
+  const good = JSON.parse(planText(cwd, plan.slug));
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  for (const mutate of [
+    (d: any) => { d.options = {}; },
+    (d: any) => { d.options = []; },
+    (d: any) => { d.options = [" "]; },
+    (d: any) => { d.options = ["A", "A "]; },
+    (d: any) => { d.options = [1]; },
+    (d: any) => { d.options = ["B"]; },
+  ]) {
+    const bad = JSON.parse(JSON.stringify(good));
+    mutate(bad.decisions[0]);
+    writeFileSync(path, JSON.stringify(bad, null, 2));
+    assert.equal(readGoalplan(cwd, plan.slug), null, JSON.stringify(bad.decisions[0].options));
+    assert.match(cli(cwd, ["show", "--session", session]).output, /field 'decisions'/);
+  }
+  const padded = JSON.parse(JSON.stringify(good));
+  padded.decisions[0].options = [" A "];
+  writeFileSync(path, JSON.stringify(padded, null, 2));
+  assert.deepEqual(readGoalplan(cwd, plan.slug)!.decisions![0].options, [" A "]);
+});
+
+test("askGoalplanDecision rejects empty, blank and repeated options (library)", () => {
+  const plan = fixture();
+  const base = { id: "dec-1", question: "Choose API", workPhaseIds: [], askedAt: "2026-09-30T00:00:00.000Z" };
+  const reason = (options: string[]) => {
+    const res = askGoalplanDecision(plan, { ...base, options });
+    assert.equal(res.kind, "rejected");
+    return (res as { reason: string }).reason;
+  };
+  assert.match(reason([]), /must not be empty/);
+  assert.match(reason([" "]), /non-empty text/);
+  assert.match(reason(["A", " A"]), /duplicate decision option 'A'/);
+  const ok = askGoalplanDecision(plan, { ...base, options: [" A ", "B"], recommendation: " A" });
+  assert.equal(ok.kind, "changed");
+  const stored = (ok as { plan: Goalplan }).plan.decisions![0];
+  assert.deepEqual(stored.options, ["A", "B"]);
+  assert.equal(stored.recommendation, "A");
+});
+

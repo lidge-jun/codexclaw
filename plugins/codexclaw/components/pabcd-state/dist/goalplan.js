@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * goalplan.ts — project-local durable goalplan substrate (lazygap_impl 030).
  *
@@ -150,10 +151,25 @@ export const DEFAULT_NEW_SCHEMA_VERSION = 1;
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /**
  * What a round is for. A plan audit and a final code gate cannot stand in for
  * each other, so each purpose carries its own cursor.
  */
+
 
 
 
@@ -503,6 +519,53 @@ function reviveDependsOn(value         )                                   {
   return ids;
 }
 
+function validIsoTime(value         )                  {
+  if (typeof value !== "string") return false;
+  const date = new Date(value);
+  return Number.isFinite(date.valueOf()) && date.toISOString() === value;
+}
+
+/** Absent stays absent; a present list must be non-empty, non-blank and distinct after trim. */
+function reviveDecisionOptions(value         )                                   {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) return "invalid";
+  if (value.some((option) => typeof option !== "string" || !option.trim())) return "invalid";
+  const trimmed = (value            ).map((option) => option.trim());
+  if (new Set(trimmed).size !== trimmed.length) return "invalid";
+  return [...(value            )];
+}
+
+function reviveDecisions(value         )                                             {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return "invalid";
+  const decisions                     = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) return "invalid";
+    const d = item                           ;
+    if (typeof d.id !== "string" || !LIFECYCLE_ID_RE.test(d.id)
+      || typeof d.question !== "string" || !d.question.trim()
+      || !validIsoTime(d.askedAt)
+      || (d.recommendation !== undefined && (typeof d.recommendation !== "string" || !d.recommendation.trim()))) return "invalid";
+    const options = reviveDecisionOptions(d.options);
+    if (options === "invalid") return "invalid";
+    if (options !== undefined && d.recommendation !== undefined
+      && !options.some((option) => option.trim() === (d.recommendation          ).trim())) return "invalid";
+    if (d.status === "open") {
+      if (d.answer !== undefined || d.decidedAt !== undefined) return "invalid";
+      decisions.push({ id: d.id, question: d.question, status: "open", askedAt: d.askedAt,
+        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation           }),
+        ...(options === undefined ? {} : { options }) });
+    } else if (d.status === "decided") {
+      if (typeof d.answer !== "string" || !d.answer.trim() || !validIsoTime(d.decidedAt)) return "invalid";
+      decisions.push({ id: d.id, question: d.question, status: "decided", answer: d.answer,
+        askedAt: d.askedAt, decidedAt: d.decidedAt,
+        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation           }),
+        ...(options === undefined ? {} : { options }) });
+    } else return "invalid";
+  }
+  return decisions;
+}
+
 /** Best-effort structural validation; a malformed object reads as absent (null). */
 function reviveGoalplan(parsed         , expectedSlug         )                  {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
@@ -524,6 +587,8 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
     if (typeof w.id !== "string" || typeof w.title !== "string") return null;
     const phaseDependsOn = reviveDependsOn(w.dependsOn);
     if (phaseDependsOn === "invalid") return null;
+    const awaitsDecision = reviveDependsOn(w.awaitsDecision);
+    if (awaitsDecision === "invalid") return null;
     const status                  =
       w.status === "in_progress" || w.status === "done" || w.status === "blocked" || w.status === "superseded"
         ? w.status
@@ -547,6 +612,7 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
       : [];
     const phase                    = { id: w.id, title: w.title, status, tasks, criteriaIds };
     if (phaseDependsOn !== undefined) phase.dependsOn = phaseDependsOn;
+    if (awaitsDecision !== undefined) phase.awaitsDecision = awaitsDecision;
     if (typeof w.blockedReason === "string") phase.blockedReason = w.blockedReason;
     if (typeof w.supersededBy === "string") phase.supersededBy = w.supersededBy;
     workPhases.push(phase);
@@ -579,6 +645,8 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
   };
 
   const reviewRounds = reviveReviewRounds(o.reviewRounds);
+  const decisions = reviveDecisions(o.decisions);
+  if (decisions === "invalid") return null;
 
   const plan           = {
     objective: o.objective,
@@ -593,6 +661,7 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
   // Only attach the 010 fields when they are actually present, so a plan written
   // before this feature round-trips byte-identical.
   if (reviewRounds !== undefined) plan.reviewRounds = reviewRounds;
+  if (decisions !== undefined) plan.decisions = decisions;
   if (typeof o.activePlanAuditRoundId === "string") plan.activePlanAuditRoundId = o.activePlanAuditRoundId;
   if (typeof o.activeFinalGateRoundId === "string") plan.activeFinalGateRoundId = o.activeFinalGateRoundId;
   if (typeof o.schemaVersion === "number" && Number.isFinite(o.schemaVersion)) {
@@ -821,6 +890,7 @@ function firstInvalidField(parsed         )         {
   for (const rawWp of o.workPhases) {
     const wp = rawWp                           ;
     if (reviveDependsOn(wp.dependsOn) === "invalid") return "workPhases[].dependsOn";
+    if (reviveDependsOn(wp.awaitsDecision) === "invalid") return "workPhases[].awaitsDecision";
     for (const rawTask of Array.isArray(wp.tasks) ? wp.tasks : []) {
       if (typeof rawTask !== "object" || rawTask === null) continue;
       const task = rawTask                           ;
@@ -838,6 +908,7 @@ function firstInvalidField(parsed         )         {
   if (typeof o.host !== "object" || o.host === null || typeof (o.host                           ).armed !== "boolean") {
     return "host (needs armed/armedAt/source)";
   }
+  if (reviveDecisions(o.decisions) === "invalid") return "decisions";
   if (o.steeringLog !== undefined && !Array.isArray(o.steeringLog)) return "steeringLog";
   return "(unknown)";
 }
@@ -850,6 +921,7 @@ function firstInvalidField(parsed         )         {
 export function writeGoalplan(cwd        , plan          )       {
   validateGoalplanSlug(plan.slug);
   const dir = goalplanDir(cwd, plan.slug);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   // Recheck after creation to close the ordinary pre-existing symlink case.
   goalplanDir(cwd, plan.slug);
@@ -874,6 +946,7 @@ export function appendGoalplanLedger(cwd        , slug        , entry           
   validateGoalplanSlug(slug);
   if (entry.slug !== slug) throw new Error("goalplan ledger entry slug does not match target slug");
   const dir = goalplanDir(cwd, slug);
+  ensureCodexclawDir(cwd);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   goalplanDir(cwd, slug);
   const path = goalplanLedgerPath(cwd, slug);
@@ -980,11 +1053,21 @@ function taskDependenciesMet(phase                   , task              )      
   );
 }
 
+export function openDecisionIdsForPhase(plan          , wp                   )           {
+  // Only a unique, decided target releases a reference. Missing/duplicate ids fail closed.
+  return [...new Set(wp.awaitsDecision ?? [])].filter((id) => {
+    const matches = (plan.decisions ?? []).filter((decision) => decision.id === id);
+    return !(matches.length === 1 && matches[0].status === "decided");
+  });
+}
+
+function workPhaseReadyConditionsMet(plan          , wp                   )          {
+  return workPhaseDependenciesMet(plan, wp) && openDecisionIdsForPhase(plan, wp).length === 0;
+}
+
 function isRunnablePhase(plan          , wp                   )          {
-  return (
-    (wp.status === "pending" || wp.status === "in_progress")
-    && workPhaseDependenciesMet(plan, wp)
-  );
+  return (wp.status === "pending" || wp.status === "in_progress")
+    && workPhaseReadyConditionsMet(plan, wp);
 }
 
 export function readyWorkPhases(plan          )                      {
@@ -1057,6 +1140,8 @@ export function dependencyWaitReasons(plan          )           {
         unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
       ));
     }
+    const decisionIds = openDecisionIdsForPhase(plan, wp);
+    if (decisionIds.length > 0) reasons.push(`work-phase ${wp.id} awaits decision ${decisionIds.join(", ")}`);
     if (wp.status !== "pending" && wp.status !== "in_progress") continue;
     for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
       const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
@@ -1094,6 +1179,8 @@ export function dependencyDeadlock(plan          )                            {
       reasons.push(
         `work-phase ${wp.id} is blocked${wp.blockedReason ? ` (${wp.blockedReason})` : ""}`,
       );
+      const decisionIds = openDecisionIdsForPhase(plan, wp);
+      if (decisionIds.length > 0) reasons.push(`work-phase ${wp.id} awaits decision ${decisionIds.join(", ")}`);
       continue;
     }
     const unmetPhaseDependencies = unmetPhaseDependencyIds(plan, wp);
@@ -1102,8 +1189,10 @@ export function dependencyDeadlock(plan          )                            {
         `work-phase ${wp.id}`,
         unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
       ));
-      continue;
     }
+    const decisionIds = openDecisionIdsForPhase(plan, wp);
+    if (decisionIds.length > 0) reasons.push(`work-phase ${wp.id} awaits decision ${decisionIds.join(", ")}`);
+    if (unmetPhaseDependencies.length > 0) continue;
     for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
       const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
       if (unmetTaskDependencies.length > 0) {
@@ -1117,12 +1206,101 @@ export function dependencyDeadlock(plan          )                            {
   return reasons.length > 0 ? { reasons } : null;
 }
 
+/** IDLE can yield only when actual open user decisions account for all remaining work. */
+export function remainingWorkAwaitsDecisions(plan          )          {
+  // A plan with broken references must keep prompting the agent to repair it.
+  if (goalplanStructuralReasons(plan).length > 0) return false;
+  const remaining = remainingWorkPhases(plan);
+  if (remaining.length === 0) return false;
+  const byId = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
+  const waiting = (phase                   , visiting             )          => {
+    if (phase.status !== "pending" && phase.status !== "in_progress") return false;
+    if ((phase.awaitsDecision ?? []).some((id) => {
+      const matches = (plan.decisions ?? []).filter((decision) => decision.id === id);
+      return matches.length === 1 && matches[0].status === "open";
+    })) return true;
+    if (visiting.has(phase.id)) return false;
+    visiting.add(phase.id);
+    const result = (phase.dependsOn ?? []).some((id) => {
+      const dependency = byId.get(id);
+      return dependency !== undefined && dependency.status !== "done" && waiting(dependency, visiting);
+    });
+    visiting.delete(phase.id);
+    return result;
+  };
+  const waitingPhases = remaining.filter((phase) => waiting(phase, new Set()));
+  if (waitingPhases.length !== remaining.length) return false;
+  return unmetCriteria(plan).every((criterion) => waitingPhases.some((phase) => phase.criteriaIds.includes(criterion.id)));
+}
+
 const LIFECYCLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 
 
 
 
+
+export function askGoalplanDecision(
+  plan          ,
+  input                                                                                                                        ,
+)                          {
+  const id = input.id.trim();
+  const question = input.question.trim();
+  const recommendation = input.recommendation?.trim();
+  const workPhaseIds = input.workPhaseIds.map((phaseId) => phaseId.trim());
+  if (!LIFECYCLE_ID_RE.test(id)) return { kind: "rejected", reason: "decision id must be a short lowercase id, e.g. dec-1" };
+  if (!question) return { kind: "rejected", reason: "decision question must not be empty" };
+  if (input.recommendation !== undefined && !recommendation) return { kind: "rejected", reason: "decision recommendation must not be empty" };
+  const options = input.options?.map((option) => option.trim());
+  if (options !== undefined) {
+    if (options.length === 0) return { kind: "rejected", reason: "decision options must not be empty" };
+    if (options.some((option) => !option)) return { kind: "rejected", reason: "decision options must be non-empty text" };
+    const repeated = options.find((option, index) => options.indexOf(option) !== index);
+    if (repeated !== undefined) return { kind: "rejected", reason: `duplicate decision option '${repeated}'` };
+    if (recommendation !== undefined && !options.includes(recommendation)) {
+      return { kind: "rejected", reason: "decision recommendation must be one of the options" };
+    }
+  }
+  if (!validIsoTime(input.askedAt)) return { kind: "rejected", reason: "decision askedAt must be an ISO timestamp" };
+  if (plan.decisions?.some((decision) => decision.id === id)) return { kind: "rejected", reason: `decision '${id}' is already in this plan` };
+  const duplicate = plan.decisions?.find((decision) => decision.status === "open" && decision.question.trim() === question);
+  if (duplicate) return { kind: "rejected", reason: `question is already open as decision '${duplicate.id}'` };
+  if (workPhaseIds.some((phaseId) => !phaseId) || new Set(workPhaseIds).size !== workPhaseIds.length) {
+    return { kind: "rejected", reason: "--work-phase requires distinct non-empty ids" };
+  }
+  for (const phaseId of workPhaseIds) {
+    const phase = plan.workPhases.find((wp) => wp.id === phaseId);
+    if (!phase) return { kind: "rejected", reason: `work phase '${phaseId}' is not in this plan` };
+    if (phase.status === "done" || phase.status === "superseded") {
+      return { kind: "rejected", reason: `work phase '${phaseId}' is ${phase.status} and cannot await a decision` };
+    }
+  }
+  const decision                   = { id, question, status: "open", askedAt: input.askedAt,
+    ...(recommendation === undefined ? {} : { recommendation }),
+    ...(options === undefined ? {} : { options }) };
+  const next           = { ...plan, decisions: [...(plan.decisions ?? []), decision],
+    workPhases: plan.workPhases.map((wp) => workPhaseIds.includes(wp.id)
+      ? { ...wp, awaitsDecision: [...(wp.awaitsDecision ?? []), id] } : wp) };
+  const reasons = goalplanDefinitionIntegrityReasons(next);
+  return reasons.length ? { kind: "rejected", reason: reasons.join("; ") } : { kind: "changed", plan: next };
+}
+
+export function decideGoalplanDecision(
+  plan          , id        , answer        , decidedAt        ,
+)                          {
+  const matches = (plan.decisions ?? []).filter((candidate) => candidate.id === id.trim());
+  if (matches.length === 0) return { kind: "rejected", reason: `decision '${id.trim()}' is not in this plan` };
+  if (matches.length > 1) return { kind: "rejected", reason: `decision id '${id.trim()}' is ambiguous (${matches.length} entries); repair the plan first` };
+  const decision = matches[0];
+  if (!answer.trim()) return { kind: "rejected", reason: "decision answer must not be empty" };
+  if (!validIsoTime(decidedAt)) return { kind: "rejected", reason: "decision decidedAt must be an ISO timestamp" };
+  if (decision.status === "decided") return decision.answer === answer.trim()
+    ? { kind: "unchanged", plan, reason: `decision '${id.trim()}' is already decided` }
+    : { kind: "rejected", reason: `decision '${id.trim()}' already has a different answer` };
+  const next           = { ...plan, decisions: plan.decisions .map((candidate) => candidate.id === decision.id
+    ? { ...candidate, status: "decided"         , answer: answer.trim(), decidedAt } : candidate) };
+  return { kind: "changed", plan: next };
+}
 
 export function addGoalplanTask(
   plan          ,
@@ -1313,6 +1491,22 @@ export function goalplanDefinitionIntegrityReasons(plan          )           {
   const phaseIds = new Set(plan.workPhases.map((phase) => phase.id));
   for (const id of duplicateIds(plan.workPhases.map((phase) => phase.id))) {
     reasons.push(`duplicate work phase id '${id}' makes dependency references ambiguous`);
+  }
+  const decisionsById = new Map((plan.decisions ?? []).map((decision) => [decision.id, decision]));
+  for (const id of duplicateIds((plan.decisions ?? []).map((decision) => decision.id))) {
+    reasons.push(`duplicate decision id '${id}' makes awaitsDecision references ambiguous`);
+  }
+  for (const phase of plan.workPhases) {
+    for (const id of duplicateIds(phase.awaitsDecision ?? [])) {
+      reasons.push(`work phase ${phase.id} awaits decision '${id}' more than once`);
+    }
+    for (const id of new Set(phase.awaitsDecision ?? [])) {
+      const decision = decisionsById.get(id);
+      if (!decision) reasons.push(`work phase ${phase.id} awaits unknown decision '${id}'`);
+      else if (phase.status === "done" && decision.status === "open") {
+        reasons.push(`work phase ${phase.id} is done while decision ${id} is open`);
+      }
+    }
   }
   for (const phase of plan.workPhases) {
     // 감사 라운드 1 BLOCKER 1: 같은 참조를 여러 번 쓴 dependsOn이 같은 사유를 반복하면
@@ -1540,6 +1734,25 @@ function supersededIntegrityReasons(plan          )           {
     }
   }
   return out;
+}
+
+/**
+ * Every E8 reason that means the plan itself is broken, as opposed to work that is
+ * simply not finished yet. The IDLE decision release refuses any of these so the
+ * agent keeps being prompted to repair the plan.
+ */
+export function goalplanStructuralReasons(plan          )           {
+  const reasons           = [];
+  if (typeof plan.schemaVersion === "number" && plan.schemaVersion > SUPPORTED_MAX_SCHEMA_VERSION) {
+    reasons.push(`schemaVersion ${plan.schemaVersion} is newer than this build supports`);
+  }
+  reasons.push(...goalplanDefinitionIntegrityReasons(plan), ...goalplanDependencyCompletionReasons(plan));
+  for (const c of plan.criteria) {
+    if (c.status === "met" && (c.capturedEvidence ?? "").trim().length === 0) reasons.push(`criterion ${c.id} marked met but has no captured evidence`);
+  }
+  for (const wp of doneWorkPhasesWithPendingTasks(plan)) reasons.push(`work phase ${wp.id} is marked done but still has open task(s)`);
+  reasons.push(...supersededIntegrityReasons(plan));
+  return reasons;
 }
 
 /** Marker path: promotion to v2 is recorded outside the plan file as well. */
@@ -1792,8 +2005,11 @@ export function closeFixedWorkPhase(
   // status alone let a target through whose dependency turned blocked after the
   // marker was written — advanceWorkPhase() answers no_active there, and recovery
   // must not answer ok.
-  if (!workPhaseDependenciesMet(plan, current)) {
-    return { kind: "dependencies_unmet", unmet: unmetPhaseDependencyIds(plan, current) };
+  if (!workPhaseReadyConditionsMet(plan, current)) {
+    return { kind: "dependencies_unmet", unmet: [
+      ...unmetPhaseDependencyIds(plan, current),
+      ...openDecisionIdsForPhase(plan, current).map((id) => `decision:${id}`),
+    ] };
   }
 
   // CYCLE-COMPLETION-01, unchanged wording and unchanged variant: an open task keeps
@@ -1820,10 +2036,10 @@ export function closeFixedWorkPhase(
   let next                            ;
   if (recordedNext === undefined) {
     const after = closedWorkPhases.slice(currentIdx + 1).find(
-      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+      (wp) => wp.status === "pending" && isRunnablePhase(closedPlan, wp),
     );
     next = after ?? closedWorkPhases.slice(0, currentIdx).find(
-      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+      (wp) => wp.status === "pending" && isRunnablePhase(closedPlan, wp),
     );
   } else if (recordedNext === null) {
     next = undefined;
@@ -1868,11 +2084,11 @@ export function closeFixedWorkPhase(
       // and it can only do that against a normalized cursor.
       next = closedWorkPhases.find(
         (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
-          && wp.status === "in_progress" && workPhaseDependenciesMet(closedPlan, wp),
+          && wp.status === "in_progress" && workPhaseReadyConditionsMet(closedPlan, wp),
       );
     } else if (named.status !== "pending" && named.status !== "in_progress") {
       return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
-    } else if (!workPhaseDependenciesMet(closedPlan, named)) {
+    } else if (!workPhaseReadyConditionsMet(closedPlan, named)) {
       return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
     } else {
       next = named;
@@ -1922,7 +2138,7 @@ export function absentSuccessorDetail(
     ? "is gone too"
     : reason === "not_runnable"
       ? "can no longer be started"
-      : "now waits for another work-phase";
+      : "now waits for a prerequisite or decision";
 }
 
 
@@ -1951,7 +2167,7 @@ export function resumeAbsentTarget(
   // successor waiting on the same unmet dependency was refused with the target present and
   // activated with it gone. A dangling dependsOn reads as not-done here by design, and the
   // pending branch already refused that plan.
-  if (!workPhaseDependenciesMet(plan, named)) {
+  if (!workPhaseReadyConditionsMet(plan, named)) {
     return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
   }
   // Running: the activation happened too, but only if the cursor agrees. §45 established
@@ -2041,11 +2257,11 @@ export function effectiveActiveWorkPhaseId(plan          )                {
     if (cur && isRunnablePhase(plan, cur)) return cur.id;
   }
   const inProgress = plan.workPhases.find(
-    (wp) => wp.status === "in_progress" && workPhaseDependenciesMet(plan, wp),
+    (wp) => wp.status === "in_progress" && isRunnablePhase(plan, wp),
   );
   if (inProgress) return inProgress.id;
   const pending = plan.workPhases.find(
-    (wp) => wp.status === "pending" && workPhaseDependenciesMet(plan, wp),
+    (wp) => wp.status === "pending" && isRunnablePhase(plan, wp),
   );
   return pending?.id ?? null;
 }

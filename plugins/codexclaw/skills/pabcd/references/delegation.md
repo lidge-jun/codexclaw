@@ -3,13 +3,16 @@
 This file assumes the surface is already chosen and describes the **subagent**
 packet. [Dispatch surfaces](dispatch-surfaces.md) owns the choice between a
 subagent and a separate Codex task, and the fact that a subagent runs in this
-session's own working directory rather than a copy of it.
+session's native working directory rather than a copy of it. A bounded worker
+can operate in a separately created managed worktree only when its packet
+supplies that absolute path and it uses it as every shell command's workdir.
 
 The main session owns the plan, host goal, and every PABCD transition.
 At P, consult a read-only architect; at A, dispatch an independent reviewer.
 Use a supported read-only transport for both and a supported write role for bounded
 implementation (DISPATCH-AGENT-TYPE-01 and the live schema below).
 The executor role resolves to its registered native `executor` type once `cxc subagents register executor` has run; unregistered installs keep the built-in `worker`.
+When PABCD policy is enabled, the registered executor is evidence-gated on every SubagentStop; the built-in worker fallback is evidence-gated only while the parent has an active PABCD B/C cycle. When PABCD policy is disabled, both gates are silent. Outside that cycle the worker releases without a receipt.
 Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
 Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
 `TASK`, `SCOPE`, `MUST DO`, `MUST NOT`, `PROOF`, `RETURN FORMAT`, and decision boundary.
@@ -18,6 +21,36 @@ Pass the concrete plan and scope; never let a subagent reconstruct the plan.
 Subagents return evidence and unresolved judgments; the main session decides and
 integrates. Dispatch only specifiable work whose coordination cost is justified
 (DISPATCH-ECONOMY-01).
+
+**DISPATCH-VERIFIER-01 (DEFAULT).** When a packet names verifier commands, the
+receipt reports one result per command; extra checks belong in the commands-run
+list, not in the verifier results. A typed receipt satisfies its packet only when
+every required command has a matching result with exit 0 and, when the packet
+requires commands, no result names a command it did not require. Under a
+shared-read packet, only a verifier declared read-only (`expectedWrites: []`)
+runs in the shared tree; one that declares writes, asks for isolation or declares
+nothing runs in an isolated copy or goes back to main first. A declaration is the
+author's claim, not proof: codexclaw never executes it.
+
+### Optional worker progress checkpoint (#265)
+
+For a long bounded write packet, the coordinator may grant a specific `PROGRESS.md`
+path inside the worker's assigned worktree. The worker may update it after a
+coherent edit or check with three fields: `Done`, `Remaining`, and `Partial files`
+(absolute paths plus what is incomplete). Example:
+
+```text
+Done: parsed hook input and added the first regression test
+Remaining: add manifest entries; run focused tests
+Partial files: /absolute/worktree/path/src/agent-thread-permissions.ts — parser branch incomplete
+```
+
+The checkpoint is a handoff hint, not completion proof or a new source of
+authority. On interruption, the coordinator checks that the first worker has
+stopped, reads `PROGRESS.md` and the named files, then gives the replacement
+worker the same bounded packet, worktree path, and remaining work. The
+replacement verifies the actual file state before editing. Without a granted
+path, the worker does not create `PROGRESS.md`.
 
 **DISPATCH-PROMOTE-01 (DEFAULT).** After checking a child's evidence, main records a
 short synthesis of what it accepted: the reusable result, the failure cause or
@@ -223,17 +256,24 @@ names in your own session:
 
 `worktree` is what gives a lane its own checkout. Creating a thread is
 user-visible; messaging one is not commanding it.
+A `create_thread` child may start with reduced approval permission even when
+the coordinator is full-access; this also occurs for projectless targets. Check
+the child's actual permission mode before assigning unattended writes. A
+bounded checkout worker can instead use `create_worktree` plus a subagent with
+the returned absolute path as every shell workdir. This does not give the
+subagent its own task, goal or PABCD state.
 
 **Delegation safeguards:**
 
-- **DISPATCH-ISOLATION-01:** subagent lanes are not isolated environments — they
-  all run in this session's working directory, so "isolation" here means scope
-  discipline, not separation. Give every lane explicit read and write access lists
-  with no overlap, and never share in-progress output across lanes. Concurrent
-  lanes must never run branch-level git operations (`checkout`, `switch`,
-  `branch`, `stash`, `reset`, `rebase`, `merge`, `pull`): those act on one shared
-  HEAD and a per-file write scope does not make them safe. Work that genuinely
-  needs its own branch or checkout is thread work, not a subagent lane.
+- **DISPATCH-ISOLATION-01:** subagents inherit the parent's native cwd; they
+  do not get a copied checkout. Give concurrent workers disjoint read/write
+  scopes. For a bounded worker in a managed worktree, assign one absolute
+  worktree path and require the shell workdir on every command; use absolute
+  file paths for edits. Different workers get different worktrees. Never run
+  concurrent branch-level operations (`checkout`, `switch`, `branch`, `stash`,
+  `reset`, `rebase`, `merge`, `pull`) in one checkout; a file scope cannot
+  separate one HEAD. Work that needs its own goal or PABCD cycle stays a
+  separate thread task.
 - **REVIEW-DECORRELATE-01:** prefer an independent context; use a different model family
   only when host policy and user authorization permit the override. Otherwise inherit
   and record that family-level independence was not established.

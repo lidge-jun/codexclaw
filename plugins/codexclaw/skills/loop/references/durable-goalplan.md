@@ -37,7 +37,10 @@ Interview OPEN ASSUMPTIONS, steering decisions, and quality gates.
 ### Contract
 
 - Represent goals, work phases, success criteria, checkpoints, and evidence.
-- Carry Interview OPEN ASSUMPTIONS into Plan/Audit instead of dropping them.
+- Carry Interview OPEN ASSUMPTIONS (`proposed` and `open` entries, with source,
+  confidence, consequence if wrong and status) into Plan/Audit instead of dropping
+  them. Confirmed requirements and rejected assumptions travel in their own plan
+  sections with their answer reference (INTERVIEW-ASSUME-01 in cxc-interview).
 - Record steering decisions with rationale and evidence.
 - Reject steering that weakens completion criteria or verification.
 - Require a quality gate before final completion.
@@ -49,7 +52,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 
 - `objective`, `slug`, `createdAt`, `updatedAt`.
 - `workPhases[]` — each `{ id, title, status: pending|in_progress|done, dependsOn?, tasks[], criteriaIds[] }`.
-  `workPhase.dependsOn` names prerequisite work phases. `activeWorkPhaseId` marks the current one.
+  `workPhase.dependsOn` names prerequisite work phases. Optional `workPhase.awaitsDecision?: string[]` names decisions that must be answered before this phase can run. `activeWorkPhaseId` marks the current one.
   `workPhases[]` is APPEND-friendly mid-loop: when a new independent unit is discovered
   (LOOP-UNIT-CHAIN-01), add its work-phase (+ criteria) as a P-phase amendment instead of
   treating the plan as frozen at init or ending the goal.
@@ -57,6 +60,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   Task ids and task dependency references are phase-local: `task.dependsOn` names existing task ids in
   the same work phase, never a task in another phase. A done task carries a non-empty `outcome`; a pending
   task has no outcome.
+- Optional `decisions[]` — each `{ id, question, recommendation?, options?, status: open|decided, answer?, askedAt, decidedAt? }`. When `options` is present it is a non-empty list of distinct entries and `recommendation` must be one of them; the answer stays free text because the host always offers a free-form reply. Open decisions have no answer or decidedAt; decided decisions require both. Decision ids are short lowercase ids. Absent and empty arrays remain distinct on disk, as do absent and empty `awaitsDecision` arrays. Old plans acquire neither field on read/write. Only linked pending or in-progress phases wait; an unrelated open decision does not pause the goal.
 - `criteria[]` — each `{ id, scenario, surface, presented?, expectedEvidence, capturedEvidence, status: open|met }`.
   `scenario` is the `--criterion` text and `surface` is one of `logic` (default),
   `web`, `tui` or `desktop`, set by `add-criterion --surface` on a session-bound plan
@@ -94,11 +98,15 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 - `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]`
 - `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]`
 - `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]`
+- `cxc loop ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]` — record a question after sending it through the host. It never sends a message. Name each dependent phase.
+- `cxc loop decide --session <id> --id <id> --answer <text> [--cwd <path>]` — record the user reply. This changes only the decision record; phase status and blockedReason stay as they were.
 - `cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]` — `--id` takes
   a generated `c-N` id; read it from `cxc loop show` or the goalplan file.
 - `cxc goalplan *` — deprecated alias for the same behavior during migration.
 
 The parser rejects unknown flags, stray positionals, missing values, and flags belonging to another verb before dispatch. Every value flag also accepts `--flag=value`, which is the way to pass a value that starts with `--`.
+
+`ready --json` includes `openDecisions` and `awaitingDecisions` when the plan has a decisions field; `show` displays each open question and its waiting phases. At IDLE, Stop releases when every remaining phase and unmet criterion waits on an open user decision; the goal remains active and completion is still gated.
 
 Repeat `--depends-on` once per prerequisite; comma-separated values are one id. Existing dependencies are
 not edited after creation. `complete-task` and `meet-criterion` require non-empty proof text.

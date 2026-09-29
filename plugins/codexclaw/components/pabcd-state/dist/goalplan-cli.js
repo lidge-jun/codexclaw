@@ -13,6 +13,9 @@
  */
 import {
   addGoalplanTask,
+  askGoalplanDecision,
+  decideGoalplanDecision,
+  openDecisionIdsForPhase,
   buildGoalplan,
   completeGoalplanTask,
   goalplanDefinitionIntegrityReasons,
@@ -113,6 +116,14 @@ import { applySteeringBatch } from "./steering.js";
 
 
 
+
+
+
+
+
+
+
+
 const VERBS                      = new Set              ([
   "init",
   "show",
@@ -124,7 +135,10 @@ const VERBS                      = new Set              ([
   "add-task",
   "complete-task",
   "meet-criterion",
+  "ask",
+  "decide",
 ]);
+
 
 
 
@@ -148,6 +162,8 @@ const VERB_RULES                                           = {
   "add-task": { allowed: new Set(["--session", "--work-phase", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]" },
   "complete-task": { allowed: new Set(["--session", "--work-phase", "--id", "--outcome", "--cwd"]), repeatable: new Set(), usage: "complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]" },
   "meet-criterion": { allowed: new Set(["--session", "--id", "--evidence", "--cwd"]), repeatable: new Set(), usage: "meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]" },
+  ask: { allowed: new Set(["--session", "--id", "--question", "--recommendation", "--option", "--work-phase", "--cwd"]), repeatable: new Set(["--option", "--work-phase"]), usage: "ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]" },
+  decide: { allowed: new Set(["--session", "--id", "--answer", "--cwd"]), repeatable: new Set(), usage: "decide --session <id> --id <id> --answer <text> [--cwd <path>]" },
   help: { allowed: new Set(), repeatable: new Set(), usage: "--help" },
 };
 
@@ -163,12 +179,12 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
   }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide); run cxc loop --help`,
     };
   }
   const selected = verb                ;
   const rule = VERB_RULES[selected];
-  const out                  = { verb: selected, cwd, criteria: [], dependsOn: [] };
+  const out                  = { verb: selected, cwd, criteria: [], dependsOn: [], workPhaseIds: [] };
   const seen = new Set              ();
   const reject = (message        )                        => ({ error: `${selected}: ${message}` });
   for (let i = 1; i < argv.length; i++) {
@@ -213,7 +229,25 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
       case "--presented": out.presented = value; break;
       case "--id": out.id = value; break;
       case "--title": out.title = value; break;
-      case "--work-phase": out.workPhaseId = value; break;
+      case "--work-phase": {
+        if (selected !== "ask") { out.workPhaseId = value; break; }
+        const phaseId = value.trim();
+        if (!phaseId) return reject("--work-phase requires one non-empty id");
+        if (out.workPhaseIds .includes(phaseId)) return reject(`--work-phase must not repeat id '${phaseId}'`);
+        out.workPhaseIds .push(phaseId);
+        break;
+      }
+      case "--question": out.question = value; break;
+      case "--recommendation": out.recommendation = value; break;
+      case "--option": {
+        const option = value.trim();
+        if (!option) return reject("--option requires one non-empty value");
+        const options = out.options ?? (out.options = []);
+        if (options.includes(option)) return reject(`--option must not repeat '${option}'`);
+        options.push(option);
+        break;
+      }
+      case "--answer": out.answer = value; break;
       case "--outcome": out.outcome = value; break;
       case "--schema-version": {
         const parsed = Number(value);
@@ -438,6 +472,15 @@ function runReady(args                 , plan          )                    {
 
   const phases = readyWorkPhases(plan);
   const tasks = readyTasks(plan);
+  const openDecisions = (plan.decisions ?? []).filter((decision) => decision.status === "open")
+    .map(({ id, question, recommendation, options, askedAt }) => ({ id, question,
+      ...(recommendation === undefined ? {} : { recommendation }),
+      ...(options === undefined ? {} : { options }), askedAt }));
+  const awaitingDecisions = plan.workPhases
+    .filter((wp) => wp.status === "pending" || wp.status === "in_progress")
+    .map((wp) => ({ workPhaseId: wp.id, decisionIds: openDecisionIdsForPhase(plan, wp).filter((id) =>
+      (plan.decisions ?? []).some((decision) => decision.id === id && decision.status === "open")) }))
+    .filter((entry) => entry.decisionIds.length > 0);
   if (args.json === true) {
     return {
       output: JSON.stringify({
@@ -455,6 +498,7 @@ function runReady(args                 , plan          )                    {
           id: entry.task.id,
           title: entry.task.title,
         })),
+        ...(plan.decisions === undefined ? {} : { openDecisions, awaitingDecisions }),
       }),
       code: 0,
     };
@@ -467,7 +511,51 @@ function runReady(args                 , plan          )                    {
   lines.push(tasks.length > 0
     ? `readyTasks: ${tasks.map((entry) => `${entry.workPhaseId}/${entry.task.id} (${entry.task.title})`).join("; ")}`
     : "readyTasks: none");
+  if (plan.decisions !== undefined) {
+    lines.push(openDecisions.length > 0
+      ? `openDecisions: ${openDecisions.map((decision) => `${decision.id} (${decision.question})`).join("; ")}`
+      : "openDecisions: none");
+    lines.push(awaitingDecisions.length > 0
+      ? `awaitingDecisions: ${awaitingDecisions.map((entry) => `${entry.workPhaseId}: ${entry.decisionIds.join(", ")}`).join("; ")}`
+      : "awaitingDecisions: none");
+  }
   return { output: lines.join("\n"), code: 0 };
+}
+
+/** Record a host-submitted question or its answer under the goalplan write lock. */
+function runDecision(args                 )                    {
+  const session = (args.session ?? "").trim();
+  if (!session) return { output: `loop ${args.verb}: --session <id> is required`, code: 1 };
+  if (!isCanonicalSessionId(session)) return { output: `loop ${args.verb}: session id is not canonical`, code: 1 };
+  const slug = readState(args.cwd, session).slug;
+  if (!slug) return { output: `loop ${args.verb}: session '${session}' has no bound goalplan - run \`cxc loop init --session ${session}\` first`, code: 1 };
+  const id = (args.id ?? "").trim();
+  if (args.verb === "ask" && (!id || !(args.question ?? "").trim())) {
+    return { output: "loop ask: --id and non-empty --question are required", code: 1 };
+  }
+  if (args.verb === "decide" && (!id || !(args.answer ?? "").trim())) {
+    return { output: "loop decide: --id and non-empty --answer are required", code: 1 };
+  }
+
+  const locked = withGoalplanWriteLock                (args.cwd, slug, (plan) => {
+    const result = args.verb === "ask"
+      ? askGoalplanDecision(plan, {
+          id, question: args.question , recommendation: args.recommendation,
+          ...(args.options === undefined ? {} : { options: args.options }),
+          workPhaseIds: args.workPhaseIds ?? [], askedAt: new Date().toISOString(),
+        })
+      : decideGoalplanDecision(plan, id, args.answer , new Date().toISOString());
+    if (result.kind === "rejected") return { kind: "rejected", reason: result.reason };
+    if (result.kind === "unchanged") return { kind: "unchanged", reason: result.reason };
+    writeGoalplan(args.cwd, result.plan);
+    return { kind: "changed" };
+  });
+  if (locked.kind === "locked" || locked.kind === "unreadable") {
+    return { output: `loop ${args.verb}: ${locked.reason}`, code: 1 };
+  }
+  if (locked.value.kind === "rejected") return { output: `loop ${args.verb}: ${locked.value.reason}`, code: 1 };
+  if (locked.value.kind === "unchanged") return { output: `loop ${args.verb}: ${locked.value.reason}; nothing to do`, code: 0 };
+  return { output: `loop ${args.verb}: ${slug} ${id} applied`, code: 0 };
 }
 
 /**
@@ -610,6 +698,15 @@ function renderPlanLines(plan          , lock                          )        
   for (const c of plan.criteria) {
     lines.push(`  - ${c.id} [${c.status}] ${c.scenario}`);
   }
+  for (const decision of plan.decisions ?? []) {
+    if (decision.status !== "open") continue;
+    lines.push(`  - ${decision.id} [open] ${decision.question}`);
+    if (decision.options !== undefined) {
+      lines.push(`    options: ${decision.options.join(" | ")}${decision.recommendation === undefined ? "" : ` (recommended: ${decision.recommendation})`}`);
+    }
+    const waiting = plan.workPhases.filter((wp) => wp.awaitsDecision?.includes(decision.id));
+    lines.push(`    waiting: ${waiting.map((wp) => wp.id).join(", ") || "none"}`);
+  }
   return lines.join("\n");
 }
 
@@ -623,7 +720,7 @@ export function renderGoalplanHelp()         {
     "cxc loop — durable goalplan for a multi-cycle PABCD loop",
     "",
     "Usage:",
-    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "help"]         )
+    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "ask", "decide", "help"]         )
       .map((verb) => `  cxc loop ${VERB_RULES[verb].usage}`),
     "",
     "Notes:",
@@ -639,6 +736,9 @@ export function renderGoalplanHelp()         {
     "  additionally require an approved finalGate, and no verb in this build opens a",
     "  final-gate review round, so opt in only if you can record that gate yourself.",
     "  meet-criterion requires non-empty captured evidence for the same reason.",
+    "  Send the question through the host first, then record it with ask; ask never sends a message.",
+    "  Record the user's reply with decide. It changes only the decision record.",
+    "  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text.",
     "",
     "steer --batch-json expects an object with:",
     '  { "idempotencyKey": "<unique>", "rationale": "<why>", "evidence": "<proof>",',
@@ -710,6 +810,7 @@ export function runGoalplanCli(args                 )                    {
   }
 
   if (args.verb === "steer") return runSteer(args);
+  if (args.verb === "ask" || args.verb === "decide") return runDecision(args);
 
   if (args.verb === "add-criterion" || args.verb === "add-work-phase") return runAddOp(args);
 

@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /**
  * store.ts — `.codexclaw/subagents.json` config store (L24 / 240-242).
  *
@@ -249,7 +250,8 @@ export function validateRolePatch(patch: RolePatch): string | null {
 }
 
 /** Atomic write with an exclusive temporary file; preserve unrelated JSON fields. */
-function writeRaw(path: string, config: unknown): void {
+function writeRaw(path: string, config: unknown, projectCwd?: string): void {
+  if (projectCwd) ensureCodexclawDir(projectCwd);
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.${randomUUID()}.tmp`;
   try {
@@ -262,7 +264,7 @@ function writeRaw(path: string, config: unknown): void {
 
 /** Explicit full-config writes remain available to existing callers. */
 export function writeConfig(cwd: string, config: SubagentsConfig): void {
-  writeRaw(storePath(cwd), config);
+  writeRaw(storePath(cwd), config, cwd);
 }
 
 /** Merge only the selected role; missing roles continue to inherit dynamically. */
@@ -283,7 +285,7 @@ export function setRole(cwd: string, role: RoleName, patch: RolePatch, scope: Co
   if (next.mode === "default") next.model = null;
   if (next.fallback) next.fallback = { model: next.fallback.model, effort: next.fallback.effort };
   raw.roles[role] = { ...(typeof raw.roles[role] === "object" && raw.roles[role] !== null ? raw.roles[role] as Record<string, unknown> : {}), ...next };
-  writeRaw(path, raw);
+  writeRaw(path, raw, scope === "project" ? cwd : undefined);
   return readConfig(cwd, scope, env);
 }
 
@@ -294,7 +296,7 @@ export function resetRole(cwd: string, role: RoleName, scope: ConfigScope = "pro
   const raw = scope === "global" ? readGlobalRaw(env, true) : readRaw(path, true);
   if (Object.hasOwn(raw.roles, role)) {
     delete raw.roles[role];
-    writeRaw(path, raw);
+    writeRaw(path, raw, scope === "project" ? cwd : undefined);
   }
   return readConfig(cwd, scope, env);
 }

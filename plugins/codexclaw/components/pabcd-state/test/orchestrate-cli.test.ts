@@ -1866,7 +1866,7 @@ test("an absent target refuses a running successor whose dependency is unmet", (
   const result = runOrchestrateCli(parsedDclose(cwd, id));
 
   assert.equal(result.code, 1, result.output);
-  assert.match(result.output, /now waits for another work-phase/);
+  assert.match(result.output, /now waits for a prerequisite or decision/);
   // Fail closed: no plan write, no ledger row, and the marker stays for a real repair.
   assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
   assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");

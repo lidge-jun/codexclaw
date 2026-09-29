@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
 /** Ordered, non-blocking JSONL event log with bounded rotation and memory ring. */
 import { chmodSync, mkdirSync, statSync } from "node:fs";
 import { appendFile, rename, rm } from "node:fs/promises";
@@ -16,6 +17,7 @@ export type BridgeEvent =
 
 export interface EventLogOptions {
   path: string;
+  projectCwd?: string;
   maxSizeBytes?: number;
   maxFiles?: number;
   maxPendingBytes?: number;
@@ -52,6 +54,7 @@ export class EventLog {
     this.maxPendingBytes = Math.max(1, opts.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES);
     this.maxPendingEvents = Math.max(1, opts.maxPendingEvents ?? DEFAULT_MAX_PENDING_EVENTS);
     this.append = opts.append ?? appendFile;
+    if (opts.projectCwd) ensureCodexclawDir(opts.projectCwd);
     mkdirSync(dirname(this.filePath), { recursive: true, mode: 0o700 });
     try {
       this.bytes = statSync(this.filePath).size;

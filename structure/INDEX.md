@@ -137,7 +137,7 @@ the adapter preamble applies on load and `cxc-dev` discipline wins on conflict.
 
 ### `components/subagent-config`
 
-Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.ts` reads/writes `.codexclaw/subagents.json` atomically for `explorer`, `reviewer`, `executor`, and `architect`, defaulting each role to the main Codex model with inherited effort (`effort: null`; valid overrides are the catalog-supported values low/medium/high/xhigh). `src/catalog.ts` builds a selectable model catalog from the native Codex cache allowlist plus optional ocx-backed model ids, with native models first. `src/mcp.ts` serves a stdio MCP server with `subagents_get`, `subagents_set`, and `catalog_list` tools.
+Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.ts` reads/writes `.codexclaw/subagents.json` atomically for `explorer`, `reviewer`, `executor`, and `architect`, defaulting each role to the main Codex model with inherited effort (`effort: null`; valid overrides are the catalog-supported values low/medium/high/xhigh). `src/catalog.ts` builds a selectable model catalog from the native Codex cache allowlist plus optional ocx-backed model ids, with native models first. `src/mcp.ts` serves a stdio MCP server with `subagents_get`, `subagents_set`, and `catalog_list` tools. `src/dispatch-contract.ts` holds the typed DispatchPacket/DispatchReceipt contract (#17): verifier coverage for receipts (#276) and a pure verifier-effects preflight (#277); no runtime path calls it yet.
 
 ---
 

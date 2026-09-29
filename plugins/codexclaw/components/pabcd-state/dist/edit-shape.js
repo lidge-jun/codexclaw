@@ -1,3 +1,4 @@
+import { ensureCodexclawDir } from "./codexclaw-dir.js";
 /**
  * edit-shape.ts — PostToolUse advisory for repeated same-shaped edits (astgrep_active 00).
  *
@@ -20,7 +21,7 @@
  * PostToolUse additionalContext envelope parity: omo lsp/src/codex-hook.ts:36-42.
  */
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { splitLines } from "./text-lines.js";
@@ -163,7 +164,7 @@ function keyStates(rows                )                        {
 
 function appendRow(cwd        , row              )       {
   try {
-    mkdirSync(join(cwd, STATE_DIR), { recursive: true });
+    ensureCodexclawDir(cwd);
     appendFileSync(ledgerPath(cwd), `${JSON.stringify(row)}\n`);
   } catch {
     // best-effort; advisory logic already ran on the in-memory state

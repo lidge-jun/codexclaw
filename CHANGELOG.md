@@ -6,6 +6,39 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.40] - 2026-09-29
+
+### Added
+
+- Codex Desktop sometimes starts threads created by `create_thread` with on-request approvals even when the user's config is full access (openai/codex #33282). A SessionStart advisory now tells the model and the user when an agent-created thread starts that way. An opt-in PermissionRequest hook (`permissions.agentCreatedThreadAutoAllow: true` in `~/.codexclaw/config.json`, off by default) answers those threads' approval prompts, including one-time network requests, only when the user's top-level `config.toml` sets `approval_policy = "never"` and `sandbox_mode = "danger-full-access"`; it never changes the thread's sandbox, never denies, and ignores project-local config. Two new hooks (31 total) need trust approval after upgrade.
+- Dispatch guidance: for bounded worktree lanes a full-access coordinator can create a managed worktree and hand a subagent that path as its shell `workdir`, which keeps the coordinator's permission; workers may keep an optional `PROGRESS.md` checkpoint so a replacement can resume from files (#265, guidance only).
+- `CODEXCLAW_PABCD=off` (or `on`) and project `codexclaw.json` `{"pabcd": {"enabled": false}}` turn the PABCD hook policy off while keeping the worktree, memory-write, automation-ownership and apply_patch lint guards and recall active. A recognized environment value wins over the project file in both directions (#252).
+- When codexclaw creates a project's `.codexclaw` folder, it also writes `.codexclaw/.gitignore` so session state, ledgers and evidence stay out of git; user-authored `rules/*.md` stay committable unless an ancestor ignore rule hides the folder. Existing `.codexclaw` folders are never modified. Lazy creation of session state is deferred (#255, partial).
+- Dispatch packets can declare each verifier's write effects (`verifierEffects`), and a pure `verifierPreflight(packet)` reports which verifiers need an isolated copy: under a shared-read packet only a verifier declared read-only runs in the shared tree. Nothing executes a command (#277).
+- Interview assumptions carry their source, confidence, consequence if wrong and a status (`proposed`, `open`, `user_confirmed`, `user_rejected`); confirmed and rejected entries need an answer reference, and the plan keeps open assumptions apart from confirmed requirements and rejected ones (INTERVIEW-ASSUME-01, guidance only, #275).
+
+### Changed
+
+- Goalplans can record pending user decisions: `cxc loop ask --session <id> --id <q> --question <text> [--recommendation <text>] [--work-phase <id>]...` links a question the agent already asked to the phases that wait on it, and `cxc loop decide --session <id> --id <q> --answer <text>` records the answer. Linked phases are not runnable while the decision is open; unrelated phases stay ready. When every remaining phase and unmet criterion waits on an open decision, the Stop hook lets an IDLE turn end instead of asking to start another phase; the goal stays active and cannot be completed early. Old plans load unchanged (#262). `cxc loop ask` also takes a repeatable `--option <text>`; when options are given the recommendation must be one of them, the answer stays free text, and `ready --json` and `show` list them.
+- The absolute Stop continuation cap (24) now counts per genuine user turn instead of per session, and the release prints one notice per turn (#254).
+
+### Fixed
+
+- A dispatch receipt satisfies its packet only when every required verifier command has a matching result with exit 0 and, when commands are required, no result names another command. Receipts can report `verifierResults[]`; a single legacy `verifierResult` for a multi-command packet reports incomplete (#276).
+- Ordinary words (for example "interview", "keep going until", "끝까지 진행해", quoted or fenced examples) no longer inject PABCD phase directives or arm the loop; hints need an explicit codexclaw request such as `cxc-pabcd` or `cxc-loop` (#250).
+- The SubagentStop evidence gate no longer blocks Codex's built-in `worker` outside an active PABCD build or check cycle; registered `executor` stays gated while PABCD is on (#251).
+- An active native goal without a bound goalplan no longer blocks Stop at IDLE (#253).
+
+### Compatibility
+
+- `receiptSatisfiesPacket` is stricter (#276): a receipt whose one result names a different command than the packet's, even cosmetically (`npm run test` vs `npm test`), no longer satisfies; extra passing checks belong in `commandsRun`. `validateReceipt` now checks the verifier result shapes and `validatePacket` rejects blank or non-string verifier commands.
+- Builds older than 0.2.40 drop a goalplan decision's `options` if they rewrite the plan; no schema-version bump signals the new key.
+- The two hooks added in this release (31 total) need trust approval after upgrade.
+
+### Verification
+
+- 3737 tests, 0 failures (`npm test`); `gate.mjs`, inventory and `platform-smoke.mjs` pass. Hosted CI and the packed-install lifecycle passed on every merged pull request (#269-#272, #278-#280).
+
 ## [0.2.39] - 2026-09-24
 
 ### Added
