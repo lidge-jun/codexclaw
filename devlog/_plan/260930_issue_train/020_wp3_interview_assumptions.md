@@ -126,7 +126,7 @@ SoT sync (SOT-SYNC-01): the Interview skill is the canonical owner of these rule
 |---|---|---|
 | `rg -n 'INTERVIEW-ASSUME-01' plugins/codexclaw/skills` | 1 before (no match), expected 0 after with hits in the three files | yes: the three paths are under the searched directory |
 | `node plugins/codexclaw/scripts/gate.mjs` | 0 | partly: skill frontmatter/inventory checks read `skills/interview/SKILL.md`; it does not read rule prose |
-| `npm test` | 0 | no test reads these prose lines (explorer search of the rule strings found hits only in the SKILL.md and `hook.ts:1923,1932`); run as a regression guard |
+| `npm test` (after `npm ci`) | 0 | no test reads these prose lines (explorer search of the rule strings found hits only in the SKILL.md and `hook.ts:1923,1932`); run as a regression guard |
 | prose meaning | — | this command does not observe this change; human review in A (reviewer) and C (initiative verifier) |
 
 No conditional code path is added, so C-ACTIVATION-GROUNDING-01 does not apply; C-READER-01 applies to the new section (a fresh reader checks that the example line and the four statuses are understandable without this doc).

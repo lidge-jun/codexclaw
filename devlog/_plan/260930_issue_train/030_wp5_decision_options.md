@@ -7,7 +7,7 @@ A recorded goalplan decision can now carry the options that were offered, and wh
 - Work phase: `wp5` (goalplan id; runs third, before delivery `wp4`), issue [#262](https://github.com/lidge-jun/codexclaw/issues/262). Class C2 with C4 care for the reviver (a malformed optional field must fail closed, as every existing field does). Design decisions D22-D28 in `002_architect_consultation.md`.
 - No schema-version bump: `options` is optional and absent on old plans, which round-trip unchanged (`durable-goalplan.md:60`).
 - `durable-goalplan.md` is also edited by 020 (three lines added at `:40`); this phase's P re-anchors the `:60` and `:98` edits on the `dev` that contains 020.
-- Goalplan criterion c-10 records "answer validated against options when present". Architect D25 showed that rule would reject the host's free-form "Other" reply and strand linked phases, so this plan does not implement it; 002 records the disposition and c-10's evidence will state it.
+- Answers stay free text (architect D25): an answer-in-options rule would reject the host's free-form "Other" reply and strand linked phases. Criterion c-10 was corrected at P to match; see 002, "Criterion c-10 correction".
 
 ## Field chain (PLAN-FIELD-CHAIN-01) for `GoalplanDecision.options`
 
@@ -152,7 +152,7 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 |---|---|---|
 | `node plugins/codexclaw/scripts/test.mjs plugins/codexclaw/components/pabcd-state/test/goalplan-public-surface.test.ts` | 0 | yes: drives the CLI and imports `../src/goalplan*.ts` |
 | `node plugins/codexclaw/scripts/test.mjs plugins/codexclaw/components/pabcd-state/test/goalplan.test.ts plugins/codexclaw/components/pabcd-state/test/goalplan-integrity.test.ts plugins/codexclaw/components/pabcd-state/test/hook-continuation.test.ts` | 0 | yes: round-trip, integrity and Stop decision-wait paths read the reviver |
-| `npm run build`, `dist-freshness.test.mjs`, `npm test`, `inventory.mjs --check`, `gate.mjs`, `platform-smoke.mjs` | 0 | as in 010 |
+| `npm run build`, `dist-freshness.test.mjs`, `npm test` (after `npm ci`), `inventory.mjs --check`, `gate.mjs`, `platform-smoke.mjs` | 0 | as in 010 |
 | docs prose | — | not observed by a command; human review |
 
 Activation scenarios (C-ACTIVATION-GROUNDING-01): (2d)'s blank and repeated `--option` rejections and (1d)'s recommendation-membership rejection are driven through the CLI; (1d)'s empty, blank and duplicate checks are reached only by library callers and are driven by the direct `askGoalplanDecision` test; every (1c) reviver branch is driven by hand-written plan files; the free-form `decide` path proves D25.

@@ -165,7 +165,8 @@ export function receiptSatisfiesPacket(packet: DispatchPacket, receipt: Dispatch
   ];
   // Unvalidated input must not throw here; malformed entries fail the receipt.
   const results = reportedResults.filter(isVerifierResult);
-  if (results.length !== reportedResults.length) {
+  const nonArrayResults = receipt.verifierResults !== undefined && !Array.isArray(receipt.verifierResults);
+  if (nonArrayResults || results.length !== reportedResults.length) {
     reasons.push("receipt has malformed verifier results (see validateReceipt)");
   }
   if (required.length > 0 && results.length === 0) {
@@ -285,7 +286,7 @@ The `components/subagent-config` section of INDEX does not list `dispatch-contra
 
 ## Scope boundary
 
-IN: the five files above. OUT: `commandsRun` semantics, `sourceIdentity`, release-gate's `dispatch-contracts` receipt (`pabcd-state/src/release-gate.ts:393`, stays missing), #256/#273 receipt fields, any hook.
+IN: the six files above (including `structure/20_pabcd_dispatch_doctrine.md`). OUT: `commandsRun` semantics, `sourceIdentity`, release-gate's `dispatch-contracts` receipt (`pabcd-state/src/release-gate.ts:393`, stays missing), #256/#273 receipt fields, any hook.
 
 ## Verification (PLAN-VERIFIER-REAL-01)
 
@@ -294,7 +295,7 @@ IN: the five files above. OUT: `commandsRun` semantics, `sourceIdentity`, releas
 | `node plugins/codexclaw/scripts/test.mjs plugins/codexclaw/components/subagent-config/test/dispatch-contract.test.ts` | 0 (17 pass) | yes: the file is the direct argument and imports `../src/dispatch-contract.ts` |
 | `npm run build` | 0 | yes: `build.mjs` recompiles every component `src` into `dist` |
 | `node --test plugins/codexclaw/test/dist-freshness.test.mjs` | 0 | yes: compares tracked `dist/dispatch-contract.js` with the compiled source |
-| `npm test` then `node plugins/codexclaw/scripts/inventory.mjs --check --tests <total>` | 0 | yes: root glob includes `subagent-config/test/*.test.ts`; inventory checks the README badge total |
+| `npm test` (after `npm ci`) then `node plugins/codexclaw/scripts/inventory.mjs --check --tests <total>` | 0 | yes: root glob includes `subagent-config/test/*.test.ts`; inventory checks the README badge total |
 | `node plugins/codexclaw/scripts/gate.mjs`, `node plugins/codexclaw/scripts/platform-smoke.mjs` | 0 | gate: inventory and skill checks; smoke: packaging. Neither observes the new logic; they guard regressions only |
 | delegation.md prose | — | this command does not observe this change; human review in A and C |
 

@@ -29,7 +29,7 @@ IN (details in each decade doc):
 ```
 plugins/codexclaw/components/subagent-config/{src,dist,test}/dispatch-contract.*   010 (#276, #277)
 plugins/codexclaw/skills/pabcd/references/delegation.md                           010
-structure/INDEX.md (subagent-config section)                                      010 SoT sync
+structure/INDEX.md (subagent-config section), structure/20_pabcd_dispatch_doctrine.md   010 SoT sync
 plugins/codexclaw/skills/interview/{SKILL.md,references/mind-dispatch.md}         020 (#275)
 plugins/codexclaw/skills/loop/references/durable-goalplan.md                      020, 030
 plugins/codexclaw/components/pabcd-state/{src,dist}/goalplan{,-cli}.*, test/goalplan-public-surface.test.ts   030 (#262)
@@ -68,4 +68,4 @@ Delivery: one ordinary PR per implementation phase into `dev`, merged with a mer
 
 ## SoT sync targets (SOT-SYNC-01)
 
-`structure/INDEX.md` (subagent-config file list, 010), `skills/interview/SKILL.md` (canonical owner of Interview rules, 020), `skills/loop/references/durable-goalplan.md` (goalplan schema and CLI, 020 and 030), `CHANGELOG.md` (040).
+`structure/INDEX.md` (subagent-config file list, 010), `structure/20_pabcd_dispatch_doctrine.md` (DISPATCH-* rule list, 010), `skills/interview/SKILL.md` (canonical owner of Interview rules, 020), `skills/loop/references/durable-goalplan.md` (goalplan schema and CLI, 020 and 030), `CHANGELOG.md` (040).
