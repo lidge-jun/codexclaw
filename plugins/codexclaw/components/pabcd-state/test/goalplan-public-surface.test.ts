@@ -816,7 +816,9 @@ test("ask rejects blank and repeated options at parse time", () => {
   const repeated = parseGoalplanCliArgs(["ask", "--session", session, "--id", "dec-1", "--question", "Q", "--option", "A", "--option", " A"], cwd);
   assert.match((repeated as { error: string }).error, /--option must not repeat 'A'/);
   const misplaced = parseGoalplanCliArgs(["decide", "--session", session, "--id", "dec-1", "--answer", "x", "--option", "A"], cwd);
-  assert.equal("error" in misplaced, true);
+  assert.match((misplaced as { error: string }).error, /unknown flag '--option/);
+  const equalsForm = parseGoalplanCliArgs(["ask", "--session", session, "--id", "dec-1", "--question", "Q", "--option=A", "--option=--x"], cwd);
+  assert.deepEqual((equalsForm as GoalplanCliArgs).options, ["A", "--x"]);
   assert.equal(planText(cwd, plan.slug), before);
 });
 
@@ -826,6 +828,8 @@ test("ask without --option stores no options key", () => {
   assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API"]).code, 0);
   const raw = JSON.parse(planText(cwd, plan.slug));
   assert.equal("options" in raw.decisions[0], false);
+  const data = JSON.parse(cli(cwd, ["ready", "--session", session, "--json"]).output);
+  assert.equal("options" in data.openDecisions[0], false);
 });
 
 test("decide keeps options and accepts a free-form answer", () => {
@@ -838,6 +842,10 @@ test("decide keeps options and accepts a free-form answer", () => {
   assert.equal(back.status, "decided");
   assert.equal(back.answer, "something else");
   assert.deepEqual(back.options, ["A", "B"]);
+  cli(cwd, ["ask", "--session", session, "--id", "dec-2", "--question", "Pick a region", "--option", "eu", "--option", "us"]);
+  const shown = cli(cwd, ["show", "--session", session]).output;
+  assert.match(shown, /options: eu \| us$/m);
+  assert.doesNotMatch(shown, /recommended: undefined/);
 });
 
 test("reviver fails closed on malformed options", () => {

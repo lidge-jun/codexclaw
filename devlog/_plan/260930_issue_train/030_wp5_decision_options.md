@@ -174,3 +174,9 @@ Amendment (architect's optional D26 note): add one Notes line to `renderGoalplan
 ## wp5 B record (2026-09-30)
 
 Built at `355afde3` per the file map (1a-1d, 2a-2h, docs 5), plus seven tests (six planned rows and the library test). Red check: with `goalplan.ts` and `goalplan-cli.ts` restored from `58a8a174` in place (`git show 58a8a174:<path> > <path>`, then `git checkout HEAD -- <paths>`), the committed test file runs 41 tests, 35 pass, 6 fail: every new behavior test; the seventh ("ask without --option stores no options key") is a compatibility test that passes on both sources by design. New source: 41/41. Badges move to 3737.
+
+## wp5 C record (2026-09-30)
+
+C round 1 on `0c0ae34f`: fresh implementation reviewer `01a0ee5f-7c4f` PASS (four Low findings), initiative verifier `01a0ee5f-7d90` GO-WITH-FIXES (4, all procedural: finished gate, hosted CI, independent review verdict, goalplan records); the initiative verifier also reproduced the red/green counts in an isolated `git archive`-style export (35/6 red, 41/0 green). C gate on `0c0ae34f`: 3737 tests, 0 failures, inventory, gate, smoke, hook diff 0. Folded: assertions (no new tests, count stays 3737) for `show` with options and no recommendation, `ready --json` without options, the exact `unknown flag '--option` error, and the `--option=value` form; `async-questions.md:56` now says "recommended first by convention".
+
+Residual for the wp4 CHANGELOG: builds older than this one rebuild decisions field by field and drop `options` if they rewrite the plan (no schema-version bump signals the key). Criterion c-10 is linked to wp5 by its text (work-phase `criteriaIds` are empty in this goalplan); #262 entered through the objective's "worthwhile improvements among the open issues" outcome, not its enumerated Scope IN list.
