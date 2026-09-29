@@ -160,3 +160,11 @@ Activation scenarios (C-ACTIVATION-GROUNDING-01): (2d)'s blank and repeated `--o
 ## Enforcement naming (PLAN-BYPASS-NAMED-01)
 
 Tier E2 (CLI and reviver validation). Executing surface: `cxc loop ask` and every goalplan read. Known bypass: a library caller writing through `writeGoalplan` directly skips `ask`'s checks, but the next read still fails closed on invalid options; nothing proves the question was actually sent with those options. Residual risk: an invalid hand edit makes the whole plan unreadable until repaired, as for every existing field. Wording: validation, not enforcement of what the host displayed. Final enforcement layer: none.
+
+## wp5 P revalidation (2026-09-30)
+
+Continuity (LOOP-CONTINUITY-01), quoting the wp3 D summary in 020: "#275 is addressed at the rule level and merged ... Next: wp5 builds 030." This P keeps that direction, and carries forward wp2's known timing flake (`spawn-attach-hook.test.ts:920`) and wp3's lesson that prose written into docs must be re-read in its final form at C.
+
+Re-checked on `codex/issue-train-0930-wp5` from `origin/dev` `58a8a174`: `git diff --stat 659de59b..HEAD -- plugins/codexclaw/components/pabcd-state plugins/codexclaw/skills/dev/references/async-questions.md` is empty, so every `goalplan.ts` and `goalplan-cli.ts` anchor above holds. As planned, wp3's three-line edit moved the `durable-goalplan.md` anchors: the `decisions[]` schema line is now `:63` (was `:60`) and the `ask` synopsis is `:101` (was `:98`). `async-questions.md:56` is unchanged. `renderGoalplanHelp` (`goalplan-cli.ts:702`) prints the verb usage strings, so it picks up the new `ask` usage without a separate edit. No design decision changes, so no architect recheck.
+
+Amendment (architect's optional D26 note): add one Notes line to `renderGoalplanHelp` after the `decide` note (`goalplan-cli.ts:724`): `"  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text."` No test pins the help Notes text (checked with `rg 'Record the user' plugins/codexclaw/components/pabcd-state/test`).
