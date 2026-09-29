@@ -47,3 +47,7 @@ Architect: V1 subagent `01a0ee15-caad-7330-8b8d-4c028cefd432`, dispatched read-o
 
 ## Reflection
 
+
+Round 1 (same architect, after the plan was written): `REFLECTION: MISALIGNED` with one gap. D17's second half, that a tracker assumption's `text` must repeat the provenance line because freeze copies tracker text into the manifest (`freeze-cli.ts:97`), was missing from the executable guidance in 020. It also noted that 030's malformed-options test must assert the reviver's invalid-plan message naming `decisions` rather than a validate line, and confirmed that the code in 010 and 030 survives the type-stripping build and keeps existing tests green.
+
+Main disposition: both folded. 020 1(b) gained the tracker-text bullet; 030's reviver test row now asserts the `decisions` message. The optional `renderGoalplanHelp` wording is left to B. With the one gap closed, every decision D1-D28 maps to a plan location in the architect's table; main records the consultation as aligned after the fold.

@@ -49,6 +49,8 @@ one line:
   manifest as open. Move a `user_confirmed` entry into the plan's requirements with
   its reference. Move a `user_rejected` entry under `## ASSUMPTION DECISIONS` with
   its reference, so the decision stays traceable without being carried as open.
+- A tracker assumption's `text` repeats the same line without its leading `- `
+  (freeze prepends it), so the frozen manifest keeps the provenance.
 - This rule shapes existing plan text and tracker entries. It adds no field or
   command, and older plans and trackers read as before.
 ```

@@ -136,7 +136,7 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 | `ask rejects blank and repeated options at parse time` | `--option " "`; `--option A --option A` | exit 1 with the parser reasons, no write |
 | `ask without --option stores no options key` | plain ask | decision JSON has no `options` property |
 | `decide keeps options and accepts a free-form answer` | ask with options, `decide --answer "something else"` | exit 0, decision decided, `options` unchanged |
-| `reviver fails closed on malformed options` | hand-written plans with `options: []`, `["A","A "]`, `[1]`, and a recommendation outside valid options | `cxc loop validate` / read reports the `decisions` field invalid |
+| `reviver fails closed on malformed options` | hand-written plans with `options: []`, `["A","A "]`, `[1]`, and a recommendation outside valid options | the plan reads as invalid naming the `decisions` field (reviver path via `invalidReason`, `goalplan.ts:893`) before `validateGoalplan` runs; the test asserts that message, exact text confirmed at B |
 
 ### 5. MODIFY docs
 
