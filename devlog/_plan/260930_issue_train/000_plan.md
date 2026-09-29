@@ -69,3 +69,13 @@ Delivery: one ordinary PR per implementation phase into `dev`, merged with a mer
 ## SoT sync targets (SOT-SYNC-01)
 
 `structure/INDEX.md` (subagent-config file list, 010), `structure/20_pabcd_dispatch_doctrine.md` (DISPATCH-* rule list, 010), `skills/interview/SKILL.md` (canonical owner of Interview rules, 020), `skills/loop/references/durable-goalplan.md` (goalplan schema and CLI, 020 and 030), `CHANGELOG.md` (040).
+
+## Review record
+
+wp1 (this roadmap), 2026-09-30. Reviewer `01a0ee1f-b88c-73d0-ae1a-c526f311d2c2` (cxc-dev-code-reviewer, cxc-search) and PABCD-initiative verifier `01a0ee1f-b983-7e61-b27e-c9eeeeada686` (canonical `pabcd_initiative/skills/dev-pabcd/SKILL.md`) ran in parallel, both inheriting this session's model.
+
+- Round 1: both GO-WITH-FIXES with five blockers each, largely overlapping: criterion c-10 contradicted architect D25; the privacy grep errored (`rg` without PCRE2); rejection branches claimed as tested were unreachable from the CLI; 010 lacked a field-chain table and 030 a final enforcement layer; local `npm test` totals were wrong without `npm ci`; `Fixes #n` does not close issues from PRs into `dev`. The initiative verifier's rule table marked LEXICO-SPLIT-01, UNIT-RESIDENCE-01, LOOP-DOCS-FIRST-01, the loop-spec fields and the reader summary compliant, and REVIEW-DECORRELATE-01 not established (disclosed in the loop contract).
+- Folds in `dfdb4b01`; rebuttals: none.
+- Round 2 (same agents): both PASS. Residuals (stale c-10 wording in 030, 002's description of the hand edit, the six-file scope, `structure/20` in the SoT list, the `npm ci` caveat, a malformed-reason for a non-array `verifierResults`) folded in `2c322e9e`.
+- Port vs canonical notes from the initiative verifier: the canonical rule asks for token and wall-clock bounds on C4 work while the codexclaw port forbids inventing them (disclosed above); canonical entry-edge attests versus the port's attest-free entry edges (no practical effect); canonical full-plan injection to workers versus the port's path pointers (read-only reviews unaffected).
+
