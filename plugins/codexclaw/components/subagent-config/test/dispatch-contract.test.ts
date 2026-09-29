@@ -364,3 +364,10 @@ test("validatePacket: verifierEffects expectedWrites entries must be non-blank s
   assert.ok(errors.some(e => e.includes("expectedWrites") && e.includes("non-empty strings")));
 });
 
+
+test("verifierPreflight: malformed effects are ignored and the command stays undeclared", () => {
+  for (const verifierEffects of [{}, [null], [{ command: 1, expectedWrites: [] }], [{ command: "npm test" }]]) {
+    const rows = verifierPreflight(makePacket({ verifierEffects: verifierEffects as any }));
+    assert.deepEqual(rows.map(r => [r.command, r.declared, r.needsIsolation]), [["npm test", false, true]]);
+  }
+});

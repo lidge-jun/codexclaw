@@ -268,7 +268,11 @@ export function receiptSatisfiesPacket(packet                , receipt          
  * on a shared checkout without isolation or main's confirmation.
  */
 export function verifierPreflight(packet                )                           {
-  const effects = new Map((packet.verifierEffects ?? []).map((effect) => [effect.command.trim(), effect]));
+  // Malformed effect entries (unvalidated input) are ignored, so their command reads as undeclared.
+  const declaredEffects = (Array.isArray(packet.verifierEffects) ? packet.verifierEffects : [])
+    .filter((effect)                           => !!effect && typeof effect === "object"
+      && typeof effect.command === "string" && Array.isArray(effect.expectedWrites));
+  const effects = new Map(declaredEffects.map((effect) => [effect.command.trim(), effect]));
   const commands            = Array.isArray(packet.verifierCommands) ? packet.verifierCommands : [];
   const malformed                           = commands
     .filter((command) => typeof command !== "string" || !command.trim())

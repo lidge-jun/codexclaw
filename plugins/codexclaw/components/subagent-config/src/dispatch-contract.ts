@@ -268,7 +268,11 @@ export interface VerifierPreflightEntry {
  * on a shared checkout without isolation or main's confirmation.
  */
 export function verifierPreflight(packet: DispatchPacket): VerifierPreflightEntry[] {
-  const effects = new Map((packet.verifierEffects ?? []).map((effect) => [effect.command.trim(), effect]));
+  // Malformed effect entries (unvalidated input) are ignored, so their command reads as undeclared.
+  const declaredEffects = (Array.isArray(packet.verifierEffects) ? packet.verifierEffects : [])
+    .filter((effect): effect is VerifierEffect => !!effect && typeof effect === "object"
+      && typeof effect.command === "string" && Array.isArray(effect.expectedWrites));
+  const effects = new Map(declaredEffects.map((effect) => [effect.command.trim(), effect]));
   const commands: unknown[] = Array.isArray(packet.verifierCommands) ? packet.verifierCommands : [];
   const malformed: VerifierPreflightEntry[] = commands
     .filter((command) => typeof command !== "string" || !command.trim())
