@@ -60,10 +60,11 @@ then its source, confidence and consequence if wrong.
   the same weakness, so re-ask rather than rely on it.
 - `confidence` is `low`, `medium` or `high`. `if wrong` names what changes in
   scope, design or verification; an assumption is high-impact when that
-  consequence changes scope or verification.
+  consequence changes any of them.
 - Status is `proposed` (inferred, not yet asked), `open` (asked or deliberately
   deferred, still unresolved), `user_confirmed` or `user_rejected`. The last two
-  require the answer's `eventId`; without one an entry stays `proposed` or
+  require an answer reference: the answer's `eventId`, or under an active goal a
+  decided goalplan decision id (below). Without one an entry stays `proposed` or
   `open`, whatever the conversation seemed to imply. A reply typed in chat has
   no `eventId`: confirm it through the next `request_user_input` round, or keep
   the entry `open` and quote the reply.
@@ -78,9 +79,9 @@ then its source, confidence and consequence if wrong.
   `text` repeats the plan line without that `- `, and only `proposed` or `open`
   entries belong there. Do not hand-edit session state; if a tracker entry
   cannot be moved after it is resolved, the plan line's status is authoritative.
-- A plan written later under an active goal, where Interview is suppressed, may
-  use a decided goalplan decision id (`cxc loop decide`) as the reference, with the
-  decision's answer quoting the user's reply.
+- A plan written after Interview, under an active goal where Interview is
+  suppressed, may put a decided goalplan decision id (`cxc loop decide`) in the
+  `source` field, with the decision's answer quoting the user's reply.
 - This rule shapes existing plan text and tracker entries. It adds no field or
   command, and older plans and trackers read as before.
 
