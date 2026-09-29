@@ -134,3 +134,7 @@ No conditional code path is added, so C-ACTIVATION-GROUNDING-01 does not apply; 
 ## Enforcement naming (PLAN-BYPASS-NAMED-01)
 
 Tier E7 (agent-followed guidance). Executing surface: the main session writing the plan. Known bypass: an agent can still label an entry `user_confirmed` without a real `eventId`; nothing checks the reference against the ledger. Residual risk: acceptance check 1 holds by discipline plus reviewability (the reference is visible and checkable in the hashed plan), not by a gate. Wording: guidance, never "cannot"; the acceptance table above reads as "the rule requires". Final enforcement layer: none.
+
+## wp3 P revalidation (2026-09-30)
+
+Continuity (LOOP-CONTINUITY-01), quoting the wp2 D summary in 010: "#276 and #277 are fixed and merged ... Next: wp3 builds 020." This P keeps that direction. Re-checked on `codex/issue-train-0930-wp3` from `origin/dev` `069a7d0e`: `git diff --stat 659de59b..HEAD -- plugins/codexclaw/skills/interview plugins/codexclaw/skills/loop/references/durable-goalplan.md` is empty, and the quoted lines (`SKILL.md:28`, `:46-53`, `:170-172`, `:176-178`, `mind-dispatch.md:47-49`, `durable-goalplan.md:40`) read as planned. No amendment; the architect's D17-D21 stand, so no re-consultation.
