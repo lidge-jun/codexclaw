@@ -94,9 +94,15 @@ function isVerifierResult(value: unknown): value is VerifierResult {
   return typeof v.command === "string" && Number.isInteger(v.exitCode) && typeof v.output === "string";
 }
 
-/** Distinct trimmed commands; exact string equality after trim, no other normalization. */
-function distinctCommands(commands: readonly string[]): string[] {
-  return [...new Set(commands.map((command) => command.trim()))];
+/** Distinct trimmed string commands; exact equality after trim, no other normalization. */
+function distinctCommands(commands: readonly unknown[]): string[] {
+  return [...new Set(commands.filter((command): command is string => typeof command === "string")
+    .map((command) => command.trim()))];
+}
+
+/** Entries an unvalidated packet carries that are not non-blank strings. */
+function malformedCommandCount(commands: readonly unknown[]): number {
+  return commands.filter((command) => typeof command !== "string" || !command.trim()).length;
 }
 
 function validateVerifierEffects(value: unknown, commands: unknown): string[] {
@@ -191,7 +197,8 @@ export function validateReceipt(receipt: unknown): string[] {
 /**
  * Check that a receipt satisfies its packet's verifier requirements (#276).
  * Every distinct required command needs a matching result, every result must
- * exit 0, and a result for a command the packet did not require is rejected.
+ * exit 0, and when the packet requires commands, a result for a command it did
+ * not require is rejected.
  */
 export function receiptSatisfiesPacket(packet: DispatchPacket, receipt: DispatchReceipt): {
   satisfied: boolean;
@@ -206,10 +213,14 @@ export function receiptSatisfiesPacket(packet: DispatchPacket, receipt: Dispatch
   if (receipt.status !== "complete") {
     reasons.push("receipt status is " + receipt.status + ", not complete");
   }
-  const required = distinctCommands(packet.verifierCommands);
+  const commands: unknown[] = Array.isArray(packet.verifierCommands) ? packet.verifierCommands : [];
+  if (!Array.isArray(packet.verifierCommands) || malformedCommandCount(commands) > 0) {
+    reasons.push("packet has malformed verifier commands (see validatePacket)");
+  }
+  const required = distinctCommands(commands).filter((command) => command.length > 0);
   const reportedResults: unknown[] = [
     ...(Array.isArray(receipt.verifierResults) ? receipt.verifierResults : []),
-    ...(receipt.verifierResult ? [receipt.verifierResult] : []),
+    ...(receipt.verifierResult !== undefined ? [receipt.verifierResult] : []),
   ];
   // Unvalidated input must not throw here; malformed entries fail the receipt.
   const results = reportedResults.filter(isVerifierResult);
@@ -230,7 +241,7 @@ export function receiptSatisfiesPacket(packet: DispatchPacket, receipt: Dispatch
   if (results.length > 0) {
     for (const command of missing) reasons.push("missing verifier result for `" + command + "`");
   }
-  if (required.length > 1 && receipt.verifierResults === undefined && receipt.verifierResult) {
+  if (required.length > 1 && receipt.verifierResults === undefined && receipt.verifierResult !== undefined) {
     reasons.push("receipt reports one legacy verifierResult; packet requires "
       + required.length + " verifier commands (incomplete)");
   }
@@ -258,7 +269,12 @@ export interface VerifierPreflightEntry {
  */
 export function verifierPreflight(packet: DispatchPacket): VerifierPreflightEntry[] {
   const effects = new Map((packet.verifierEffects ?? []).map((effect) => [effect.command.trim(), effect]));
-  return distinctCommands(packet.verifierCommands).map((command) => {
+  const commands: unknown[] = Array.isArray(packet.verifierCommands) ? packet.verifierCommands : [];
+  const malformed: VerifierPreflightEntry[] = commands
+    .filter((command) => typeof command !== "string" || !command.trim())
+    .map((command) => ({ command: String(command), declared: false, needsIsolation: true,
+      reason: "malformed verifier command (see validatePacket); do not run it" }));
+  return [...distinctCommands(commands).filter((command) => command.length > 0).map((command) => {
     const effect = effects.get(command);
     const declared = effect !== undefined;
     if (packet.worktreePolicy === "isolated-write") {
@@ -276,6 +292,6 @@ export function verifierPreflight(packet: DispatchPacket): VerifierPreflightEntr
         reason: "declares writes (" + effect.expectedWrites.join(", ") + ") on a shared-read packet" };
     }
     return { command, declared, needsIsolation: false, reason: "declared read-only (expectedWrites: [])" };
-  });
+  }), ...malformed];
 }
 

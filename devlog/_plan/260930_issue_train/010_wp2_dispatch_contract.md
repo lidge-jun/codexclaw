@@ -262,7 +262,7 @@ Import `verifierPreflight` beside the existing imports (`:6-12`). Existing tests
 | `verifierPreflight: shared-read flags undeclared and writing verifiers` | shared-read with undeclared, `[]`, writes, `runInIsolation` | `needsIsolation` true/false/true/true, `declared` false/true/true/true |
 | `verifierPreflight: isolated-write accepts declared writes` | isolated-write with writes | `needsIsolation:false`, `declared:true` |
 
-Fifteen new tests. The README test badges move by the measured delta (040).
+Fifteen new tests planned; C added six more (see "wp2 C record"). The README test badges and `inventory.json` move by the measured delta in this phase (`000_plan.md` file map: badges each phase).
 
 ### 4. MODIFY `plugins/codexclaw/skills/pabcd/references/delegation.md`
 
@@ -289,7 +289,7 @@ These are this phase's SOT-SYNC-01 targets.
 
 ## Scope boundary
 
-IN: the six files above (including `structure/20_pabcd_dispatch_doctrine.md`). OUT: `commandsRun` semantics, `sourceIdentity`, release-gate's `dispatch-contracts` receipt (`pabcd-state/src/release-gate.ts:393`, stays missing), #256/#273 receipt fields, any hook.
+IN: the six files above (including `structure/20_pabcd_dispatch_doctrine.md`), plus the test badges in `README.md`, `README.ko.md`, `README.zh.md` and `inventory.json` via `inventory.mjs --write --tests <total>`. OUT: `commandsRun` semantics, `sourceIdentity`, release-gate's `dispatch-contracts` receipt (`pabcd-state/src/release-gate.ts:393`, stays missing), #256/#273 receipt fields, any hook.
 
 ## Verification (PLAN-VERIFIER-REAL-01)
 
@@ -315,3 +315,16 @@ Red-green: the #276 repro test and the mismatched-command test must fail against
 
 Continuity (LOOP-CONTINUITY-01), quoting the wp1 D summary in 000: "the roadmap is locked and wp2 builds 010 as written"; its negative side (context-only review independence, no stated resource bound for wp4, the c-10 correction) is carried forward. This P keeps that direction. Re-checked on `codex/issue-train-0930-wp2`: `git diff --stat 659de59b..HEAD -- plugins structure` is empty, so every anchor above still holds. One amendment: the `structure/INDEX.md` subagent-config section (`:138-140`) is a prose paragraph, so §5 appends one sentence to it: "`src/dispatch-contract.ts` holds the typed DispatchPacket/DispatchReceipt contract (#17): verifier coverage for receipts (#276) and a pure verifier-effects preflight (#277); no runtime path calls it yet." The `structure/20` bullet goes after the DISPATCH-ECONOMY-01 bullet's last clause (`:253`, "from mechanics to economy."), before the `---` that closes §3. Architect consultation: after the reflection at `048a521c`, A folds added a fail-closed malformed-result branch to (1g), including the non-array case; it implements D4 (every result must be a passing, matching result) and D8 (both result fields are shape-checked), so it changes no design decision. This amendment changes placement only, so the phase-audit architect-recheck trigger is not met.
 
+
+## wp2 C record (2026-09-30)
+
+C review round 1 (fresh implementation reviewer `01a0ee2f-7b70`, initiative verifier `01a0ee2f-7cbd`, in parallel) on `b852eb24`: GO-WITH-FIXES (1) and GO-WITH-FIXES (4). Accepted and fixed:
+
+- The §4 prose said "declare writes or isolate", but under shared-read the code (correctly, D13) isolates any verifier that declares writes. DISPATCH-VERIFIER-01 in `delegation.md` and `structure/20` now say only a verifier declared read-only runs in the shared tree; the unrelated-result clause and the function docstring carry D5's "when the packet requires commands".
+- A present but falsy legacy `verifierResult` (`null`) slipped past the malformed check; presence now tests `!== undefined`.
+- An unvalidated packet with a non-string command made both functions throw; both now fail closed (`packet has malformed verifier commands`; preflight emits a `needsIsolation: true` row for it).
+- Untriggered paths got six tests: legacy plus array merge (D2), zero required commands with a stray passing result (D5), no results suppressing per-command reasons, falsy legacy result, non-string packet commands, element-level `expectedWrites` guard. Total new tests: 21.
+- Badges move in this phase (000's file map), so 010's IN list gained the READMEs and `inventory.json`.
+- Red record. Method: `/tmp/it0930/wp2-red.sh` copies the component, restores `src/dispatch-contract.ts` from `659de59b`, stubs `verifierPreflight` as absent, and runs the committed test file with `node --test`. Result: 38 tests, 18 pass, 20 fail, including the #276 repro and the mismatched-command test. On the new source the same file passes 38/38. The earlier "14 failing" in the B->C attest came from an intermediate test file (30 tests, preflight tests removed) and is superseded by this record.
+
+Disclosure for the 040 CHANGELOG: besides the command-match change, `validateReceipt` now rejects a legacy `verifierResult` without a string `output` or an integer `exitCode`, and `validatePacket` rejects blank or non-string `verifierCommands` entries; #277's "existing packets remain readable" holds for well-formed packets.

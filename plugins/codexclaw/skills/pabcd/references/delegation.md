@@ -25,11 +25,12 @@ integrates. Dispatch only specifiable work whose coordination cost is justified
 **DISPATCH-VERIFIER-01 (DEFAULT).** When a packet names verifier commands, the
 receipt reports one result per command; extra checks belong in the commands-run
 list, not in the verifier results. A typed receipt satisfies its packet only when
-every required command has a matching result with exit 0 and no result names a
-command the packet did not require. Under a shared-read packet, declare each
-verifier's writes (`expectedWrites: []` for read-only) or run it in an isolated
-copy; an undeclared verifier goes back to main before it runs in a shared tree.
-A declaration is the author's claim, not proof: codexclaw never executes it.
+every required command has a matching result with exit 0 and, when the packet
+requires commands, no result names a command it did not require. Under a
+shared-read packet, only a verifier declared read-only (`expectedWrites: []`)
+runs in the shared tree; one that declares writes, asks for isolation or declares
+nothing runs in an isolated copy or goes back to main first. A declaration is the
+author's claim, not proof: codexclaw never executes it.
 
 ### Optional worker progress checkpoint (#265)
 

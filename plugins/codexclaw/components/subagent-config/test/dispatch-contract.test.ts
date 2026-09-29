@@ -311,3 +311,56 @@ test("verifierPreflight: isolated-write accepts declared writes", () => {
   assert.deepEqual(rows, [{ command: "writer", declared: true, needsIsolation: false, reason: "packet is isolated-write" }]);
 });
 
+
+test("receiptSatisfiesPacket: legacy verifierResult merges with verifierResults", () => {
+  const result = receiptSatisfiesPacket(
+    twoCommandPacket(),
+    makeReceipt({
+      verifierResults: [{ command: "first-check", exitCode: 0, output: "ok" }],
+      verifierResult: { command: "second-check", exitCode: 0, output: "ok" },
+    }),
+  );
+  assert.equal(result.satisfied, true);
+  assert.ok(!result.reasons.some(r => r.includes("legacy")));
+});
+
+test("receiptSatisfiesPacket: no required commands accepts a stray passing result", () => {
+  const result = receiptSatisfiesPacket(
+    makePacket({ verifierCommands: [] }),
+    makeReceipt({ verifierResult: { command: "extra-check", exitCode: 0, output: "ok" } }),
+  );
+  assert.equal(result.satisfied, true);
+});
+
+test("receiptSatisfiesPacket: no results reports one reason and lists every missing command", () => {
+  const result = receiptSatisfiesPacket(twoCommandPacket(), makeReceipt({ verifierResult: undefined }));
+  assert.equal(result.satisfied, false);
+  assert.deepEqual(result.missing, ["first-check", "second-check"]);
+  assert.ok(result.reasons.includes("packet has verifier commands but receipt has no verifier result"));
+  assert.ok(!result.reasons.some(r => r.startsWith("missing verifier result")));
+});
+
+test("receiptSatisfiesPacket: a present but falsy legacy verifierResult is malformed", () => {
+  const result = receiptSatisfiesPacket(
+    makePacket(),
+    makeReceipt({ verifierResult: null as any, verifierResults: [{ command: "npm test", exitCode: 0, output: "ok" }] }),
+  );
+  assert.equal(result.satisfied, false);
+  assert.ok(result.reasons.some(r => r.includes("malformed verifier results")));
+});
+
+test("unvalidated packets with non-string commands fail closed without throwing", () => {
+  const packet = makePacket({ verifierCommands: ["npm test", 1 as any] });
+  const result = receiptSatisfiesPacket(packet, makeReceipt());
+  assert.equal(result.satisfied, false);
+  assert.ok(result.reasons.some(r => r.includes("malformed verifier commands")));
+  const rows = verifierPreflight(packet);
+  assert.deepEqual(rows.map(r => [r.command, r.needsIsolation]), [["npm test", true], ["1", true]]);
+  assert.ok(rows[1].reason.includes("malformed verifier command"));
+});
+
+test("validatePacket: verifierEffects expectedWrites entries must be non-blank strings", () => {
+  const errors = validatePacket(makePacket({ verifierEffects: [{ command: "npm test", expectedWrites: ["out/", " "] }] }));
+  assert.ok(errors.some(e => e.includes("expectedWrites") && e.includes("non-empty strings")));
+});
+

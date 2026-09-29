@@ -252,8 +252,9 @@ codexclaw translation:
     fragments triage. This extends the "fan out before waiting" lifecycle rule
     from mechanics to economy.
 - **DISPATCH-VERIFIER-01 (verifier coverage and effects).** A receipt reports one
-  result per packet verifier command, and a shared-read packet declares each
-  verifier's writes or runs it in isolation. E2 library contract:
+  result per packet verifier command. Under a shared-read packet, only a verifier
+  declared read-only runs in the shared tree; any other runs isolated or returns
+  to main. E2 library contract:
   `receiptSatisfiesPacket` and `verifierPreflight` in
   `plugins/codexclaw/components/subagent-config/src/dispatch-contract.ts` (#276,
   #277); E7 guidance in `plugins/codexclaw/skills/pabcd/references/delegation.md`.
