@@ -307,3 +307,8 @@ Red-green: the #276 repro test and the mismatched-command test must fail against
 - Known bypass: a caller that never calls the functions, or a receipt author who puts an unrelated command's output under a required command's name.
 - Residual risk: command strings are self-reported; the check proves coverage of names, not that the command ran.
 - Wording: described as a contract check and preflight, never as enforcement. Final enforcement layer: none.
+
+## wp2 P revalidation (2026-09-30)
+
+Continuity: wp1 D locked this doc as the wp2 plan (roadmap audited PASS twice). Re-checked on `codex/issue-train-0930-wp2`: `git diff --stat 659de59b..HEAD -- plugins structure` is empty, so every anchor above still holds. One amendment: the `structure/INDEX.md` subagent-config section (`:138-140`) is a prose paragraph, so §5 appends one sentence to it: "`src/dispatch-contract.ts` holds the typed DispatchPacket/DispatchReceipt contract (#17): verifier coverage for receipts (#276) and a pure verifier-effects preflight (#277); no runtime path calls it yet." The `structure/20` bullet goes after the DISPATCH-ECONOMY-01 bullet's last clause (`:253`, "from mechanics to economy."), before the `---` that closes §3. Architect consultation: this is the same plan the architect proposed and reflected on (002); the amendment changes no design decision, so no re-consultation (phase-audit "Architect recheck" trigger not met).
+
