@@ -115,7 +115,7 @@ SoT sync (SOT-SYNC-01): the Interview skill is the canonical owner of these rule
 
 | Check | Where it is met |
 |---|---|
-| 1. inference cannot be presented as user-confirmed without an answer reference (rule-level; see enforcement naming) | 1(b) status bullet: confirmed/rejected require the answer `eventId` |
+| 1. the rule requires an answer reference before an inference is presented as user-confirmed (rule-level; see enforcement naming) | 1(b) status bullet: confirmed/rejected require the answer `eventId` |
 | 2. rejected inference kept as decision trace, not carried as open | 1(b) last-but-one bullet: `## ASSUMPTION DECISIONS`, never in tracker assumptions |
 | 3. closeout distinguishes confirmed requirements from open inferred assumptions | 1(d), 1(e) |
 | 4. existing trackers and freeze manifests remain readable | no code change; 1(b) last bullet |
@@ -138,3 +138,5 @@ Tier E7 (agent-followed guidance). Executing surface: the main session writing t
 ## wp3 P revalidation (2026-09-30)
 
 Continuity (LOOP-CONTINUITY-01), quoting the wp2 D summary in 010: "#276 and #277 are fixed and merged ... Next: wp3 builds 020." This P keeps that direction. Re-checked on `codex/issue-train-0930-wp3` from `origin/dev` `069a7d0e`: `git diff --stat 659de59b..HEAD -- plugins/codexclaw/skills/interview plugins/codexclaw/skills/loop/references/durable-goalplan.md` is empty, and the quoted lines (`SKILL.md:28`, `:46-53`, `:170-172`, `:176-178`, `mind-dispatch.md:47-49`, `durable-goalplan.md:40`) read as planned. No amendment; the architect's D17-D21 stand, so no re-consultation.
+
+Carried forward from the wp2 D summary: a CI or local failure in `subagent-config/test/spawn-attach-hook.test.ts:920` (a timing assertion) is the known flake, not a wp3 regression; diagnose it from the log before any rerun. The hypothesis that died in wp2: that dispatch prose could be written from the plan without re-reading the implemented rule. For wp3 that means C reads the final skill text, not only this doc.

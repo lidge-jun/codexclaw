@@ -331,6 +331,6 @@ Disclosure for the 040 CHANGELOG: besides the command-match change, `validateRec
 
 ## wp2 D summary (2026-09-30)
 
-Conclusion: #276 and #277 are fixed and merged into `dev` through PR #278 (head `ef1ce80d`, 14/14 checks, merge `069a7d0e`). Evidence: the red check (20/38 failing on the `659de59b` source, including the #276 repro), 39/39 on the new source, and the C gate under `cxc receipt test` (3730 tests, 0 failures, inventory, gate, smoke, empty hook diff). Next: wp3 builds 020.
+Conclusion: #276 and #277 are fixed and merged into `dev` through PR #278 (head `ef1ce80d`, 14/14 checks, merge `069a7d0e`). Evidence: the red check (20/38 failing on the `659de59b` source, including the #276 repro), 38/38 on the new source for the same file (39/39 after C round 2 added one test), and the C gate under `cxc receipt test` (3730 tests, 0 failures, inventory, gate, smoke, empty hook diff). Next: wp3 builds 020.
 
 What did not go well: the first build shipped prose that contradicted the preflight rule (declared writes still need isolation), and three conditional paths plus two malformed-input paths were untested until the C reviewers probed them; C took two review rounds and three gate runs. One full-suite run failed on an unrelated timing assertion (`spawn-attach-hook.test.ts:920`, 0.5 ms to 6.6 ms under concurrent load) that passed 3/3 in isolation; it is a latent flake worth watching in CI. Evidence that this direction is wrong: a caller appears that legitimately reports extra passing checks in `verifierResults` and is broken by D5.

@@ -37,7 +37,10 @@ Interview OPEN ASSUMPTIONS, steering decisions, and quality gates.
 ### Contract
 
 - Represent goals, work phases, success criteria, checkpoints, and evidence.
-- Carry Interview OPEN ASSUMPTIONS into Plan/Audit instead of dropping them.
+- Carry Interview OPEN ASSUMPTIONS into Plan/Audit instead of dropping them, with
+  their source, confidence, consequence if wrong and status. Only `proposed` and
+  `open` entries count as open; confirmed and rejected entries keep their answer
+  reference (INTERVIEW-ASSUME-01 in cxc-interview).
 - Record steering decisions with rationale and evidence.
 - Reject steering that weakens completion criteria or verification.
 - Require a quality gate before final completion.
