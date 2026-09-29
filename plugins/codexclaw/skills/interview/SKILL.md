@@ -25,7 +25,8 @@ SessionStart binding. No-FSM requests remain advisory without a transition.
 - Ask across four dimensions: Goal, Constraint, Success criteria, Ontology.
 - Re-scan contradictions after every user answer.
 - Do not advance to Plan while a high contradiction or pending question remains.
-- Record medium/low unresolved items as OPEN ASSUMPTIONS before leaving Interview.
+- Record medium/low unresolved items as OPEN ASSUMPTIONS before leaving Interview,
+  with the provenance fields of INTERVIEW-ASSUME-01.
 - When Interview reveals work that will span 2+ PABCD cycles, flag the unit as
   multi-cycle so that the first work-phase enters as a docs-only roadmap cycle
   (LOOP-DOCS-FIRST-01, `cxc-loop`). Interview settles unit residence
@@ -43,6 +44,47 @@ an assumption. When evidence cannot settle a cheap, bounded comparison, offer a
 parallel spike and evidence-based selection. Do not invent irrelevant feature or
 technology choices that the project already settles.
 
+## Assumption provenance (INTERVIEW-ASSUME-01)
+
+An assumption the assistant inferred is not a requirement the user agreed to, and
+the handoff to Plan keeps the two apart. In the plan file, write each assumption
+as one line: an id (`A1`, `A2`, ...), its status in brackets, the assumption,
+then its source, confidence and consequence if wrong.
+
+    - A3 [proposed] Exports stay CSV only — source: src/export.ts:41; confidence: medium; if wrong: the XLSX writer and its tests join the scope
+
+- `source` is a repository `path:line`, or for something the user said, the
+  `eventId` of its `answer_recorded` event in the Q/A ledger
+  (`<turnId>:<questionId>:answer_recorded`). A bare `questionId` is not enough
+  because it can repeat across turns; an `eventId` starting with `no-turn:` has
+  the same weakness, so re-ask rather than rely on it.
+- `confidence` is `low`, `medium` or `high`. `if wrong` names what changes in
+  scope, design or verification; an assumption is high-impact when that
+  consequence changes any of them.
+- Status is `proposed` (inferred, not yet asked), `open` (asked or deliberately
+  deferred, still unresolved), `user_confirmed` or `user_rejected`. The last two
+  require an answer reference: the answer's `eventId`, or under an active goal a
+  decided goalplan decision id (below). Without one an entry stays `proposed` or
+  `open`, whatever the conversation seemed to imply. A reply typed in chat has
+  no `eventId`: confirm it through the next `request_user_input` round, or keep
+  the entry `open` and quote the reply.
+- The plan keeps three sections. `## OPEN ASSUMPTIONS` holds only `proposed` and
+  `open` entries. `## CONFIRMED REQUIREMENTS` holds `user_confirmed` entries
+  with their reference. `## ASSUMPTION DECISIONS` holds `user_rejected` entries
+  with their reference, so the decision stays traceable without being carried as
+  open.
+- The Interview tracker (session state read by the readiness gate) may also hold
+  assumptions, and `cxc freeze` copies every recorded one into the frozen
+  manifest as open, adding the leading `- `. Where a tracker entry exists, its
+  `text` repeats the plan line without that `- `, and only `proposed` or `open`
+  entries belong there. Do not hand-edit session state; if a tracker entry
+  cannot be moved after it is resolved, the plan line's status is authoritative.
+- A plan written after Interview, under an active goal where Interview is
+  suppressed, may put a decided goalplan decision id (`cxc loop decide`) in the
+  `source` field, with the decision's answer quoting the user's reply.
+- This rule shapes existing plan text and tracker entries. It adds no field or
+  command, and older plans and trackers read as before.
+
 ## Question quality (INTERVIEW-Q-01)
 
 - Target the weakest dimension first and name why it is the current bottleneck.
@@ -51,6 +93,8 @@ technology choices that the project already settles.
   answer changes the other (INTERVIEW-INDEPENDENT-01). Independence governs, not a count.
   Note the transport limit: `request_user_input` accepts at most three questions per call,
   so a larger independent batch has to be split across calls.
+- High-impact `proposed` assumptions (INTERVIEW-ASSUME-01) are candidates for the
+  next relevant question round. Low-impact ones may stay `proposed`; closeout lists them.
 - Prefer repo-grounded confirmation ("the code does X — is that intended?") over re-asking what
   the codebase already answers.
 - Treat every answer as a claim to pressure-test: vague or hedged answers do not raise a
@@ -169,13 +213,16 @@ work-phase (loop-engineering §11.4).
   `PostToolUse` hook capture the answer, then `cxc scan record --derive --map <qid>=<dimension>`.
 - Treat readiness as a coverage claim on top of that: each dimension has concrete knowns, no
   unresolved unknown changes scope, and every contradiction has exited into an answer or a
-  recorded assumption. Summarize the remaining OPEN ASSUMPTIONS before claiming I -> P readiness.
+  recorded assumption. Before claiming I -> P readiness, summarize in two groups: confirmed
+  requirements with their answer references, then the remaining `proposed` and `open`
+  assumptions with their `if wrong` consequences (INTERVIEW-ASSUME-01).
 
 ## Closeout fork (INTERVIEW-FORK-01)
 
 In non-goal HITL Interview only (under an active goal the Interview is suppressed and
 `request_user_input` is hard-denied — see Goal firewall), after a scan round do not drift forward
-silently. Present a numbered choice and let the user pick: `1. Proceed to Plan` ·
+silently. Show the two-group summary from INTERVIEW-SCAN-01, then present a numbered choice and
+let the user pick: `1. Proceed to Plan` ·
 `2. Keep interviewing` · `3. Record assumptions and pause`. Do not offer a question BUDGET
 ("ask 2-3 more"): no tracker field persists it, so the number is unenforceable across turns,
 and INTERVIEW-INDEPENDENT-01 governs batching by independence rather than count.

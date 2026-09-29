@@ -45,5 +45,6 @@ or inherit the parent, depending on the actual native/hook path.
 Use returned handles with the live wait/follow-up/retirement tools. Retain actual
 contradiction results and their evidence; malformed or missing results are not a
 completed independent scan. Main triages high contradictions into questions and
-low/medium into OPEN ASSUMPTIONS, and records only actual authorized scan/tracker
-work. The existing answer-provenance/readiness and completion gates remain intact.
+low/medium into OPEN ASSUMPTIONS, which start as `proposed` under
+INTERVIEW-ASSUME-01, and records only actual authorized scan/tracker work. The
+existing answer-provenance/readiness and completion gates remain intact.

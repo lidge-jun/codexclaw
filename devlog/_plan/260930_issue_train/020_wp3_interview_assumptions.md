@@ -115,8 +115,8 @@ SoT sync (SOT-SYNC-01): the Interview skill is the canonical owner of these rule
 
 | Check | Where it is met |
 |---|---|
-| 1. inference cannot be presented as user-confirmed without an answer reference (rule-level; see enforcement naming) | 1(b) status bullet: confirmed/rejected require the answer `eventId` |
-| 2. rejected inference kept as decision trace, not carried as open | 1(b) last-but-one bullet: `## ASSUMPTION DECISIONS`, never in tracker assumptions |
+| 1. the rule requires an answer reference before an inference is presented as user-confirmed (rule-level; see enforcement naming) | 1(b) status bullet: confirmed/rejected require the answer `eventId` |
+| 2. rejected inference kept as decision trace, not carried as open | 1(b) three-sections bullet and tracker bullet: rejected entries go under `## ASSUMPTION DECISIONS`; only proposed/open entries belong in the tracker |
 | 3. closeout distinguishes confirmed requirements from open inferred assumptions | 1(d), 1(e) |
 | 4. existing trackers and freeze manifests remain readable | no code change; 1(b) last bullet |
 
@@ -134,3 +134,15 @@ No conditional code path is added, so C-ACTIVATION-GROUNDING-01 does not apply; 
 ## Enforcement naming (PLAN-BYPASS-NAMED-01)
 
 Tier E7 (agent-followed guidance). Executing surface: the main session writing the plan. Known bypass: an agent can still label an entry `user_confirmed` without a real `eventId`; nothing checks the reference against the ledger. Residual risk: acceptance check 1 holds by discipline plus reviewability (the reference is visible and checkable in the hashed plan), not by a gate. Wording: guidance, never "cannot"; the acceptance table above reads as "the rule requires". Final enforcement layer: none.
+
+## wp3 P revalidation (2026-09-30)
+
+Continuity (LOOP-CONTINUITY-01), quoting the wp2 D summary in 010: "#276 and #277 are fixed and merged ... Next: wp3 builds 020." This P keeps that direction. Re-checked on `codex/issue-train-0930-wp3` from `origin/dev` `069a7d0e`: `git diff --stat 659de59b..HEAD -- plugins/codexclaw/skills/interview plugins/codexclaw/skills/loop/references/durable-goalplan.md` is empty, and the quoted lines (`SKILL.md:28`, `:46-53`, `:170-172`, `:176-178`, `mind-dispatch.md:47-49`, `durable-goalplan.md:40`) read as planned. No amendment; the architect's D17-D21 stand, so no re-consultation.
+
+Carried forward from the wp2 D summary: a CI or local failure in `subagent-config/test/spawn-attach-hook.test.ts:920` (a timing assertion) is the known flake, not a wp3 regression; diagnose it from the log before any rerun. The hypothesis that died in wp2: that dispatch prose could be written from the plan without re-reading the implemented rule. For wp3 that means C reads the final skill text, not only this doc.
+
+## wp3 C record (2026-09-30)
+
+C round 1 on `4254bc38`: fresh implementation reviewer `01a0ee49-6e1e` GO-WITH-FIXES (blockers=0), initiative verifier `01a0ee49-6f1d` GO-WITH-FIXES (4: reader check, semantic review of the final text, check output with the `rg` result, goalplan/delivery). The reviewer's C-READER-01 pass read only the new section and the SCAN/FORK lines and stumbled at: the unexplained id and bracket in the example line; when the goal-mode sentence applies; "tracker" and "freeze" undefined; no heading for confirmed requirements; "high-impact" not tied to a field; the goalplan sentence mixing open and resolved entries; plus an `eventId` caveat (`no-turn` repeats) and no way out for a resolved tracker entry. Changes: the section now explains the line format, names three plan sections (`## OPEN ASSUMPTIONS`, `## CONFIRMED REQUIREMENTS`, `## ASSUMPTION DECISIONS`), defines the tracker and `cxc freeze`, ties high-impact to `if wrong`, adds the `no-turn:` caveat, makes the plan line authoritative when a tracker entry cannot be moved, and says a goal-mode decision's answer quotes the user's reply; `durable-goalplan.md:40` separates open entries from the resolved sections. The acceptance table's pointer for check 2 was corrected. The goal-mode reference remains agent-recorded (named in enforcement naming as part of the same bypass).
+
+C round 2 on `23b92670`: reviewer GO-WITH-FIXES (blockers=0) after a second fresh-reader pass, initiative verifier PASS; C gate OK on `23b92670` (3730 tests, 0 failures). Three wording fixes both flagged were applied in the next commit (answer reference covers the goal-mode decision id in the status bullet; high-impact includes design; "after Interview" and the `source` field for the goal-mode reference). The final skill text supersedes plan item 1(b) above.
