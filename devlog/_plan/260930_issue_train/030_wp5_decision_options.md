@@ -124,6 +124,8 @@ and in both `decisions.push` calls (`:539-540`, `:543-545`) append `...(options 
 +    }
 ```
 
+(h) Help Notes line after the `decide` note (`:724`): "Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text." (A round nit: moved into the file map from the revalidation.)
+
 ### 3. REGENERATE `pabcd-state/dist/goalplan.js`, `pabcd-state/dist/goalplan-cli.js` (`npm run build`; tracked, checked by `dist-freshness.test.mjs`).
 
 ### 4. MODIFY `plugins/codexclaw/components/pabcd-state/test/goalplan-public-surface.test.ts`
@@ -134,7 +136,7 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 |---|---|---|
 | `ask records options and ready/show expose them` | `ask --option A --option B --recommendation A` | goalplan decision has `options:["A","B"]`; `ready --json` open decision has `options`; `show` prints `options: A \| B (recommended: A)` |
 | `ask rejects a recommendation outside the options without a write` | `--option A --option B --recommendation C` | exit 1, reason `must be one of the options`, plan bytes unchanged |
-| `ask rejects blank and repeated options at parse time` | `--option " "`; `--option A --option A` | exit 1 with the parser reasons, no write |
+| `ask rejects blank and repeated options at parse time` | `--option " "`; `--option A --option A`; `--option` on `decide` | `parseGoalplanCliArgs` returns the parser error (the `cli()` helper asserts a successful parse), plan bytes unchanged |
 | `ask without --option stores no options key` | plain ask | decision JSON has no `options` property |
 | `decide keeps options and accepts a free-form answer` | ask with options, `decide --answer "something else"` | exit 0, decision decided, `options` unchanged |
 | `reviver fails closed on malformed options` | hand-written plans with `options: {}`, `options: []`, `[" "]`, `["A","A "]`, `[1]`, and a recommendation outside valid options | each read fails naming the field: `field 'decisions' did not satisfy the schema` (`goalplan.ts:719` via `firstInvalidField`), before `validateGoalplan` runs |
@@ -143,7 +145,7 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 ### 5. MODIFY docs
 
 - `plugins/codexclaw/skills/loop/references/durable-goalplan.md:60`: `{ id, question, recommendation?, options?, status: open|decided, answer?, askedAt, decidedAt? }` and one sentence: "When `options` is present it is a non-empty list of distinct entries and `recommendation` must be one of them; the answer stays free text because the host always offers a free-form reply."
-- `durable-goalplan.md:98`: add `[--option <text>]...` to the `ask` synopsis.
+- `durable-goalplan.md:101` (was `:98`): add `[--option <text>]...` to the `ask` synopsis.
 - `plugins/codexclaw/skills/dev/references/async-questions.md:56`: add `[--option <text>]...` to the `ask` synopsis and "(the offered options, recommended first)".
 
 ## Verification (PLAN-VERIFIER-REAL-01)
@@ -160,3 +162,21 @@ Activation scenarios (C-ACTIVATION-GROUNDING-01): (2d)'s blank and repeated `--o
 ## Enforcement naming (PLAN-BYPASS-NAMED-01)
 
 Tier E2 (CLI and reviver validation). Executing surface: `cxc loop ask` and every goalplan read. Known bypass: a library caller writing through `writeGoalplan` directly skips `ask`'s checks, but the next read still fails closed on invalid options; nothing proves the question was actually sent with those options. Residual risk: an invalid hand edit makes the whole plan unreadable until repaired, as for every existing field. Wording: validation, not enforcement of what the host displayed. Final enforcement layer: none.
+
+## wp5 P revalidation (2026-09-30)
+
+Continuity (LOOP-CONTINUITY-01), quoting the wp3 D summary in 020: "#275 is addressed at the rule level and merged ... Next: wp5 builds 030." This P keeps that direction, and carries forward wp2's known timing flake (`spawn-attach-hook.test.ts:920`) and wp3's lesson that prose written into docs must be re-read in its final form at C.
+
+Re-checked on `codex/issue-train-0930-wp5` from `origin/dev` `58a8a174`: `git diff --stat 659de59b..HEAD -- plugins/codexclaw/components/pabcd-state plugins/codexclaw/skills/dev/references/async-questions.md` is empty, so every `goalplan.ts` and `goalplan-cli.ts` anchor above holds. As planned, wp3's three-line edit moved the `durable-goalplan.md` anchors: the `decisions[]` schema line is now `:63` (was `:60`) and the `ask` synopsis is `:101` (was `:98`). `async-questions.md:56` is unchanged. `renderGoalplanHelp` (`goalplan-cli.ts:702`) prints the verb usage strings, so it picks up the new `ask` usage without a separate edit. No design decision changes, so no architect recheck.
+
+Amendment (architect's optional D26 note): add one Notes line to `renderGoalplanHelp` after the `decide` note (`goalplan-cli.ts:724`): `"  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text."` No test pins the help Notes text (checked with `rg 'Record the user' plugins/codexclaw/components/pabcd-state/test`).
+
+## wp5 B record (2026-09-30)
+
+Built at `355afde3` per the file map (1a-1d, 2a-2h, docs 5), plus seven tests (six planned rows and the library test). Red check: with `goalplan.ts` and `goalplan-cli.ts` restored from `58a8a174` in place (`git show 58a8a174:<path> > <path>`, then `git checkout HEAD -- <paths>`), the committed test file runs 41 tests, 35 pass, 6 fail: every new behavior test; the seventh ("ask without --option stores no options key") is a compatibility test that passes on both sources by design. New source: 41/41. Badges move to 3737.
+
+## wp5 C record (2026-09-30)
+
+C round 1 on `0c0ae34f`: fresh implementation reviewer `01a0ee5f-7c4f` PASS (four Low findings), initiative verifier `01a0ee5f-7d90` GO-WITH-FIXES (4, all procedural: finished gate, hosted CI, independent review verdict, goalplan records); the initiative verifier also reproduced the red/green counts in an isolated `git archive`-style export (35/6 red, 41/0 green). C gate on `0c0ae34f`: 3737 tests, 0 failures, inventory, gate, smoke, hook diff 0. Folded: assertions (no new tests, count stays 3737) for `show` with options and no recommendation, `ready --json` without options, the exact `unknown flag '--option` error, and the `--option=value` form; `async-questions.md:56` now says "recommended first by convention".
+
+Residual for the wp4 CHANGELOG: builds older than this one rebuild decisions field by field and drop `options` if they rewrite the plan (no schema-version bump signals the key). Criterion c-10 is linked to wp5 by its text (work-phase `criteriaIds` are empty in this goalplan); #262 entered through the objective's "worthwhile improvements among the open issues" outcome, not its enumerated Scope IN list.

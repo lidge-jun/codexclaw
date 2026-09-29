@@ -122,6 +122,8 @@ import { applySteeringBatch } from "./steering.js";
 
 
 
+
+
 const VERBS                      = new Set              ([
   "init",
   "show",
@@ -160,7 +162,7 @@ const VERB_RULES                                           = {
   "add-task": { allowed: new Set(["--session", "--work-phase", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]" },
   "complete-task": { allowed: new Set(["--session", "--work-phase", "--id", "--outcome", "--cwd"]), repeatable: new Set(), usage: "complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]" },
   "meet-criterion": { allowed: new Set(["--session", "--id", "--evidence", "--cwd"]), repeatable: new Set(), usage: "meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]" },
-  ask: { allowed: new Set(["--session", "--id", "--question", "--recommendation", "--work-phase", "--cwd"]), repeatable: new Set(["--work-phase"]), usage: "ask --session <id> --id <id> --question <text> [--recommendation <text>] [--work-phase <id>]... [--cwd <path>]" },
+  ask: { allowed: new Set(["--session", "--id", "--question", "--recommendation", "--option", "--work-phase", "--cwd"]), repeatable: new Set(["--option", "--work-phase"]), usage: "ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]" },
   decide: { allowed: new Set(["--session", "--id", "--answer", "--cwd"]), repeatable: new Set(), usage: "decide --session <id> --id <id> --answer <text> [--cwd <path>]" },
   help: { allowed: new Set(), repeatable: new Set(), usage: "--help" },
 };
@@ -237,6 +239,14 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
       }
       case "--question": out.question = value; break;
       case "--recommendation": out.recommendation = value; break;
+      case "--option": {
+        const option = value.trim();
+        if (!option) return reject("--option requires one non-empty value");
+        const options = out.options ?? (out.options = []);
+        if (options.includes(option)) return reject(`--option must not repeat '${option}'`);
+        options.push(option);
+        break;
+      }
       case "--answer": out.answer = value; break;
       case "--outcome": out.outcome = value; break;
       case "--schema-version": {
@@ -463,7 +473,9 @@ function runReady(args                 , plan          )                    {
   const phases = readyWorkPhases(plan);
   const tasks = readyTasks(plan);
   const openDecisions = (plan.decisions ?? []).filter((decision) => decision.status === "open")
-    .map(({ id, question, recommendation, askedAt }) => ({ id, question, ...(recommendation === undefined ? {} : { recommendation }), askedAt }));
+    .map(({ id, question, recommendation, options, askedAt }) => ({ id, question,
+      ...(recommendation === undefined ? {} : { recommendation }),
+      ...(options === undefined ? {} : { options }), askedAt }));
   const awaitingDecisions = plan.workPhases
     .filter((wp) => wp.status === "pending" || wp.status === "in_progress")
     .map((wp) => ({ workPhaseId: wp.id, decisionIds: openDecisionIdsForPhase(plan, wp).filter((id) =>
@@ -529,6 +541,7 @@ function runDecision(args                 )                    {
     const result = args.verb === "ask"
       ? askGoalplanDecision(plan, {
           id, question: args.question , recommendation: args.recommendation,
+          ...(args.options === undefined ? {} : { options: args.options }),
           workPhaseIds: args.workPhaseIds ?? [], askedAt: new Date().toISOString(),
         })
       : decideGoalplanDecision(plan, id, args.answer , new Date().toISOString());
@@ -688,6 +701,9 @@ function renderPlanLines(plan          , lock                          )        
   for (const decision of plan.decisions ?? []) {
     if (decision.status !== "open") continue;
     lines.push(`  - ${decision.id} [open] ${decision.question}`);
+    if (decision.options !== undefined) {
+      lines.push(`    options: ${decision.options.join(" | ")}${decision.recommendation === undefined ? "" : ` (recommended: ${decision.recommendation})`}`);
+    }
     const waiting = plan.workPhases.filter((wp) => wp.awaitsDecision?.includes(decision.id));
     lines.push(`    waiting: ${waiting.map((wp) => wp.id).join(", ") || "none"}`);
   }
@@ -722,6 +738,7 @@ export function renderGoalplanHelp()         {
     "  meet-criterion requires non-empty captured evidence for the same reason.",
     "  Send the question through the host first, then record it with ask; ask never sends a message.",
     "  Record the user's reply with decide. It changes only the decision record.",
+    "  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text.",
     "",
     "steer --batch-json expects an object with:",
     '  { "idempotencyKey": "<unique>", "rationale": "<why>", "evidence": "<proof>",',

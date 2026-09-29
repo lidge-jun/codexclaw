@@ -142,6 +142,8 @@ export interface GoalplanDecision {
   id: string;
   question: string;
   recommendation?: string;
+  /** Options offered with the question; when present, recommendation is one of them (#262). */
+  options?: string[];
   status: "open" | "decided";
   answer?: string;
   askedAt: string;
@@ -523,6 +525,16 @@ function validIsoTime(value: unknown): value is string {
   return Number.isFinite(date.valueOf()) && date.toISOString() === value;
 }
 
+/** Absent stays absent; a present list must be non-empty, non-blank and distinct after trim. */
+function reviveDecisionOptions(value: unknown): string[] | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) return "invalid";
+  if (value.some((option) => typeof option !== "string" || !option.trim())) return "invalid";
+  const trimmed = (value as string[]).map((option) => option.trim());
+  if (new Set(trimmed).size !== trimmed.length) return "invalid";
+  return [...(value as string[])];
+}
+
 function reviveDecisions(value: unknown): GoalplanDecision[] | undefined | "invalid" {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) return "invalid";
@@ -534,15 +546,21 @@ function reviveDecisions(value: unknown): GoalplanDecision[] | undefined | "inva
       || typeof d.question !== "string" || !d.question.trim()
       || !validIsoTime(d.askedAt)
       || (d.recommendation !== undefined && (typeof d.recommendation !== "string" || !d.recommendation.trim()))) return "invalid";
+    const options = reviveDecisionOptions(d.options);
+    if (options === "invalid") return "invalid";
+    if (options !== undefined && d.recommendation !== undefined
+      && !options.some((option) => option.trim() === (d.recommendation as string).trim())) return "invalid";
     if (d.status === "open") {
       if (d.answer !== undefined || d.decidedAt !== undefined) return "invalid";
       decisions.push({ id: d.id, question: d.question, status: "open", askedAt: d.askedAt,
-        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation as string }) });
+        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation as string }),
+        ...(options === undefined ? {} : { options }) });
     } else if (d.status === "decided") {
       if (typeof d.answer !== "string" || !d.answer.trim() || !validIsoTime(d.decidedAt)) return "invalid";
       decisions.push({ id: d.id, question: d.question, status: "decided", answer: d.answer,
         askedAt: d.askedAt, decidedAt: d.decidedAt,
-        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation as string }) });
+        ...(d.recommendation === undefined ? {} : { recommendation: d.recommendation as string }),
+        ...(options === undefined ? {} : { options }) });
     } else return "invalid";
   }
   return decisions;
@@ -1224,7 +1242,7 @@ export type GoalplanLifecycleResult =
 
 export function askGoalplanDecision(
   plan: Goalplan,
-  input: { id: string; question: string; recommendation?: string; workPhaseIds: string[]; askedAt: string },
+  input: { id: string; question: string; recommendation?: string; options?: string[]; workPhaseIds: string[]; askedAt: string },
 ): GoalplanLifecycleResult {
   const id = input.id.trim();
   const question = input.question.trim();
@@ -1233,6 +1251,16 @@ export function askGoalplanDecision(
   if (!LIFECYCLE_ID_RE.test(id)) return { kind: "rejected", reason: "decision id must be a short lowercase id, e.g. dec-1" };
   if (!question) return { kind: "rejected", reason: "decision question must not be empty" };
   if (input.recommendation !== undefined && !recommendation) return { kind: "rejected", reason: "decision recommendation must not be empty" };
+  const options = input.options?.map((option) => option.trim());
+  if (options !== undefined) {
+    if (options.length === 0) return { kind: "rejected", reason: "decision options must not be empty" };
+    if (options.some((option) => !option)) return { kind: "rejected", reason: "decision options must be non-empty text" };
+    const repeated = options.find((option, index) => options.indexOf(option) !== index);
+    if (repeated !== undefined) return { kind: "rejected", reason: `duplicate decision option '${repeated}'` };
+    if (recommendation !== undefined && !options.includes(recommendation)) {
+      return { kind: "rejected", reason: "decision recommendation must be one of the options" };
+    }
+  }
   if (!validIsoTime(input.askedAt)) return { kind: "rejected", reason: "decision askedAt must be an ISO timestamp" };
   if (plan.decisions?.some((decision) => decision.id === id)) return { kind: "rejected", reason: `decision '${id}' is already in this plan` };
   const duplicate = plan.decisions?.find((decision) => decision.status === "open" && decision.question.trim() === question);
@@ -1248,7 +1276,8 @@ export function askGoalplanDecision(
     }
   }
   const decision: GoalplanDecision = { id, question, status: "open", askedAt: input.askedAt,
-    ...(recommendation === undefined ? {} : { recommendation }) };
+    ...(recommendation === undefined ? {} : { recommendation }),
+    ...(options === undefined ? {} : { options }) };
   const next: Goalplan = { ...plan, decisions: [...(plan.decisions ?? []), decision],
     workPhases: plan.workPhases.map((wp) => workPhaseIds.includes(wp.id)
       ? { ...wp, awaitsDecision: [...(wp.awaitsDecision ?? []), id] } : wp) };
