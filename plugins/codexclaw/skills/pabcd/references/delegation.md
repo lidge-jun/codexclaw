@@ -22,6 +22,15 @@ Subagents return evidence and unresolved judgments; the main session decides and
 integrates. Dispatch only specifiable work whose coordination cost is justified
 (DISPATCH-ECONOMY-01).
 
+**DISPATCH-VERIFIER-01 (DEFAULT).** When a packet names verifier commands, the
+receipt reports one result per command; extra checks belong in the commands-run
+list, not in the verifier results. A typed receipt satisfies its packet only when
+every required command has a matching result with exit 0 and no result names a
+command the packet did not require. Under a shared-read packet, declare each
+verifier's writes (`expectedWrites: []` for read-only) or run it in an isolated
+copy; an undeclared verifier goes back to main before it runs in a shared tree.
+A declaration is the author's claim, not proof: codexclaw never executes it.
+
 ### Optional worker progress checkpoint (#265)
 
 For a long bounded write packet, the coordinator may grant a specific `PROGRESS.md`

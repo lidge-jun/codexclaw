@@ -251,6 +251,13 @@ codexclaw translation:
     drip-feed spawning taxes the main session's context once per return and
     fragments triage. This extends the "fan out before waiting" lifecycle rule
     from mechanics to economy.
+- **DISPATCH-VERIFIER-01 (verifier coverage and effects).** A receipt reports one
+  result per packet verifier command, and a shared-read packet declares each
+  verifier's writes or runs it in isolation. E2 library contract:
+  `receiptSatisfiesPacket` and `verifierPreflight` in
+  `plugins/codexclaw/components/subagent-config/src/dispatch-contract.ts` (#276,
+  #277); E7 guidance in `plugins/codexclaw/skills/pabcd/references/delegation.md`.
+  No hook calls either function, and a declaration is a claim, not proof.
 
 ---
 

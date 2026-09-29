@@ -7,6 +7,7 @@ import {
   validatePacket,
   validateReceipt,
   receiptSatisfiesPacket,
+  verifierPreflight,
   type DispatchPacket,
   type DispatchReceipt,
 } from "../src/dispatch-contract.ts";
@@ -95,6 +96,7 @@ test("receiptSatisfiesPacket: matching pair is satisfied", () => {
   const result = receiptSatisfiesPacket(makePacket(), makeReceipt());
   assert.equal(result.satisfied, true);
   assert.deepEqual(result.reasons, []);
+  assert.deepEqual(result.missing, []);
 });
 
 test("receiptSatisfiesPacket: packetId mismatch", () => {
@@ -140,3 +142,172 @@ test('architect packet roundtrips with main judgment ownership', () => {
   assert.deepEqual(validatePacket(JSON.parse(JSON.stringify(packet))), []);
   assert.ok(validatePacket({ ...packet, judgmentOwnership: 'architect' }).includes('judgmentOwnership must be main'));
 });
+
+
+// #276 / #277 (issue train 0930, devlog/_plan/260930_issue_train/010)
+
+function twoCommandPacket(overrides: Partial<DispatchPacket> = {}): DispatchPacket {
+  return makePacket({ verifierCommands: ["first-check", "second-check"], ...overrides });
+}
+
+test("receiptSatisfiesPacket: #276 repro — unrelated single result for two required commands", () => {
+  const result = receiptSatisfiesPacket(
+    twoCommandPacket(),
+    makeReceipt({ commandsRun: ["unrelated-check"], verifierResult: { command: "unrelated-check", exitCode: 0, output: "ok" } }),
+  );
+  assert.equal(result.satisfied, false);
+  assert.ok(result.reasons.some(r => r.includes("unrelated command")));
+  assert.ok(result.reasons.some(r => r.includes("incomplete")));
+  assert.deepEqual(result.missing, ["first-check", "second-check"]);
+});
+
+test("receiptSatisfiesPacket: single mismatched command is rejected", () => {
+  const result = receiptSatisfiesPacket(
+    makePacket({ verifierCommands: ["npm test"] }),
+    makeReceipt({ verifierResult: { command: "npm run test", exitCode: 0, output: "ok" } }),
+  );
+  assert.equal(result.satisfied, false);
+  assert.deepEqual(result.missing, ["npm test"]);
+});
+
+test("receiptSatisfiesPacket: two required commands with one matching verifierResults entry", () => {
+  const result = receiptSatisfiesPacket(
+    twoCommandPacket(),
+    makeReceipt({ verifierResult: undefined, verifierResults: [{ command: "first-check", exitCode: 0, output: "ok" }] }),
+  );
+  assert.equal(result.satisfied, false);
+  assert.deepEqual(result.missing, ["second-check"]);
+  assert.ok(result.reasons.some(r => r.includes("missing verifier result")));
+});
+
+test("receiptSatisfiesPacket: legacy single matching result with two required commands is incomplete", () => {
+  const result = receiptSatisfiesPacket(
+    twoCommandPacket(),
+    makeReceipt({ verifierResult: { command: "first-check", exitCode: 0, output: "ok" } }),
+  );
+  assert.equal(result.satisfied, false);
+  assert.ok(result.reasons.some(r => r.includes("legacy verifierResult") && r.includes("incomplete")));
+});
+
+test("receiptSatisfiesPacket: verifierResults covering every command is satisfied", () => {
+  const result = receiptSatisfiesPacket(
+    twoCommandPacket(),
+    makeReceipt({ verifierResult: undefined, verifierResults: [
+      { command: "first-check", exitCode: 0, output: "ok" },
+      { command: "second-check", exitCode: 0, output: "ok" },
+    ] }),
+  );
+  assert.equal(result.satisfied, true);
+  assert.deepEqual(result.reasons, []);
+  assert.deepEqual(result.missing, []);
+});
+
+test("receiptSatisfiesPacket: unrelated extra result fails even with full coverage", () => {
+  const result = receiptSatisfiesPacket(
+    twoCommandPacket(),
+    makeReceipt({ verifierResult: undefined, verifierResults: [
+      { command: "first-check", exitCode: 0, output: "ok" },
+      { command: "second-check", exitCode: 0, output: "ok" },
+      { command: "extra-check", exitCode: 0, output: "ok" },
+    ] }),
+  );
+  assert.equal(result.satisfied, false);
+  assert.ok(result.reasons.some(r => r.includes("unrelated command") && r.includes("extra-check")));
+});
+
+test("receiptSatisfiesPacket: duplicate and padded packet commands match trimmed results", () => {
+  const result = receiptSatisfiesPacket(
+    makePacket({ verifierCommands: [" npm test ", "npm test"] }),
+    makeReceipt({ verifierResult: { command: "npm test", exitCode: 0, output: "ok" } }),
+  );
+  assert.equal(result.satisfied, true);
+  assert.deepEqual(result.missing, []);
+});
+
+test("receiptSatisfiesPacket: nonzero matching result in verifierResults fails", () => {
+  const result = receiptSatisfiesPacket(
+    twoCommandPacket(),
+    makeReceipt({ verifierResult: undefined, verifierResults: [
+      { command: "first-check", exitCode: 0, output: "ok" },
+      { command: "second-check", exitCode: 2, output: "boom" },
+    ] }),
+  );
+  assert.equal(result.satisfied, false);
+  assert.ok(result.reasons.some(r => r.includes("exit code 2")));
+});
+
+test("receiptSatisfiesPacket: malformed unvalidated result does not throw", () => {
+  for (const verifierResults of [[{ command: 1 }], {}]) {
+    const result = receiptSatisfiesPacket(
+      makePacket(),
+      makeReceipt({ verifierResult: undefined, verifierResults: verifierResults as any }),
+    );
+    assert.equal(result.satisfied, false);
+    assert.ok(result.reasons.some(r => r.includes("malformed verifier results")));
+  }
+});
+
+test("validateReceipt: rejects malformed verifier results", () => {
+  const legacy = makeReceipt({ verifierResult: { command: "npm test", exitCode: "0" as any, output: "" } });
+  assert.ok(validateReceipt(legacy).some(e => e.startsWith("verifierResult must be")));
+  const notArray = makeReceipt({ verifierResults: {} as any });
+  assert.ok(validateReceipt(notArray).some(e => e.startsWith("verifierResults must be")));
+  const badEntry = makeReceipt({ verifierResults: [{ command: 1 }] as any });
+  assert.ok(validateReceipt(badEntry).some(e => e.startsWith("verifierResults must be")));
+  assert.deepEqual(validateReceipt(makeReceipt({ verifierResults: [{ command: "npm test", exitCode: 0, output: "" }] })), []);
+});
+
+test("validatePacket: rejects blank verifier command entries", () => {
+  const errors = validatePacket(makePacket({ verifierCommands: ["npm test", "  "] }));
+  assert.ok(errors.includes("verifierCommands entries must be non-empty strings"));
+});
+
+test("validatePacket: verifierEffects shape", () => {
+  const unknown = validatePacket(makePacket({ verifierEffects: [{ command: "other", expectedWrites: [] }] }));
+  assert.ok(unknown.some(e => e.includes("is not in verifierCommands")));
+  const duplicate = validatePacket(makePacket({ verifierEffects: [
+    { command: "npm test", expectedWrites: [] }, { command: " npm test", expectedWrites: [] },
+  ] }));
+  assert.ok(duplicate.some(e => e.includes("more than once")));
+  const writes = validatePacket(makePacket({ verifierEffects: [{ command: "npm test", expectedWrites: "x" as any }] }));
+  assert.ok(writes.some(e => e.includes("expectedWrites")));
+  const isolation = validatePacket(makePacket({ verifierEffects: [{ command: "npm test", expectedWrites: [], runInIsolation: "yes" as any }] }));
+  assert.ok(isolation.some(e => e.includes("runInIsolation")));
+  assert.deepEqual(validatePacket(makePacket({ verifierEffects: [{ command: "npm test", expectedWrites: [] }] })), []);
+});
+
+test("validatePacket: verifierEffects container and entry guards", () => {
+  assert.ok(validatePacket(makePacket({ verifierEffects: {} as any })).includes("verifierEffects must be an array"));
+  assert.ok(validatePacket(makePacket({ verifierEffects: [null] as any })).includes("verifierEffects entries must be objects"));
+  assert.ok(validatePacket(makePacket({ verifierEffects: [{ command: "  ", expectedWrites: [] }] }))
+    .includes("verifierEffects command must be a non-empty string"));
+});
+
+test("verifierPreflight: shared-read flags undeclared and writing verifiers", () => {
+  const rows = verifierPreflight(makePacket({
+    worktreePolicy: "shared-read",
+    verifierCommands: ["undeclared", "read-only", "writer", "isolated"],
+    verifierEffects: [
+      { command: "read-only", expectedWrites: [] },
+      { command: "writer", expectedWrites: ["cache.db"] },
+      { command: "isolated", expectedWrites: [], runInIsolation: true },
+    ],
+  }));
+  assert.deepEqual(rows.map(r => [r.command, r.declared, r.needsIsolation]), [
+    ["undeclared", false, true],
+    ["read-only", true, false],
+    ["writer", true, true],
+    ["isolated", true, true],
+  ]);
+  assert.ok(rows[2].reason.includes("cache.db"));
+});
+
+test("verifierPreflight: isolated-write accepts declared writes", () => {
+  const rows = verifierPreflight(makePacket({
+    worktreePolicy: "isolated-write",
+    verifierCommands: ["writer"],
+    verifierEffects: [{ command: "writer", expectedWrites: ["out/"] }],
+  }));
+  assert.deepEqual(rows, [{ command: "writer", declared: true, needsIsolation: false, reason: "packet is isolated-write" }]);
+});
+
