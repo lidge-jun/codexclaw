@@ -1,0 +1,32 @@
+# Triage of the 20 open issues (2026-09-30)
+
+Three explorers read every open issue against `dev` at `659de59b` (read-only, source anchors in their returns). Five issues are new since the 2026-09-27 train (#273-#277). The other fifteen were re-verified against the reasons in `../260927_issue_train/001_research.md`. Only #255, #262 and #265 changed since then, each through a partial ship in that train. This train also applies a rule the user set on 2026-09-30: fix real defects and worthwhile improvements that need no maintainer decision, and do not grow the hook surface (no new hook files, no new hook injections or advisories).
+
+REAL means the shipped behavior is wrong. PROPOSAL means the report asks for new behavior.
+
+| Issue | Verdict | Grows hooks | Needs host signal | Decision | Reason |
+|---|---|---|---|---|---|
+| #276 receipt accepts an unrelated verifier result | REAL | no | no | fix (010) | `receiptSatisfiesPacket` never compares `verifierResult.command` with `packet.verifierCommands` and never checks coverage (`subagent-config/src/dispatch-contract.ts:124-129`). |
+| #277 verifier write effects | PROPOSAL | no | no | implement (010) | Verifier commands are plain strings under one packet-level `worktreePolicy` (`dispatch-contract.ts:32,36`). An optional declaration plus a pure preflight answers the issue without executing anything. |
+| #275 inferred vs confirmed assumptions at handoff | PROPOSAL | no | no | implement guidance (020) | The only closeout instruction is "Summarize the remaining OPEN ASSUMPTIONS" (`skills/interview/SKILL.md:172`). The prose plan section is hash-covered at freeze (`pabcd-state/src/freeze.ts:9-11`) and the Q/A ledger already gives answer ids (`interview-ledger.ts:29-42`), so guidance meets all four acceptance checks. The schema revision the issue mentions stays future work. |
+| #262 decisions in goalplans | PARTIAL | no | no | implement `options[]` (030); keep open | #271 shipped open/decided decisions. `options[]` and "recommendation must be one of them" are specified in the issue's own acceptance list. `withdrawn` needs a maintainer decision because `openDecisionIdsForPhase` releases a phase only on `decided` (`goalplan.ts:1039-1043`). |
+| #273 collection proof for independent workers | PROPOSAL | no | partial (unversioned `codex exec` rollout format) | keep open | Needs a receipt schema design first; the issue itself suggests a schema-and-fixtures PR. |
+| #274 requirement provenance and revision trace | PROPOSAL | no | no | keep open | The issue asks the maintainer to decide goalplan vs ledger placement before implementation. |
+| #255 SessionStart writes session state into every cwd | PARTIAL | no | no | keep open | `.gitignore` shipped (`codexclaw-dir.ts:4,19`); state is still created unconditionally (`hook.ts:604-607`). Lazy creation touches evidence and goal gates and needs its own design. |
+| #256 independent verification receipt | PROPOSAL | no | no | keep open | Receipts store a joined command string with no argv, cwd or output digest (`receipt-cli.ts:171-179`); changing that changes C>D evidence. |
+| #257 strict accepted-progress report | PROPOSAL | no | no | keep open | Depends on a post-implementation acceptance record (#256); review rounds are plan-audit only (`review-round-cli.ts:236`). |
+| #260 unit fields and `cxc loop check` | PROPOSAL | no | no | keep open | Thresholds (chain length, criteria count) are maintainer policy; the external-wait part is now covered by `awaitsDecision`. |
+| #213 automation ids are host-global | PARTIAL, plugin part done | no | yes | close as completed (plugin scope) | The ownership gate denies foreign, retargeted and ambiguous callers (`automation-ownership-gate.ts:44-60`) and the rule is documented (`skills/loop/references/waiting.md:116`). Atomic authorization inside the host mutation handler is Codex's job. |
+| #265 on-disk worker progress checkpoint | PROPOSAL, guidance shipped | no | no | close as completed | The checkpoint convention shipped in #270 (`skills/pabcd/references/delegation.md:25-43`); a validation verb adds little over a three-field file. |
+| #209 pending worktree thread id | NOT-REPRODUCED in plugin | no | yes | close as not planned | The gap is in the Desktop creation wrapper; the plugin already separates provisional and canonical ids (`dispatch-surfaces.md:134-160`, `scripts/check-lane-packet.mjs:34-50`). |
+| #247 collab family at SessionStart | PROPOSAL | yes (new recorder or card injection) | yes | close as not planned | SessionStart carries no tool catalog (`fallback-dispatch-cli.ts:36-38`); the one-cell resolver already covers dispatch (`dispatch-card.ts:28-36`). |
+| #258 verbatim prompt archive | PROPOSAL | yes (new UserPromptSubmit hook) | yes | close as not planned | The payload has no typed-versus-injected field (`parse.ts:71-77`), so the archive cannot promise verbatim user input. |
+| #259 peer prompt provenance | PROPOSAL | yes (envelope parsing in UserPromptSubmit) | yes | close as not planned | An unauthenticated text envelope that changes hook behavior can be typed by anyone; the rule is already documented (`peer-collaboration.md:87-91`). |
+| #263 PreCompact checkpoint hook | PROPOSAL | yes (new hook) | no | close as not planned | Adds a hook, which this train rules out. |
+| #264 measured state after compaction | PROPOSAL | yes (new SessionStart injection) | no | close as not planned | New injection; listing background records also rewrites them (`bg-wake/src/registry.ts:110-158`). |
+| #266 host hygiene doctor | PROPOSAL | yes (notice at SessionStart or phase boundary) | yes | close as not planned | Descriptor counts and exec-child ownership are host facts the plugin cannot establish. |
+| #267 suggested wave width | PROPOSAL | yes (dispatch-card line) | yes | close as not planned | Family and open-child count are not observable at SessionStart; limits are documented (`dispatch-surfaces.md:195-201`). |
+| #268 compact at a clean boundary | PROPOSAL | yes (Stop advisory) | yes | close as not planned | No token-usage signal is parsed, and Stop `systemMessage` display is unverified. |
+
+Issues kept open get one comment naming the reason and linking this file on `dev`. Closed issues get the reason line as a closing comment.
+
