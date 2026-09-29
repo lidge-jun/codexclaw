@@ -5,18 +5,18 @@ This phase lands nothing new in product code. It gets each implementation phase 
 ## Per implementation phase (wp2, wp3, wp5)
 
 1. Branch: wp2 is `codex/issue-train-0930-wp2`, cut from this session's `codex/issue-train-0930` (= `origin/dev` `659de59b` plus this unit's docs). wp3 and wp5 branch from the latest `origin/dev` after the previous PR merges; if the previous PR is still in CI, branch from its phase branch and retarget to `dev` after it merges (the 0927 train's amendment).
-2. Local gates at the phase C: `npm run build`; focused tests through `cxc receipt test`; `npm test` (record the TAP total); `node plugins/codexclaw/scripts/inventory.mjs --write --tests <total>` then `--check --tests <total>`; `node plugins/codexclaw/scripts/gate.mjs`; `node plugins/codexclaw/scripts/platform-smoke.mjs`; `git diff --stat origin/dev -- plugins/codexclaw/hooks plugins/codexclaw/.codex-plugin` shows no hook registration change (criterion c-5).
-3. Privacy self-check before the first push (DEV-PRIVACY-01): grep the push range for tokens, client names and home paths other than this user's own (`git log -p origin/dev..HEAD | rg -i 'ghp_|sk-|token=|/Users/(?!jun)'`).
-4. `git push -u origin <branch>`; `gh pr create --base dev --body-file <tmp>` (problem, behavior before/after, tests, residual risk, `Fixes #276` / `Fixes #277` / `Fixes #275` for fully fixed issues; #262 is referenced without `Fixes`).
-5. Hosted CI (DEV-CI-EVIDENCE-01): `gh pr view <n> --json headRefOid,statusCheckRollup`, `gh run list --commit <head> --json databaseId,event,headSha,status,conclusion,workflowName`; confirm the ci.yml jobs (ubuntu, macOS, Windows shards, packed install, artifacts), labeler and target check ran on that head, distinguishing pending, skipped, cancelled and failed. Diagnose a failure from its job log before any rerun.
+2. Local gates at the phase C, after `npm ci` (without installed dependencies `gui/test/router.test.ts` fails on `react` and the TAP total drops by one; A round 1 measured 3707 against the published 3708): `npm run build`; focused tests through `cxc receipt test`; `npm test` (record the TAP total only from a run with 0 failures); `node plugins/codexclaw/scripts/inventory.mjs --write --tests <total>` then `--check --tests <total>`; `node plugins/codexclaw/scripts/gate.mjs`; `node plugins/codexclaw/scripts/platform-smoke.mjs`. Criterion c-5: `git diff --stat origin/dev -- plugins/codexclaw/hooks plugins/codexclaw/.codex-plugin plugins/codexclaw/components/pabcd-state/src/hook.ts` is empty and `node plugins/codexclaw/scripts/inventory.mjs --published` still reports 31 hooks.
+3. Privacy self-check before the first push (DEV-PRIVACY-01): `git log -p origin/dev..HEAD -- . ':(exclude)devlog/_plan/260930_issue_train/040_wp4_delivery.md' | rg -P -i 'ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|token=[A-Za-z0-9]|/Users/(?!jun/)'` must exit 1 (no match). The exclusion keeps this command's own text from matching. On 2026-09-30 at `048a521c` the unexcluded form matched only this line.
+4. `git push -u origin <branch>`; `gh pr create --base dev --body-file <tmp>` (problem, behavior before/after, tests, residual risk, issue numbers). `Fixes #n` does not close issues from a PR into `dev` because the default branch is `main` (the 0927 train closed #250-#254 by hand); issues are closed manually after merge (below).
+5. Hosted CI (DEV-CI-EVIDENCE-01): `gh pr view <n> --json headRefOid,statusCheckRollup`, `gh run list --commit <head> --json databaseId,event,headSha,status,conclusion,workflowName`; confirm the ci.yml jobs (ubuntu, macOS, Windows shards, artifacts), the `packed-install.yml` lifecycle, labeler and target check ran on that head, distinguishing pending, skipped, cancelled and failed. Diagnose a failure from its job log before any rerun.
 6. Merge with a merge commit (same method as #269-#272) using `gh pr merge <n> --merge --match-head-commit <head>`.
 
 ## Issue disposition (after the implementation PRs merge)
 
-- #275, #276, #277 close through `Fixes`; verify each shows closed with the PR link.
+- #275, #276, #277: close as completed with a comment naming the PR and its merge SHA; verify each shows closed.
 - #262: comment naming the wp5 PR (`options[]` and recommendation membership shipped; answers stay free text by design; `withdrawn` still needs a maintainer decision); stays open.
 - Close as not planned with the one-line reason from 001 and a link to `devlog/_plan/260930_issue_train/001_research.md` on `dev`: #209, #247, #258, #259, #263, #264, #266, #267, #268.
-- Close as completed with the reason and evidence anchors: #213 (plugin scope), #265.
+- Close as not planned with the reason and evidence anchors: #213 (the plugin's ownership gate shipped; the remaining atomic authorization is host scope) and #265 (checkpoint guidance shipped; the validator verb is declined).
 - Comment and keep open: #255, #256, #257, #260, #273, #274.
 
 ## Release 0.2.40
@@ -38,4 +38,3 @@ The installed plugin cache and remote hosts are not updated by this train (goal 
 ## Acceptance
 
 All goalplan criteria met with captured evidence; `cxc loop validate` passes; v0.2.40 is the latest release and its assets verify.
-

@@ -44,13 +44,16 @@ one line:
   require the answer's `eventId`; without one an entry stays `proposed` or
   `open`, whatever the conversation seemed to imply. Under an active goal, where
   Interview is suppressed, a decided goalplan decision id is the answer reference.
-- Only `proposed` and `open` entries go under `## OPEN ASSUMPTIONS` and into the
-  tracker's assumptions: freeze carries every recorded tracker assumption into the
-  manifest as open. Move a `user_confirmed` entry into the plan's requirements with
+  A reply typed in chat has no `eventId`: confirm it through the next
+  `request_user_input` round, or keep the entry `open` and quote the reply.
+- Only `proposed` and `open` entries go under `## OPEN ASSUMPTIONS`. If a tracker
+  holds assumptions, the same rule applies there, because freeze carries every
+  recorded tracker assumption into the manifest as open; do not hand-edit session
+  state to create one. Move a `user_confirmed` entry into the plan's requirements with
   its reference. Move a `user_rejected` entry under `## ASSUMPTION DECISIONS` with
   its reference, so the decision stays traceable without being carried as open.
-- A tracker assumption's `text` repeats the same line without its leading `- `
-  (freeze prepends it), so the frozen manifest keeps the provenance.
+- Where a tracker assumption exists, its `text` repeats the same line without its
+  leading `- ` (freeze prepends it), so the frozen manifest keeps the provenance.
 - This rule shapes existing plan text and tracker entries. It adds no field or
   command, and older plans and trackers read as before.
 ```
@@ -94,7 +97,7 @@ one line:
 +existing answer-provenance/readiness and completion gates remain intact.
 ```
 
-The file name stays; `minds.test.ts:38` checks that it exists.
+The file name stays; `minds.test.ts:37` checks that it exists.
 
 ### 3. MODIFY `plugins/codexclaw/skills/loop/references/durable-goalplan.md`, line 40
 
@@ -112,7 +115,7 @@ SoT sync (SOT-SYNC-01): the Interview skill is the canonical owner of these rule
 
 | Check | Where it is met |
 |---|---|
-| 1. inference cannot be presented as user-confirmed without an answer reference | 1(b) status bullet: confirmed/rejected require the answer `eventId` |
+| 1. inference cannot be presented as user-confirmed without an answer reference (rule-level; see enforcement naming) | 1(b) status bullet: confirmed/rejected require the answer `eventId` |
 | 2. rejected inference kept as decision trace, not carried as open | 1(b) last-but-one bullet: `## ASSUMPTION DECISIONS`, never in tracker assumptions |
 | 3. closeout distinguishes confirmed requirements from open inferred assumptions | 1(d), 1(e) |
 | 4. existing trackers and freeze manifests remain readable | no code change; 1(b) last bullet |
@@ -128,3 +131,6 @@ SoT sync (SOT-SYNC-01): the Interview skill is the canonical owner of these rule
 
 No conditional code path is added, so C-ACTIVATION-GROUNDING-01 does not apply; C-READER-01 applies to the new section (a fresh reader checks that the example line and the four statuses are understandable without this doc).
 
+## Enforcement naming (PLAN-BYPASS-NAMED-01)
+
+Tier E7 (agent-followed guidance). Executing surface: the main session writing the plan. Known bypass: an agent can still label an entry `user_confirmed` without a real `eventId`; nothing checks the reference against the ledger. Residual risk: acceptance check 1 holds by discipline plus reviewability (the reference is visible and checkable in the hashed plan), not by a gate. Wording: guidance, never "cannot"; the acceptance table above reads as "the rule requires". Final enforcement layer: none.

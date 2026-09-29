@@ -8,6 +8,14 @@ A dispatch receipt now satisfies its packet only when every required verifier co
 - Design decisions: D1-D16 in `002_architect_consultation.md`.
 - Behavior change to disclose in CHANGELOG (040): a legacy single `verifierResult` whose command differs from the packet's only command, even cosmetically (`npm run test` vs `npm test`), no longer satisfies the packet; extra passing checks belong in `commandsRun`, not in `verifierResults`.
 
+## Field chain (PLAN-FIELD-CHAIN-01)
+
+| Field | Creation | Serialization | Deserialization | Consumers |
+|---|---|---|---|---|
+| `DispatchReceipt.verifierResults` | N/A: receipts are JSON written by the dispatched agent or its caller; codexclaw has no builder or CLI for them (`rg --no-ignore` finds only the test) | N/A: plain JSON, no custom serializer | `validateReceipt` shape check (1f) | `receiptSatisfiesPacket` (1g); tests |
+| `DispatchPacket.verifierEffects` | N/A: packets are hand-authored JSON; no builder | N/A: plain JSON | `validatePacket` (1e, via `validateVerifierEffects`) | `verifierPreflight` (1h); tests |
+| return field `missing` | `receiptSatisfiesPacket` (1g) | N/A: in-memory return value | N/A | callers of `receiptSatisfiesPacket`; only the test today |
+
 ## File change map
 
 Anchors checked against `codex/issue-train-0930` = `origin/dev` `659de59b` on 2026-09-30.
@@ -151,10 +159,15 @@ export function receiptSatisfiesPacket(packet: DispatchPacket, receipt: Dispatch
     reasons.push("receipt status is " + receipt.status + ", not complete");
   }
   const required = distinctCommands(packet.verifierCommands);
-  const results = [
+  const reportedResults: unknown[] = [
     ...(Array.isArray(receipt.verifierResults) ? receipt.verifierResults : []),
     ...(receipt.verifierResult ? [receipt.verifierResult] : []),
   ];
+  // Unvalidated input must not throw here; malformed entries fail the receipt.
+  const results = reportedResults.filter(isVerifierResult);
+  if (results.length !== reportedResults.length) {
+    reasons.push("receipt has malformed verifier results (see validateReceipt)");
+  }
   if (required.length > 0 && results.length === 0) {
     reasons.push("packet has verifier commands but receipt has no verifier result");
   }
@@ -224,7 +237,7 @@ export function verifierPreflight(packet: DispatchPacket): VerifierPreflightEntr
 
 ### 2. REGENERATE `plugins/codexclaw/components/subagent-config/dist/dispatch-contract.js`
 
-`npm run build` (`package.json` `"build": "node plugins/codexclaw/scripts/build.mjs"`). The file is tracked and `plugins/codexclaw/test/dist-freshness.test.mjs:27` compares it byte for byte with the compiled source.
+`npm run build` (`package.json` `"build": "node plugins/codexclaw/scripts/build.mjs"`). The file is tracked and `plugins/codexclaw/test/dist-freshness.test.mjs:28` compares it byte for byte with the compiled source.
 
 ### 3. MODIFY `plugins/codexclaw/components/subagent-config/test/dispatch-contract.test.ts`
 
@@ -243,10 +256,12 @@ Import `verifierPreflight` beside the existing imports (`:6-12`). Existing tests
 | `validateReceipt: rejects malformed verifier results` | `verifierResult.exitCode:"0"`; `verifierResults:{}`; `verifierResults:[{command:1}]` | each returns the matching error |
 | `validatePacket: rejects blank verifier command entries` | `verifierCommands:["npm test","  "]` | error `entries must be non-empty strings` |
 | `validatePacket: verifierEffects shape` | unknown command; duplicate command; `expectedWrites:"x"`; `runInIsolation:"yes"`; valid `[{command:"npm test",expectedWrites:[]}]` | four errors, then `[]` |
+| `validatePacket: verifierEffects container and entry guards` | `verifierEffects:{}`; `verifierEffects:[null]`; `verifierEffects:[{command:"  ",expectedWrites:[]}]` | errors `must be an array`, `entries must be objects`, `command must be a non-empty string` |
+| `receiptSatisfiesPacket: malformed unvalidated result does not throw` | `verifierResults:[{command:1}]` cast past the type | returns `satisfied:false` with the `malformed verifier results` reason |
 | `verifierPreflight: shared-read flags undeclared and writing verifiers` | shared-read with undeclared, `[]`, writes, `runInIsolation` | `needsIsolation` true/false/true/true, `declared` false/true/true/true |
 | `verifierPreflight: isolated-write accepts declared writes` | isolated-write with writes | `needsIsolation:false`, `declared:true` |
 
-Thirteen new tests. The README test badges move by the measured delta (040).
+Fifteen new tests. The README test badges move by the measured delta (040).
 
 ### 4. MODIFY `plugins/codexclaw/skills/pabcd/references/delegation.md`
 
@@ -264,9 +279,9 @@ copy; an undeclared verifier goes back to main before it runs in a shared tree.
 A declaration is the author's claim, not proof: codexclaw never executes it.
 ```
 
-### 5. OPTIONAL SoT sync `structure/INDEX.md:138-140`
+### 5. SoT sync `structure/INDEX.md:138-140` and `structure/20_pabcd_dispatch_doctrine.md`
 
-The `components/subagent-config` section does not list `dispatch-contract.ts`; add one line: `- src/dispatch-contract.ts — typed DispatchPacket/DispatchReceipt (#17), verifier coverage (#276) and verifier effects preflight (#277)`. SOT-SYNC-01 target for this phase.
+The `components/subagent-config` section of INDEX does not list `dispatch-contract.ts`; add one line: `- src/dispatch-contract.ts — typed DispatchPacket/DispatchReceipt (#17), verifier coverage (#276) and verifier effects preflight (#277)`. `structure/20_pabcd_dispatch_doctrine.md` lists the DISPATCH-* rules (`:120-211`); add a DISPATCH-VERIFIER-01 bullet after DISPATCH-ECONOMY-01 that points to `delegation.md` and names the two functions. These are this phase's SOT-SYNC-01 targets.
 
 ## Scope boundary
 
@@ -291,4 +306,3 @@ Red-green: the #276 repro test and the mismatched-command test must fail against
 - Known bypass: a caller that never calls the functions, or a receipt author who puts an unrelated command's output under a required command's name.
 - Residual risk: command strings are self-reported; the check proves coverage of names, not that the command ran.
 - Wording: described as a contract check and preflight, never as enforcement. Final enforcement layer: none.
-

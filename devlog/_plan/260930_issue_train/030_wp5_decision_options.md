@@ -6,6 +6,7 @@ A recorded goalplan decision can now carry the options that were offered, and wh
 
 - Work phase: `wp5` (goalplan id; runs third, before delivery `wp4`), issue [#262](https://github.com/lidge-jun/codexclaw/issues/262). Class C2 with C4 care for the reviver (a malformed optional field must fail closed, as every existing field does). Design decisions D22-D28 in `002_architect_consultation.md`.
 - No schema-version bump: `options` is optional and absent on old plans, which round-trip unchanged (`durable-goalplan.md:60`).
+- `durable-goalplan.md` is also edited by 020 (three lines added at `:40`); this phase's P re-anchors the `:60` and `:98` edits on the `dev` that contains 020.
 - Goalplan criterion c-10 records "answer validated against options when present". Architect D25 showed that rule would reject the host's free-form "Other" reply and strand linked phases, so this plan does not implement it; 002 records the disposition and c-10's evidence will state it.
 
 ## Field chain (PLAN-FIELD-CHAIN-01) for `GoalplanDecision.options`
@@ -14,7 +15,7 @@ A recorded goalplan decision can now carry the options that were offered, and wh
 |---|---|
 | Creation | CLI `--option` (`goalplan-cli.ts` parser) -> `runDecision` -> `askGoalplanDecision` input (`goalplan.ts:1225-1256`) |
 | Serialization | `writeGoalplan` JSON.stringify of the plan object; no custom serializer (field order follows the object literal in `askGoalplanDecision`) |
-| Deserialization | `reviveDecisions` (`goalplan.ts:526-550`), also reached by `invalidReason` (`:893`) |
+| Deserialization | `reviveDecisions` (`goalplan.ts:526-550`), also reached by `firstInvalidField` (`:857`, the `decisions` check at `:893`) |
 | Consumers | `ready --json` open-decision projection (`goalplan-cli.ts:465-466`), `show` render (`:688-692`), `decideGoalplanDecision` (`goalplan.ts:1259-1275`: copies the decision with spread, so `options` survives; no membership check per D25), steering/other writers spread the plan and keep `decisions` untouched. Text `ready` (`:499-504`) prints id and question only; unchanged |
 
 ## File change map
@@ -136,7 +137,8 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 | `ask rejects blank and repeated options at parse time` | `--option " "`; `--option A --option A` | exit 1 with the parser reasons, no write |
 | `ask without --option stores no options key` | plain ask | decision JSON has no `options` property |
 | `decide keeps options and accepts a free-form answer` | ask with options, `decide --answer "something else"` | exit 0, decision decided, `options` unchanged |
-| `reviver fails closed on malformed options` | hand-written plans with `options: []`, `["A","A "]`, `[1]`, and a recommendation outside valid options | the plan reads as invalid naming the `decisions` field (reviver path via `invalidReason`, `goalplan.ts:893`) before `validateGoalplan` runs; the test asserts that message, exact text confirmed at B |
+| `reviver fails closed on malformed options` | hand-written plans with `options: {}`, `options: []`, `[" "]`, `["A","A "]`, `[1]`, and a recommendation outside valid options | each read fails naming the field: `field 'decisions' did not satisfy the schema` (`goalplan.ts:719` via `firstInvalidField`), before `validateGoalplan` runs |
+| `askGoalplanDecision rejects empty, blank and repeated options (library)` | direct calls with `options: []`, `[" "]`, `["A"," A"]` (import `askGoalplanDecision` from `../src/goalplan.ts`) | `kind:"rejected"` with `must not be empty`, `non-empty text`, `duplicate decision option 'A'`; these branches are library-caller defenses the CLI parser never reaches, so they are driven directly |
 
 ### 5. MODIFY docs
 
@@ -153,9 +155,8 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 | `npm run build`, `dist-freshness.test.mjs`, `npm test`, `inventory.mjs --check`, `gate.mjs`, `platform-smoke.mjs` | 0 | as in 010 |
 | docs prose | — | not observed by a command; human review |
 
-Activation scenarios (C-ACTIVATION-GROUNDING-01): each rejection branch in (1c), (1d) and (2d) is driven by a named test above; the free-form `decide` path proves D25.
+Activation scenarios (C-ACTIVATION-GROUNDING-01): (2d)'s blank and repeated `--option` rejections and (1d)'s recommendation-membership rejection are driven through the CLI; (1d)'s empty, blank and duplicate checks are reached only by library callers and are driven by the direct `askGoalplanDecision` test; every (1c) reviver branch is driven by hand-written plan files; the free-form `decide` path proves D25.
 
 ## Enforcement naming (PLAN-BYPASS-NAMED-01)
 
-Tier E2 (CLI and reviver validation). Executing surface: `cxc loop ask` and every goalplan read. Known bypass: none for stored plans (hand edits fail closed on read); the recommendation check does not prove the question was actually sent with those options. Residual risk: an invalid hand edit makes the whole plan unreadable until repaired, as for every existing field. Wording: validation, not enforcement of what the host displayed.
-
+Tier E2 (CLI and reviver validation). Executing surface: `cxc loop ask` and every goalplan read. Known bypass: a library caller writing through `writeGoalplan` directly skips `ask`'s checks, but the next read still fails closed on invalid options; nothing proves the question was actually sent with those options. Residual risk: an invalid hand edit makes the whole plan unreadable until repaired, as for every existing field. Wording: validation, not enforcement of what the host displayed. Final enforcement layer: none.

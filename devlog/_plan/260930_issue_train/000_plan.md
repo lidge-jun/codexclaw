@@ -15,7 +15,8 @@ Reader: a maintainer deciding whether to merge these changes and publish 0.2.40;
 - Memory artifact: this unit, the goalplan `.codexclaw/goalplans/codexclaw-issue-train-2026-09-30-repo-lidge-jun/`, and `.codexclaw/evidence/01a0ee0f-ea9e-7273-91fe-0c4188c2cae6/`.
 - Expected terminal outcomes: DONE (merged, released, dispositioned); BLOCKED (CI infrastructure, branch protection or credentials outside scope); NEEDS_HUMAN (a default-on behavior change or maintainer-owned schema choice); UNSAFE (a change would weaken a safety gate).
 - Escalation: main owns the plan, FSM, git and delivery. Subagents are leaves; a packet two distinct agents fail is reclaimed by main (DISPATCH-RETIRE-01).
-- Resource bounds: this checkout (`/Users/jun/.codex/worktrees/639c/codexclaw`), `gh` with the user's credentials, V1 subagents inheriting this session's model. Writes limited to the IN scope below. No token or wall-clock bound was stated; host limits apply.
+- Resource bounds: this checkout (`/Users/jun/.codex/worktrees/639c/codexclaw`), `gh` with the user's credentials, V1 subagents inheriting this session's model. Writes limited to the IN scope below. No token or wall-clock bound was stated; host limits apply. The initiative's loop-engineering rule asks for a token and wall-clock bound on C4 work; the release (040) is C4, and the user authorized it explicitly without a bound, so this is a disclosed gap rather than an invented budget.
+- Review independence: every subagent inherits this session's model, as the user asked, so REVIEW-DECORRELATE-01's different-family review is not established; independence here is separate context only.
 
 ## Review and verification lanes
 
@@ -40,7 +41,7 @@ OUT: `plugins/codexclaw/hooks/*`, hook handlers and injected directive text (`pa
 
 ## Ordered work phases
 
-Build order follows dependencies, not effort (PHASE-SPLIT-01). The three implementation phases touch disjoint files, so their order is set by delivery safety: the contract defect first, then guidance, then the goalplan schema extension, whose reviver change carries the most read-path risk and benefits from landing on a `dev` that already contains the other two.
+Build order follows dependencies, not effort (PHASE-SPLIT-01). The three implementation phases touch disjoint code; the one shared file is `durable-goalplan.md`, edited by 020 (line 40) and 030 (lines 60 and 98), so 030 runs after 020 and re-anchors its doc edits. Their order is set by delivery safety: the contract defect first, then guidance, then the goalplan schema extension, whose reviver change carries the most read-path risk and benefits from landing on a `dev` that already contains the other two.
 
 | Doc | Goalplan id | Phase | Depends on |
 |---|---|---|---|
@@ -62,11 +63,9 @@ Delivery: one ordinary PR per implementation phase into `dev`, merged with a mer
 | #277 | implement | 010 |
 | #275 | implement guidance | 020 |
 | #262 | implement options; keep open for `withdrawn` | 030 |
-| #213, #265 | close as completed | 001, 040 |
-| #209, #247, #258, #259, #263, #264, #266, #267, #268 | close as not planned | 001, 040 |
+| #209, #213, #247, #258, #259, #263, #264, #265, #266, #267, #268 | close as not planned | 001, 040 |
 | #255, #256, #257, #260, #273, #274 | keep open with a comment | 001, 040 |
 
 ## SoT sync targets (SOT-SYNC-01)
 
 `structure/INDEX.md` (subagent-config file list, 010), `skills/interview/SKILL.md` (canonical owner of Interview rules, 020), `skills/loop/references/durable-goalplan.md` (goalplan schema and CLI, 020 and 030), `CHANGELOG.md` (040).
-
