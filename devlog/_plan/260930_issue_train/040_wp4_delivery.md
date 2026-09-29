@@ -38,3 +38,31 @@ The installed plugin cache and remote hosts are not updated by this train (goal 
 ## Acceptance
 
 All goalplan criteria met with captured evidence; `cxc loop validate` passes; v0.2.40 is the latest release and its assets verify.
+
+## wp4 P revalidation and executable amendment (2026-09-30)
+
+Continuity (LOOP-CONTINUITY-01), quoting the wp5 D summary in 030: "the #262 options half is merged ... Next: wp4 delivers per 040." State at entry: `origin/dev` = `99c9df6a` with PRs #278 (`069a7d0e`), #279 (`58a8a174`), #280 (`99c9df6a`) merged after 14/14 checks on their heads; `main` = `8e6aa800` (v0.2.39); no v0.2.40 tag or release exists. Branch `codex/release-0240` from `99c9df6a`. No architect consultation: this phase makes no design decisions (the 0927 train's wp5 precedent); the A reviewers cover the steps.
+
+Resource bounds (disclosed gap): the release is C4 and the initiative's loop-engineering rule asks for a token and wall-clock bound; the user authorized push, merge to `dev` and `main`, and release on 2026-09-30 without stating one, so none is invented. Stop conditions instead: any red check on an exact head, a release dry run that is not READY, or an asset mismatch halts delivery with the state reported.
+
+### Version edits (re-verified with the `rg` in step 2 at `99c9df6a`)
+
+`0.2.39` -> `0.2.40` in `package.json`, `cli/package.json`, `plugins/codexclaw/gui/package.json`, the nine `plugins/codexclaw/components/*/package.json`, and the 13 `"version": "0.2.39"` entries in `package-lock.json` (root and workspace entries). `plugins/codexclaw/.codex-plugin/plugin.json`: `"version": "0.2.40+codex.<UTC yyyymmddHHMMSS at commit>"`. `inventory.json` component versions and README badges via `inventory.mjs --write --tests 3737`. `pabcd-state/test/hook.test.ts:181` contains `0.2.39` only inside a fixture cache path; it stays.
+
+### CHANGELOG diff
+
+`## [Unreleased]` becomes `## [0.2.40] - 2026-09-30`, a fresh empty `## [Unreleased]` goes above it, and these lines join the existing sections:
+
+- Added: "Dispatch packets can declare each verifier's write effects (`verifierEffects`), and a pure `verifierPreflight(packet)` reports which verifiers need an isolated copy: under a shared-read packet only a verifier declared read-only runs in the shared tree. Nothing executes a command (#277)."
+- Added: "Interview assumptions carry their source, confidence, consequence if wrong and a status (`proposed`, `open`, `user_confirmed`, `user_rejected`); confirmed and rejected entries need an answer reference, and the plan keeps open assumptions apart from confirmed requirements and rejected ones (INTERVIEW-ASSUME-01, guidance only, #275)."
+- Changed (extend the existing #262 bullet): "`cxc loop ask` also takes a repeatable `--option <text>`; when options are given the recommendation must be one of them, the answer stays free text, and `ready --json` and `show` list them. Builds older than 0.2.40 drop `options` if they rewrite such a plan."
+- Fixed: "A dispatch receipt satisfies its packet only when every required verifier command has a matching result with exit 0 and, when commands are required, no result names another command. Receipts can report `verifierResults[]`; a single legacy `verifierResult` for a multi-command packet reports incomplete. `validateReceipt` now checks the result shapes and `validatePacket` rejects blank or non-string verifier commands; a receipt whose one result names a different command, even cosmetically, no longer satisfies (#276)."
+
+### Issue comments (wording)
+
+- #276, #277, #275: "Fixed in #278/#279 (merged into `dev` as <sha>) and released in v0.2.40." closed as completed.
+- #262: "Options shipped in #280 (`ask --option`, recommendation must be one of them, answers stay free text). `withdrawn` still needs a decision on how a withdrawn question releases its linked phases, so this stays open."
+- Not planned (#209, #213, #247, #258, #259, #263, #264, #265, #266, #267, #268): the reason line from 001 and "Closing as not planned in the 2026-09-30 issue train: codexclaw is keeping its hook surface small, and this needs <a new hook | a host signal the plugin cannot observe | nothing further on the plugin side>." plus the link to 001 on `dev`.
+- Kept open (#255, #256, #257, #260, #273, #274): the reason line from 001 and the link.
+
+Order: issue comments and closes run after the release so "released in v0.2.40" is true.
