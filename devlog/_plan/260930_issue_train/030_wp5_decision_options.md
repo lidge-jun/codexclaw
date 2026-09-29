@@ -124,6 +124,8 @@ and in both `decisions.push` calls (`:539-540`, `:543-545`) append `...(options 
 +    }
 ```
 
+(h) Help Notes line after the `decide` note (`:724`): "Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text." (A round nit: moved into the file map from the revalidation.)
+
 ### 3. REGENERATE `pabcd-state/dist/goalplan.js`, `pabcd-state/dist/goalplan-cli.js` (`npm run build`; tracked, checked by `dist-freshness.test.mjs`).
 
 ### 4. MODIFY `plugins/codexclaw/components/pabcd-state/test/goalplan-public-surface.test.ts`
@@ -134,7 +136,7 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 |---|---|---|
 | `ask records options and ready/show expose them` | `ask --option A --option B --recommendation A` | goalplan decision has `options:["A","B"]`; `ready --json` open decision has `options`; `show` prints `options: A \| B (recommended: A)` |
 | `ask rejects a recommendation outside the options without a write` | `--option A --option B --recommendation C` | exit 1, reason `must be one of the options`, plan bytes unchanged |
-| `ask rejects blank and repeated options at parse time` | `--option " "`; `--option A --option A` | exit 1 with the parser reasons, no write |
+| `ask rejects blank and repeated options at parse time` | `--option " "`; `--option A --option A`; `--option` on `decide` | `parseGoalplanCliArgs` returns the parser error (the `cli()` helper asserts a successful parse), plan bytes unchanged |
 | `ask without --option stores no options key` | plain ask | decision JSON has no `options` property |
 | `decide keeps options and accepts a free-form answer` | ask with options, `decide --answer "something else"` | exit 0, decision decided, `options` unchanged |
 | `reviver fails closed on malformed options` | hand-written plans with `options: {}`, `options: []`, `[" "]`, `["A","A "]`, `[1]`, and a recommendation outside valid options | each read fails naming the field: `field 'decisions' did not satisfy the schema` (`goalplan.ts:719` via `firstInvalidField`), before `validateGoalplan` runs |
@@ -143,7 +145,7 @@ Beside the existing decision tests (`:684-764`), using the same temp-dir CLI hel
 ### 5. MODIFY docs
 
 - `plugins/codexclaw/skills/loop/references/durable-goalplan.md:60`: `{ id, question, recommendation?, options?, status: open|decided, answer?, askedAt, decidedAt? }` and one sentence: "When `options` is present it is a non-empty list of distinct entries and `recommendation` must be one of them; the answer stays free text because the host always offers a free-form reply."
-- `durable-goalplan.md:98`: add `[--option <text>]...` to the `ask` synopsis.
+- `durable-goalplan.md:101` (was `:98`): add `[--option <text>]...` to the `ask` synopsis.
 - `plugins/codexclaw/skills/dev/references/async-questions.md:56`: add `[--option <text>]...` to the `ask` synopsis and "(the offered options, recommended first)".
 
 ## Verification (PLAN-VERIFIER-REAL-01)

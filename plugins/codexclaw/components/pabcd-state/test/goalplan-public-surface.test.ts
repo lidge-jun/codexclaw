@@ -7,7 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  advanceWorkPhase, buildGoalplan, goalplanDir, readGoalplan, readyTasks,
+  advanceWorkPhase, askGoalplanDecision, buildGoalplan, goalplanDir, readGoalplan, readyTasks,
   readyWorkPhases, writeGoalplan, type Goalplan,
 } from "../src/goalplan.ts";
 import {
@@ -778,3 +778,109 @@ test("ready rejects dangling and duplicate decision references", () => {
   writeGoalplan(cwd, plan);
   assert.match(cli(cwd, ["ready", "--session", session]).output, /duplicate decision id/);
 });
+
+
+// #262 follow-up (issue train 0930, devlog/_plan/260930_issue_train/030): decision options
+
+test("ask records options and ready/show expose them", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const asked = cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API",
+    "--option", "A", "--option", "B", "--recommendation", "A", "--work-phase", "wp-live"]);
+  assert.equal(asked.code, 0, asked.output);
+  assert.deepEqual(readGoalplan(cwd, plan.slug)!.decisions?.[0]?.options, ["A", "B"]);
+  const data = JSON.parse(cli(cwd, ["ready", "--session", session, "--json"]).output);
+  assert.deepEqual(data.openDecisions[0].options, ["A", "B"]);
+  assert.match(cli(cwd, ["show", "--session", session]).output, /options: A \| B \(recommended: A\)/);
+  assert.match(renderGoalplanHelp(), /\[--option <text>\]\.\.\./);
+});
+
+test("ask rejects a recommendation outside the options without a write", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const before = planText(cwd, plan.slug), ledger = ledgerText(cwd, plan.slug);
+  const res = cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API",
+    "--option", "A", "--option", "B", "--recommendation", "C"]);
+  assert.equal(res.code, 1);
+  assert.match(res.output, /must be one of the options/);
+  assert.equal(planText(cwd, plan.slug), before);
+  assert.equal(ledgerText(cwd, plan.slug), ledger);
+});
+
+test("ask rejects blank and repeated options at parse time", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const before = planText(cwd, plan.slug);
+  const blank = parseGoalplanCliArgs(["ask", "--session", session, "--id", "dec-1", "--question", "Q", "--option", " "], cwd);
+  assert.match((blank as { error: string }).error, /--option requires one non-empty value/);
+  const repeated = parseGoalplanCliArgs(["ask", "--session", session, "--id", "dec-1", "--question", "Q", "--option", "A", "--option", " A"], cwd);
+  assert.match((repeated as { error: string }).error, /--option must not repeat 'A'/);
+  const misplaced = parseGoalplanCliArgs(["decide", "--session", session, "--id", "dec-1", "--answer", "x", "--option", "A"], cwd);
+  assert.equal("error" in misplaced, true);
+  assert.equal(planText(cwd, plan.slug), before);
+});
+
+test("ask without --option stores no options key", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API"]).code, 0);
+  const raw = JSON.parse(planText(cwd, plan.slug));
+  assert.equal("options" in raw.decisions[0], false);
+});
+
+test("decide keeps options and accepts a free-form answer", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--option", "A", "--option", "B"]);
+  const decided = cli(cwd, ["decide", "--session", session, "--id", "dec-1", "--answer", "something else"]);
+  assert.equal(decided.code, 0, decided.output);
+  const back = readGoalplan(cwd, plan.slug)!.decisions![0];
+  assert.equal(back.status, "decided");
+  assert.equal(back.answer, "something else");
+  assert.deepEqual(back.options, ["A", "B"]);
+});
+
+test("reviver fails closed on malformed options", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  assert.equal(cli(cwd, ["ask", "--session", session, "--id", "dec-1", "--question", "Choose API", "--option", "A", "--recommendation", "A"]).code, 0);
+  const good = JSON.parse(planText(cwd, plan.slug));
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  for (const mutate of [
+    (d: any) => { d.options = {}; },
+    (d: any) => { d.options = []; },
+    (d: any) => { d.options = [" "]; },
+    (d: any) => { d.options = ["A", "A "]; },
+    (d: any) => { d.options = [1]; },
+    (d: any) => { d.options = ["B"]; },
+  ]) {
+    const bad = JSON.parse(JSON.stringify(good));
+    mutate(bad.decisions[0]);
+    writeFileSync(path, JSON.stringify(bad, null, 2));
+    assert.equal(readGoalplan(cwd, plan.slug), null, JSON.stringify(bad.decisions[0].options));
+    assert.match(cli(cwd, ["show", "--session", session]).output, /field 'decisions'/);
+  }
+  const padded = JSON.parse(JSON.stringify(good));
+  padded.decisions[0].options = [" A "];
+  writeFileSync(path, JSON.stringify(padded, null, 2));
+  assert.deepEqual(readGoalplan(cwd, plan.slug)!.decisions![0].options, [" A "]);
+});
+
+test("askGoalplanDecision rejects empty, blank and repeated options (library)", () => {
+  const plan = fixture();
+  const base = { id: "dec-1", question: "Choose API", workPhaseIds: [], askedAt: "2026-09-30T00:00:00.000Z" };
+  const reason = (options: string[]) => {
+    const res = askGoalplanDecision(plan, { ...base, options });
+    assert.equal(res.kind, "rejected");
+    return (res as { reason: string }).reason;
+  };
+  assert.match(reason([]), /must not be empty/);
+  assert.match(reason([" "]), /non-empty text/);
+  assert.match(reason(["A", " A"]), /duplicate decision option 'A'/);
+  const ok = askGoalplanDecision(plan, { ...base, options: [" A ", "B"], recommendation: " A" });
+  assert.equal(ok.kind, "changed");
+  const stored = (ok as { plan: Goalplan }).plan.decisions![0];
+  assert.deepEqual(stored.options, ["A", "B"]);
+  assert.equal(stored.recommendation, "A");
+});
+

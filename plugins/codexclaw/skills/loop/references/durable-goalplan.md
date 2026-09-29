@@ -60,7 +60,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   Task ids and task dependency references are phase-local: `task.dependsOn` names existing task ids in
   the same work phase, never a task in another phase. A done task carries a non-empty `outcome`; a pending
   task has no outcome.
-- Optional `decisions[]` — each `{ id, question, recommendation?, status: open|decided, answer?, askedAt, decidedAt? }`. Open decisions have no answer or decidedAt; decided decisions require both. Decision ids are short lowercase ids. Absent and empty arrays remain distinct on disk, as do absent and empty `awaitsDecision` arrays. Old plans acquire neither field on read/write. Only linked pending or in-progress phases wait; an unrelated open decision does not pause the goal.
+- Optional `decisions[]` — each `{ id, question, recommendation?, options?, status: open|decided, answer?, askedAt, decidedAt? }`. When `options` is present it is a non-empty list of distinct entries and `recommendation` must be one of them; the answer stays free text because the host always offers a free-form reply. Open decisions have no answer or decidedAt; decided decisions require both. Decision ids are short lowercase ids. Absent and empty arrays remain distinct on disk, as do absent and empty `awaitsDecision` arrays. Old plans acquire neither field on read/write. Only linked pending or in-progress phases wait; an unrelated open decision does not pause the goal.
 - `criteria[]` — each `{ id, scenario, surface, presented?, expectedEvidence, capturedEvidence, status: open|met }`.
   `scenario` is the `--criterion` text and `surface` is one of `logic` (default),
   `web`, `tui` or `desktop`, set by `add-criterion --surface` on a session-bound plan
@@ -98,7 +98,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 - `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]`
 - `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]`
 - `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]`
-- `cxc loop ask --session <id> --id <id> --question <text> [--recommendation <text>] [--work-phase <id>]... [--cwd <path>]` — record a question after sending it through the host. It never sends a message. Name each dependent phase.
+- `cxc loop ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]` — record a question after sending it through the host. It never sends a message. Name each dependent phase.
 - `cxc loop decide --session <id> --id <id> --answer <text> [--cwd <path>]` — record the user reply. This changes only the decision record; phase status and blockedReason stay as they were.
 - `cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]` — `--id` takes
   a generated `c-N` id; read it from `cxc loop show` or the goalplan file.
