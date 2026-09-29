@@ -1,4 +1,4 @@
-# Triage of the 20 open issues (2026-09-30)
+# Triage of the 21 open issues (2026-09-30)
 
 Three explorers read every open issue against `dev` at `659de59b` (read-only, source anchors in their returns). Five issues are new since the 2026-09-27 train (#273-#277). The other fifteen were re-verified against the reasons in `../260927_issue_train/001_research.md`. Only #255, #262 and #265 changed since then, each through a partial ship in that train. This train also applies a rule the user set on 2026-09-30: fix real defects and worthwhile improvements that need no maintainer decision, and do not grow the hook surface (no new hook files, no new hook injections or advisories).
 

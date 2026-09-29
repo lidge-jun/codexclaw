@@ -186,3 +186,7 @@ Residual for the wp4 CHANGELOG: builds older than this one rebuild decisions fie
 Conclusion: the #262 options half is merged into `dev` through PR #280 (head `7e4b90a3`, 14/14 checks, merge `99c9df6a`); #262 stays open for `withdrawn`. Evidence: red 6/41 on the `58a8a174` source (reproduced independently), 41/41 on the new source, C gate on the final head (3737 tests, 0 failures). Next: wp4 delivers per 040.
 
 What did not go well: the first test set left two rendering branches unobserved and asserted a parse error too loosely; the red check swapped tracked files in place in a shared tree, which worked but is riskier than an export. The downgrade residual (older builds drop `options` on rewrite) was found only at C. Evidence that the direction is wrong: users need `withdrawn` or answer-to-option linking more than option lists, which would show up as `decide` answers that repeat an option verbatim.
+
+## A review record
+
+Plan audit (A) at P->A: reviewer `01a0ee1f-b88c-73d0-ae1a-c526f311d2c2` and PABCD-initiative verifier `01a0ee1f-b983-7e61-b27e-c9eeeeada686` in parallel (the same pair as wp1, reused per DISPATCH-ACTOR-01). Round 1: both PASS; nits (parse-rejection test via `parseGoalplanCliArgs`, stale line numbers, help line into the file map) folded in B.
