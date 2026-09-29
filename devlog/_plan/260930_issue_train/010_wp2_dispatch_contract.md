@@ -258,7 +258,7 @@ Import `verifierPreflight` beside the existing imports (`:6-12`). Existing tests
 | `validatePacket: rejects blank verifier command entries` | `verifierCommands:["npm test","  "]` | error `entries must be non-empty strings` |
 | `validatePacket: verifierEffects shape` | unknown command; duplicate command; `expectedWrites:"x"`; `runInIsolation:"yes"`; valid `[{command:"npm test",expectedWrites:[]}]` | four errors, then `[]` |
 | `validatePacket: verifierEffects container and entry guards` | `verifierEffects:{}`; `verifierEffects:[null]`; `verifierEffects:[{command:"  ",expectedWrites:[]}]` | errors `must be an array`, `entries must be objects`, `command must be a non-empty string` |
-| `receiptSatisfiesPacket: malformed unvalidated result does not throw` | `verifierResults:[{command:1}]` cast past the type | returns `satisfied:false` with the `malformed verifier results` reason |
+| `receiptSatisfiesPacket: malformed unvalidated result does not throw` | `verifierResults:[{command:1}]` and `verifierResults:{}`, each cast past the type | both return `satisfied:false` with the `malformed verifier results` reason (the second drives the non-array branch) |
 | `verifierPreflight: shared-read flags undeclared and writing verifiers` | shared-read with undeclared, `[]`, writes, `runInIsolation` | `needsIsolation` true/false/true/true, `declared` false/true/true/true |
 | `verifierPreflight: isolated-write accepts declared writes` | isolated-write with writes | `needsIsolation:false`, `declared:true` |
 
@@ -282,7 +282,10 @@ A declaration is the author's claim, not proof: codexclaw never executes it.
 
 ### 5. SoT sync `structure/INDEX.md:138-140` and `structure/20_pabcd_dispatch_doctrine.md`
 
-The `components/subagent-config` section of INDEX does not list `dispatch-contract.ts`; add one line: `- src/dispatch-contract.ts — typed DispatchPacket/DispatchReceipt (#17), verifier coverage (#276) and verifier effects preflight (#277)`. `structure/20_pabcd_dispatch_doctrine.md` lists the DISPATCH-* rules (`:120-211`); add a DISPATCH-VERIFIER-01 bullet after DISPATCH-ECONOMY-01 that points to `delegation.md` and names the two functions. These are this phase's SOT-SYNC-01 targets.
+- `structure/INDEX.md`: the `components/subagent-config` section (`:138-140`) is one prose paragraph; append the sentence "`src/dispatch-contract.ts` holds the typed DispatchPacket/DispatchReceipt contract (#17): verifier coverage for receipts (#276) and a pure verifier-effects preflight (#277); no runtime path calls it yet."
+- `structure/20_pabcd_dispatch_doctrine.md`: after the DISPATCH-ECONOMY-01 bullet's last clause (`:253`, "from mechanics to economy."), before the `---` closing section 3 (`:255`), add a **DISPATCH-VERIFIER-01** bullet: E2 library contract (`receiptSatisfiesPacket`, `verifierPreflight` in `components/subagent-config/src/dispatch-contract.ts`) plus E7 guidance in `skills/pabcd/references/delegation.md`; no hook calls it.
+
+These are this phase's SOT-SYNC-01 targets.
 
 ## Scope boundary
 
@@ -310,5 +313,5 @@ Red-green: the #276 repro test and the mismatched-command test must fail against
 
 ## wp2 P revalidation (2026-09-30)
 
-Continuity: wp1 D locked this doc as the wp2 plan (roadmap audited PASS twice). Re-checked on `codex/issue-train-0930-wp2`: `git diff --stat 659de59b..HEAD -- plugins structure` is empty, so every anchor above still holds. One amendment: the `structure/INDEX.md` subagent-config section (`:138-140`) is a prose paragraph, so §5 appends one sentence to it: "`src/dispatch-contract.ts` holds the typed DispatchPacket/DispatchReceipt contract (#17): verifier coverage for receipts (#276) and a pure verifier-effects preflight (#277); no runtime path calls it yet." The `structure/20` bullet goes after the DISPATCH-ECONOMY-01 bullet's last clause (`:253`, "from mechanics to economy."), before the `---` that closes §3. Architect consultation: this is the same plan the architect proposed and reflected on (002); the amendment changes no design decision, so no re-consultation (phase-audit "Architect recheck" trigger not met).
+Continuity (LOOP-CONTINUITY-01), quoting the wp1 D summary in 000: "the roadmap is locked and wp2 builds 010 as written"; its negative side (context-only review independence, no stated resource bound for wp4, the c-10 correction) is carried forward. This P keeps that direction. Re-checked on `codex/issue-train-0930-wp2`: `git diff --stat 659de59b..HEAD -- plugins structure` is empty, so every anchor above still holds. One amendment: the `structure/INDEX.md` subagent-config section (`:138-140`) is a prose paragraph, so §5 appends one sentence to it: "`src/dispatch-contract.ts` holds the typed DispatchPacket/DispatchReceipt contract (#17): verifier coverage for receipts (#276) and a pure verifier-effects preflight (#277); no runtime path calls it yet." The `structure/20` bullet goes after the DISPATCH-ECONOMY-01 bullet's last clause (`:253`, "from mechanics to economy."), before the `---` that closes §3. Architect consultation: after the reflection at `048a521c`, A folds added a fail-closed malformed-result branch to (1g), including the non-array case; it implements D4 (every result must be a passing, matching result) and D8 (both result fields are shape-checked), so it changes no design decision. This amendment changes placement only, so the phase-audit architect-recheck trigger is not met.
 

@@ -79,3 +79,9 @@ wp1 (this roadmap), 2026-09-30. Reviewer `01a0ee1f-b88c-73d0-ae1a-c526f311d2c2` 
 - Round 2 (same agents): both PASS. Residuals (stale c-10 wording in 030, 002's description of the hand edit, the six-file scope, `structure/20` in the SoT list, the `npm ci` caveat, a malformed-reason for a non-array `verifierResults`) folded in `2c322e9e`.
 - Port vs canonical notes from the initiative verifier: the canonical rule asks for token and wall-clock bounds on C4 work while the codexclaw port forbids inventing them (disclosed above); canonical entry-edge attests versus the port's attest-free entry edges (no practical effect); canonical full-plan injection to workers versus the port's path pointers (read-only reviews unaffected).
 
+
+## wp1 D summary (2026-09-30)
+
+Conclusion: the roadmap is locked and wp2 builds 010 as written; wp3 builds 020, wp5 builds 030, and wp4 delivers per 040. Evidence: two audit rounds ending in PASS from both agents (Review record above), the wp1 C receipt (lexico naming, docs-only scope, `gate.mjs` OK) and a baseline `npm test` after `npm ci`: 3708 tests, 3703 pass, 0 fail, 5 skipped, exit 0, matching the published badge.
+
+What did not go well: the first plan draft claimed tests for branches the CLI cannot reach, shipped a privacy grep that did not run, and registered criterion c-10 with a rule the architect then rejected, which needed a disclosed correction. Review independence is context-only because every agent inherits this session's model, and wp4 (a C4 release) runs without a stated token or wall-clock bound. Evidence that this direction is wrong would be a reviewer finding that the strict unrelated-result rule of #276 breaks a real caller (none exists today), or hosted CI failing on a platform difference the local run hides.
