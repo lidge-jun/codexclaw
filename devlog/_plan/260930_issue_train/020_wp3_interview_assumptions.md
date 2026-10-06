@@ -152,3 +152,7 @@ C round 2 on `23b92670`: reviewer GO-WITH-FIXES (blockers=0) after a second fres
 Conclusion: #275 is addressed at the rule level and merged into `dev` through PR #279 (head `6e7bd3eb`, 14/14 checks, merge `58a8a174`). Evidence: INTERVIEW-ASSUME-01 referenced in the three files, two C rounds with fresh-reader passes whose stumbles changed the text, and the C gate on the final head (3730 tests, 0 failures). Next: wp5 builds 030.
 
 What did not go well: the planned prose (1(b)) was written for the plan reviewers, not for a first-time reader; the fresh-reader pass found seven stumbles, and the final text differs materially from the plan. The rule stays agent-followed: nothing checks an `eventId` or decision id, and the goal-mode reference is recorded by the agent. The hypothesis that died: that guidance audited at A reads well to its real audience. Evidence that the direction is wrong: agents keep presenting inferred assumptions as confirmed despite the rule, which would argue for the structured schema the issue lists as future work.
+
+## A review record
+
+Plan audit (A) at P->A: reviewer `01a0ee1f-b88c-73d0-ae1a-c526f311d2c2` and PABCD-initiative verifier `01a0ee1f-b983-7e61-b27e-c9eeeeada686` in parallel (the same pair as wp1, reused per DISPATCH-ACTOR-01). Round 1: both PASS; their nits were folded into the B commit.

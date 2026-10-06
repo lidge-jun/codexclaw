@@ -66,3 +66,19 @@ Resource bounds (disclosed gap): the release is C4 and the initiative's loop-eng
 - Kept open (#255, #256, #257, #260, #273, #274): the reason line from 001 and the link.
 
 Order: issue comments and closes run after the release so "released in v0.2.40" is true.
+
+## A review record
+
+Plan audit (A) at P->A: reviewer `01a0ee1f-b88c-73d0-ae1a-c526f311d2c2` and PABCD-initiative verifier `01a0ee1f-b983-7e61-b27e-c9eeeeada686` in parallel (the same pair as wp1, reused per DISPATCH-ACTOR-01). Round 1: both PASS; nits (per-issue not-planned reasons for #209/#213/#265, per-PR fix comments, leftover-version `rg`, full `expected_sha` with `--ref main`, known-flake policy, CHANGELOG Compatibility and Verification headings, a working latest check, one clock for date and stamp) folded in B.
+
+## wp4 C record (2026-09-30)
+
+Gates on the release tree: local `/tmp/it0930/c-gate.sh` on `1f02cfd4` before the PR (3737 tests, 0 failures, inventory, gate, smoke; its c-5 line was narrowed there because `plugin.json`'s version bump sits under `.codex-plugin`: hook files and `hook.ts` must have no diff, the manifest may change only its `version` line, and 31 hooks must stay published), `check-versions.mjs 0.2.40` OK, leftover `0.2.39` only in the `hook.test.ts:181` fixture path, and the same gate under `cxc receipt test` on `0ff1ae01` (exit 0). Hosted: #281 14/14 on `1f02cfd4`; `dev` push runs on `ff3f5af5`; #282 28/28 on `ff3f5af5` (including its own `pull_request` CI 36615865372 and Packed install 36615865506); `main` push CI, Packed install, WSL and Docs on `3c1459ac`; release dry run 36618591813 and publish 36619043417 both `READY — 0.2.40` with `pass=3661 fail=0 total=3737` (the 76 unlisted tests are platform skips, as in 0.2.39's 3533/3609); assets verified twice (main and the release reviewer's fresh download).
+
+C lanes in parallel: release reviewer `01a0eea5-aa63-7ab3-b773-2b5c86144e0b` PASS (every release, CI, asset, issue and CHANGELOG claim re-checked against GitHub); PABCD-initiative verifier `01a0eea5-aba9-74e1-a829-ada290c75c65` GO-WITH-FIXES (5, all loop records: this C record, criteria c-5 to c-9, A-round IDs in the decade docs, the wp4 D summary, and 041's wording before #283 lands), folded in this commit. Deviations from the plan: the CHANGELOG heading is dated 2026-09-29 (UTC, matching the build stamp and publish time) instead of 2026-09-30; issue comments link 001 on `main` (identical blob on `dev`).
+
+## wp4 D summary (2026-09-30)
+
+Conclusion: codexclaw 0.2.40 is released from `main` `3c1459ac` with verified assets, all 21 open issues are dispositioned, and the delivery record lands through #283. No next work phase: every goalplan phase is done after this cycle.
+
+What did not go well: the c-5 gate line was written for implementation phases and flagged the release's own version bump, so it had to be narrowed at B; the first issue-comment template gave three issues the wrong reason until A caught it; the loop's review evidence lived in ledger attests rather than the decade docs until the final verifier asked for it. The hypothesis that died: that a train-wide gate script could be reused unchanged for the release phase. Evidence that the delivery direction is wrong: users hit the stricter #276 receipt rule or the dropped `options` on an older build, which would show up as issues against 0.2.40.
