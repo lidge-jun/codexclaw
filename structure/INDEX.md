@@ -171,7 +171,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-ast-grep` | `skills/ast-grep/` | AST-aware search/codemods using `sg` |
 | `cxc-repo-map` | `skills/repo-map/` | ranked repo structure map (vendored RepoMapper: tree-sitter tags + PageRank) |
 | `cxc-lunasearch` | `skills/lunasearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
-| `cxc-worktree-guardian` | `skills/worktree-guardian/` | Codex-app managed-worktree identity safety: adopt-in-place renaming, never delete/recreate, WORKTREE-GUARD-01/02/03 hook interplay |
+| `cxc-worktree-guardian` | `skills/worktree-guardian/` | Codex-app managed-worktree identity safety: adopt-in-place renaming, never delete/recreate, WORKTREE-GUARD-01..04 and SHELL-SUBST-01 hook interplay |
 | `cxc-dev-visualizer` | `skills/dev-visualizer/` | render and inspect Mermaid/diagram artifacts |
 | `cxc-kwrite` | `skills/kwrite/` | Korean long-form writing and revision protocol |
 | `cxc-remote` | `skills/remote/` | remote host execution and workload routing |
@@ -212,7 +212,7 @@ The manifest wires 29 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `UserPromptSubmit` | `hooks/user-prompt-submit-detecting-recall-intent.json` | same recall CLI | detects past-session recall intent and injects the recall search affordance |
 | `SessionStart` | `hooks/session-start-detecting-managed-worktree.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | injects the WORKTREE-GUARD-01 identity block when the session cwd is inside an app-managed worktree ($CODEX_HOME/worktrees or CODEXCLAW_WORKTREE_ROOTS) |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-guiding-worktree-rename.json` | same pabcd-state CLI, `hook worktree-guard` | on worktree rename intent inside a managed worktree, injects the adopt-in-place guidance once per session (WORKTREE-GUARD-02) |
-| `PreToolUse` `^Bash$` | `hooks/pre-tool-use-guarding-managed-worktree-deletion.json` | same pabcd-state CLI, `hook worktree-guard-pretool` | denies commands that delete the session's own managed worktree (git worktree remove / rm -r of slot, checkout, cwd, or ancestors) — enforced for subagent turns too (WORKTREE-GUARD-03) |
+| `PreToolUse` `^Bash$` | `hooks/pre-tool-use-guarding-managed-worktree-deletion.json` | same pabcd-state CLI, `hook worktree-guard-pretool` | denies commands that delete the session's own managed worktree (git worktree remove / rm -r of slot, checkout, cwd, or ancestors) — enforced for subagent turns too (WORKTREE-GUARD-03); denies git writes into another worktree of a bound source's repository (WORKTREE-GUARD-04) and executed substitutions that run git writes or gh merge/close (SHELL-SUBST-01) |
 
 The automation ownership hook (`pre-tool-use-guarding-automation-ownership.json`) checks matching `automation_update` calls before the subagent early exit. Heartbeat updates/deletes require the stored `target_thread_id` to match the native caller. Views pass; unknown ownership, child mutations and foreign retargeting are denied. This is a scoped safeguard: disabled hooks, nested calls without inner hook delivery, UI/file writes and host-side races remain outside its coverage.
 
