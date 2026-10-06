@@ -6,6 +6,23 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.41] - 2026-10-06
+
+### Added
+
+- WORKTREE-GUARD-04: when a session has bound a source worktree with `cxc session source`, the PreToolUse guard denies git writes (commit, cherry-pick, merge, rebase, reset, checkout/switch, am, revert, push, pull, branch -D/-f/-m) whose repository is another worktree of the same repository, usually the main checkout. The deny names both roots. Unrelated repositories, read-only git and `--abort`/`--quit` stay allowed (#284).
+- SHELL-SUBST-01: a backtick or `$(...)` that the shell will execute, including one inside a `sh/bash/zsh -c` payload, is denied when it runs a git write or `gh pr merge/close`, `gh issue close`, `gh release delete` or `gh repo delete`. This applies with or without a binding. Single quotes and quoted heredocs are treated as literal. Other backticks inside double quotes get an advisory (#284).
+- `cxc-dev` DEV-SHELL-TEXT-01: generated text such as Markdown, plans and PR bodies goes through `apply_patch`, files, `<<'EOF'` or `--body-file`, never through shell quoting.
+
+### Compatibility
+
+- Both checks run inside the existing `worktree-guard-pretool` hook. Its JSON is unchanged, so this upgrade adds no hook and needs no new trust approval (31 hooks).
+- Codex hook payloads do not include exec_command's `workdir`. In a bound session, a git write needs the directory in the command, as `git -C <source> ...` or `cd <source> && ...`. The deny message says so.
+
+### Verification
+
+- The new `git-write-guard.test.ts` covers the incident command, nested and `-c` substitutions, quoted heredocs and a real linked-worktree binding. The worktree-guard, hook-e2e, compiled-hook and L19 suites pass, and `gate.mjs`, inventory and `check-versions.mjs 0.2.41` pass. Hosted CI and the packed-install lifecycle run on #285 and on the release commit.
+
 ## [0.2.40] - 2026-09-29
 
 ### Added
