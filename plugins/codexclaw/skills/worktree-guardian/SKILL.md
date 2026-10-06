@@ -91,6 +91,16 @@ Automated or bulk cleanup of other worktrees follows `cxc-dev-devops`
 - WORKTREE-GUARD-03 (PreToolUse, `^Bash$`): deterministic deny of self-worktree
   deletion — applies to subagent turns too. The deny is intentional; follow §4
   instead of routing around it.
+- WORKTREE-GUARD-04 (same PreToolUse hook): when the session bound a source
+  worktree with `cxc session source`, git writes (commit, cherry-pick, merge,
+  rebase, reset, checkout/switch, am, revert, push, pull, branch -D/-f/-m) whose
+  repository is another worktree of the same repo are denied. Hooks receive only
+  the command text, never exec_command's `workdir`, so write
+  `git -C <source> ...` or `cd <source> && ...`. `--abort`/`--quit` stay allowed.
+- SHELL-SUBST-01 (same hook): a backtick or `$(...)` that the shell will execute
+  and that runs a git write or `gh pr merge/close`, `gh issue close` is denied
+  with or without a binding; other backticks inside double quotes get an
+  advisory. Pass generated text through apply_patch, files, or `<<'EOF'`.
 
 ## 7. AGENTS.md snippet (WG-AGENTS-01)
 

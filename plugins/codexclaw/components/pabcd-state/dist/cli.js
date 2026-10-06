@@ -46,6 +46,7 @@ import { handleEditShapeCapture } from "./edit-shape.js";
 import { buildRulesContextFromRaw } from "./rules.js";
 import { handleRenderObservationCapture, handleRenderArtifactCapture } from "./render-observations.js";
 import { handleWorktreeGuard, handleWorktreeGuardPreTool } from "./worktree-guard.js";
+import { handleGitWriteGuardPreTool } from "./git-write-guard.js";
 import { runSubagentStopGate } from "./subagent-evidence.js";
 import { handleIdleEditAdvisory } from "./idle-edit.js";
 import { handleMemoryWriteGate } from "./memory-write-gate.js";
@@ -379,11 +380,23 @@ async function main()                {
   // not bypass the guard). Fail-open on handler error: a guard crash must never
   // block an unrelated command.
   if (event === "worktree-guard-pretool") {
+    let guardOutput = "";
     try {
-      process.stdout.write(handleWorktreeGuardPreTool(raw));
+      guardOutput = handleWorktreeGuardPreTool(raw);
     } catch {
       // fail-open
     }
+    // #284: WORKTREE-GUARD-04 (git writes outside the bound source worktree) and
+    // SHELL-SUBST-01 (risky command substitutions) share this hook so no new hook
+    // registration or trust hash is needed. Same fail-open contract.
+    if (!guardOutput) {
+      try {
+        guardOutput = handleGitWriteGuardPreTool(raw);
+      } catch {
+        // fail-open
+      }
+    }
+    process.stdout.write(guardOutput);
     process.exit(0);
   }
 
