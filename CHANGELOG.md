@@ -21,7 +21,7 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Verification
 
-- The new `git-write-guard.test.ts` covers the incident command, nested and `-c` substitutions, quoted heredocs and a real linked-worktree binding. The worktree-guard, hook-e2e, compiled-hook and L19 suites pass, and `gate.mjs`, inventory and `check-versions.mjs 0.2.41` pass. Hosted CI and the packed-install lifecycle run on #285 and on the release commit.
+- 3745 tests, 0 failures (hosted ubuntu CI on #285, 76 platform skips). The new `git-write-guard.test.ts` covers the incident command, nested and `-c` substitutions, quoted heredocs and a real linked-worktree binding. `gate.mjs`, inventory and `check-versions.mjs 0.2.41` pass.
 
 ## [0.2.40] - 2026-09-29
 
