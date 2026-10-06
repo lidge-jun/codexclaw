@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { bindSessionSource } from "../src/session-source.ts";
 import { defaultState, writeState } from "../src/state.ts";
@@ -57,8 +57,9 @@ test("riskyMutation and parseGitCall classify verbs", () => {
   assert.equal(riskyMutation("gh pr view 12"), null);
   assert.equal(parseGitCall("git branch -D old", "/")?.write, true);
   assert.equal(parseGitCall("git cherry-pick --abort", "/")?.write, false);
-  assert.equal(parseGitCall("git -C /x -c a=b commit -m m", "/")?.dir, "/x");
-  assert.deepEqual(parseGitCall("git --git-dir=/r/.git --work-tree /r push", "/")?.probeArgs, ["--git-dir=/r/.git", "--work-tree=/r"]);
+  assert.equal(parseGitCall("git -C /x -c a=b commit -m m", "/")?.dir, resolve("/", "/x"));
+  assert.deepEqual(parseGitCall("git --git-dir=/r/.git --work-tree /r push", "/")?.probeArgs,
+    [`--git-dir=${resolve("/", "/r/.git")}`, `--work-tree=${resolve("/", "/r")}`]);
 });
 
 // --- SHELL-SUBST-01 -----------------------------------------------------------
