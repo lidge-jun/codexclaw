@@ -591,7 +591,11 @@ test("030.2: init requires a real objective, then show/validate work", () => {
   assert.ok(!("error" in initArgs));
   const init = runGoalplanCli(initArgs as any);
   assert.equal(init.code, 0);
-  assert.match(init.output, /objective: Ship the loop/);
+  assert.match(init.output, /^loop init: ship-the-loop unbound applied/);
+  assert.match(init.output, /phases=0 remaining=0, criteria=1 unmet=1/);
+  assert.match(init.output, /full plan: cxc loop show --slug "ship-the-loop"/);
+  assert.doesNotMatch(init.output, /objective:|tests green/);
+  assert.ok(Buffer.byteLength(init.output) <= 250);
   const slug = deriveSlug("Ship the loop");
   assert.ok(readGoalplan(cwd, slug));
 
@@ -799,7 +803,8 @@ test("CLI output uses loop label, not goalplan", () => {
   assert.ok(!("error" in args));
   const result = runGoalplanCli(args as any);
   assert.equal(result.code, 0);
-  assert.match(result.output, /\[codexclaw loop:/);
+  assert.match(result.output, /^loop init:/);
+  assert.ok(Buffer.byteLength(result.output) <= 250);
   assert.ok(!result.output.includes("[codexclaw goalplan:"));
 });
 

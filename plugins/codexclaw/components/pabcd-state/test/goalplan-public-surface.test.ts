@@ -892,3 +892,36 @@ test("askGoalplanDecision rejects empty, blank and repeated options (library)", 
   assert.equal(stored.recommendation, "A");
 });
 
+
+test("loop mutation receipts keep item/count facts without echoing a long objective", () => {
+  const plan = fixture();
+  const objective = "objective payload ".repeat(150);
+  plan.objective = objective;
+  const { cwd, session } = workspace(plan);
+  const cases = [
+    { argv: ["add-work-phase", "--session", session, "--id", "wp-receipt", "--title", "Receipt"],
+      prefix: "loop add-work-phase: public-surface-fixture wp-receipt applied", counts: "phases=4 remaining=3, criteria=1 unmet=1" },
+    { argv: ["add-criterion", "--session", session, "--criterion", "receipt criterion"],
+      prefix: "loop add-criterion: public-surface-fixture c-2 applied", counts: "phases=4 remaining=3, criteria=2 unmet=2" },
+    { argv: ["add-task", "--session", session, "--work-phase", "wp-live", "--id", "receipt-task", "--title", "Receipt task"],
+      prefix: "loop add-task: public-surface-fixture receipt-task applied", counts: "phases=4 remaining=3, criteria=2 unmet=2" },
+    { argv: ["complete-task", "--session", session, "--work-phase", "wp-live", "--id", "receipt-task", "--outcome", "verified receipt"],
+      prefix: "loop complete-task: public-surface-fixture receipt-task applied", counts: "phases=4 remaining=3, criteria=2 unmet=2" },
+    { argv: ["meet-criterion", "--session", session, "--id", "c-2", "--evidence", "verified criterion"],
+      prefix: "loop meet-criterion: public-surface-fixture c-2 applied", counts: "phases=4 remaining=3, criteria=2 unmet=1" },
+  ];
+  for (const { argv, prefix, counts } of cases) {
+    const result = cli(cwd, argv);
+    assert.equal(result.code, 0, result.output);
+    assert.equal(result.output, `${prefix} (${counts}); full plan: cxc loop show --session sess-public`);
+    assert.ok(Buffer.byteLength(result.output) <= 250);
+    assert.doesNotMatch(result.output, /objective payload|Receipt task|verified receipt/);
+    assert.equal(readGoalplan(cwd, plan.slug)?.objective, objective);
+  }
+  const show = cli(cwd, ["show", "--session", session]);
+  assert.equal(show.code, 0);
+  assert.ok(show.output.includes(`objective: ${objective}`));
+  const validate = cli(cwd, ["validate", "--session", session]);
+  assert.equal(validate.code, 1);
+  assert.match(validate.output, /FAIL/);
+});

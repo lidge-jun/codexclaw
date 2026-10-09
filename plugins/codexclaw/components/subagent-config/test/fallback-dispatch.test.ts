@@ -146,7 +146,11 @@ test("direct caller overrides remain intact even with role fallback enabled", ()
   const out = JSON.parse(runSpawnAttachHook(JSON.stringify({ hook_event_name: "PreToolUse", cwd, session_id: base.sessionId, tool_name: "spawn_agent", tool_input: { agent_type: "executor", model: "explicit/other", reasoning_effort: "low", message: "Implement file" } }))).hookSpecificOutput;
   assert.equal(out.updatedInput.model, "explicit/other");
   assert.equal(out.updatedInput.reasoning_effort, "low");
-  assert.match(out.additionalContext, /not managed/);
+  assert.match(out.additionalContext, /unmanaged/);
+  assert.match(out.additionalContext, /executor/);
+  assert.match(out.additionalContext, /\$codexclaw:cxc-pabcd delegation\.md#configured-first-fallback/);
+  assert.doesNotMatch(out.additionalContext, /executionState|taskFailure/);
+  assert.ok(Buffer.byteLength(out.additionalContext) <= 300);
 });
 test("hosts without tool-use IDs cannot replay an issued marker", () => {
   const { call, start, cwd, base } = fixture();

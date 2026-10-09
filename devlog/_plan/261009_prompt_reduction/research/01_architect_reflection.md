@@ -1,0 +1,38 @@
+# Architect reflection — executable plan
+
+**MISALIGNED, pending the focused amendments below.** The layering direction is aligned; the written verifier/scope contracts do not yet implement several accepted decisions. This is a plan reflection, not a runtime/release review. Machine-readable owner metadata, the full admission record, blocking sentence dedup, new PROMPT IDs and a shared fixture framework may remain deferred as instructed. Component tests plus a measurement script are acceptable if they prove the aggregate thresholds.
+
+## D-ID → executable-plan mapping
+
+| Decision | Plan section / source anchor | Assessment |
+|---|---|---|
+| D1 layers | `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:5-16` | Aligned; classify regions rather than files. |
+| D2 authority/placement | `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:20-30`; `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:9,15` | Aligned through maintainer standard + dev authority/classes; metadata deferral accepted. |
+| D3 placement procedure | `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:18-30` | Aligned seven questions. |
+| D4 L1 bootstrap | `devlog/_plan/261009_prompt_reduction/010_wp2_l1_injections.md:9-64` | Shape aligned; aggregate proof/destination ordering need G1/G5. |
+| D5 catalog selection | `devlog/_plan/261009_prompt_reduction/030_wp4_routers_catalog.md:7-9` | Aligned description bound/trigger preservation. |
+| D6 routers/references | `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:13-36`; `devlog/_plan/261009_prompt_reduction/030_wp4_routers_catalog.md:20-27` | Aligned substantive moves; G5 assigns omitted destination write. |
+| D7 single owner/pointers | `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:32-37` | Aligned policy; G2/G4 close implementation contradictions. Metadata deferral accepted. |
+| D8 budgets | `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:44-57` | Adopted units/ceilings accepted; G1/G3 make claims provable. |
+| D9 history | `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:40-42`; `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:27-34` | Evidence relocation aligned; G6 fixes wording contradiction. |
+| D10 stable IDs | `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:38`; `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:41` | Aligned preservation/no new IDs; G2 fixes uniqueness escape. |
+| D11 cheap gate/proof | `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:7-11`; `devlog/_plan/261009_prompt_reduction/010_wp2_l1_injections.md:66-71` | Reduced gate accepted; G1–G4 close verifier gaps. |
+| D12 migration/delivery | `devlog/_plan/261009_prompt_reduction/000_plan.md:21-31`; `devlog/_plan/261009_prompt_reduction/040_wp5_release_deploy.md:5-27` | Sequenced delivery/fresh evidence aligned; G5 fixes relocation-before-destination. |
+
+## Exact gaps and required amendments
+
+**G1 [P2; D4/D8/D11] — Aggregate UPS ceiling lacks an executable proof.** Standard requires ≤1,200 B per UPS, but measurement prints per-emitter bytes and acceptance specifies only aggregate SessionStart plus individual body limits. Independent component passes cannot establish their combined UPS size. Amend measure-l1 to sum co-emitting static text for ordinary, loop/phase, recall-intent and post-compact recovery UPS (including collisions), separate data, and fail over 1,200 B. Keep per-component delivery tests; no shared fixture framework is required. Anchors: `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:50`; `devlog/_plan/261009_prompt_reduction/010_wp2_l1_injections.md:5,68-71`.
+
+**G2 [P2; D7/D10/D11] — Open-ended ID allow-list contradicts single definition.** Standard says at most one defining file; gate plan permits “known shared definitions found at B.” That can exempt precisely the duplicate owners being removed. Remove that allowance for migrated rules, or freeze exact legacy ID/location pairs, prohibit new locations, and require migrated core IDs to have one declaration. Add an exception-growth negative fixture; distinguish references from definitions. Anchors: `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:65`; `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:10-11,41`.
+
+**G3 [P2; D8/D11] — Shrink-only exceptions have no comparison contract.** A mutable map with max=current bytes checks today's file size but cannot reject raising max or adding a regressed exception. Freeze the initial baseline and compare exception edits with the predecessor gate manifest/revision; forbid raised maxima and new exceptions for formerly compliant skills. Test raised-max and compliant→excepted cases. A JSON owner registry remains unnecessary. Anchors: `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:57`; `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:10-11`; `devlog/_plan/261009_prompt_reduction/030_wp4_routers_catalog.md:22,26`.
+
+**G4 [P2; D7/D11] — File existence is weaker than pointer resolution.** Standard uses path#anchor and examples emit bare `$cxc-*`; the gate only promises existing files. Existing phase tests reject unlinked bare mentions. Specify native `$codexclaw:cxc-*` or link-form mentions in actual output; validate changed/emitted owner paths and fragments, with a missing-anchor negative case. Leave broader owner metadata deferred. Anchors: `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:36-37,64`; `devlog/_plan/261009_prompt_reduction/010_wp2_l1_injections.md:15,19,49`; `plugins/codexclaw/components/pabcd-state/test/hook.test.ts:232-244`.
+
+**G5 [P2; D4/D6/D12] — Relocations lack same-PR destinations or assigned writers.** wp2 removes dispatch-card helper code; its destination is wp3 delegation, while that reference currently tells readers to run the card's helper. Move the helper and update that reference in PR A, or retain the helper until PR B. Likewise give wp2's terminal line an explicit existing owner pointer or land its native-execution owner text in PR A. Separately, wp3 says state-file content moves to phase-control, but no lane owns writing phase-control: add it to the reference lane's scope. Anchors: `devlog/_plan/261009_prompt_reduction/000_plan.md:31`; `devlog/_plan/261009_prompt_reduction/010_wp2_l1_injections.md:21,50`; `plugins/codexclaw/skills/pabcd/references/delegation.md:188`; `devlog/_plan/261009_prompt_reduction/020_wp3_core_skills.md:17,23,25,28,36`. Parent must expand the corresponding writer packets; this leaf does not edit them.
+
+**G6 [P3; D1/D9] — History prohibition also bans necessary current facts.** “L1-L3 carry no … session ids” conflicts with L1 holding current ids and the binding fragment. Qualify this as historical/stale incident identifiers and dates, excluding live identity/state facts and explicitly labeled recall data. Anchors: `devlog/_plan/261009_prompt_reduction/001_layering_standard.md:12,42`; `devlog/_plan/261009_prompt_reduction/010_wp2_l1_injections.md:15`.
+
+## Reflection boundary
+
+No P0/P1 finding is asserted. G1–G5 are executable-plan gaps to resolve before their governed implementation; G6 is a wording repair. The accepted reduction of framework/metadata scope is not itself a gap. UTF-8 L1 bytes, 100-character short summaries, report-only repetition and protected-owner shrink exceptions are accepted dispositions, not demands to restore the original proposal wholesale. Preserve current compaction delivery paths and selected-body transport as already scoped by wp2 (`devlog/_plan/261009_prompt_reduction/010_wp2_l1_injections.md:3,24,54`). Re-reflection can be limited to the amended spans and writer scopes.

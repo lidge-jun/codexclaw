@@ -42,6 +42,11 @@ test("compact hint is emitted once at the next root prompt, without FSM files", 
     assert.equal(out.hookSpecificOutput.hookEventName, "UserPromptSubmit");
     assert.match(out.hookSpecificOutput.additionalContext, /User questions:.*request_user_input_async/);
     assert.equal(out.hookSpecificOutput.additionalContext.split("User questions:").length - 1, 1);
+    assert.match(out.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-loop/);
+    assert.match(out.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-dev native-execution\.md/);
+    assert.match(out.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-dev async-questions\.md/);
+    assert.doesNotMatch(out.hookSpecificOutput.additionalContext, /DEV-STACK-06|stacked-prs\.md|cxc-kwrite|External skill catalogs/);
+    assert.ok(Buffer.byteLength(out.hookSpecificOutput.additionalContext) <= 500);
     assert.equal(affordance.runUserPromptAffordance(payload(cwd, "UserPromptSubmit")), "");
     assert.deepEqual(readdirSync(join(cwd, ".codexclaw")), [".gitignore", "affordance-recovery"]);
     assert.deepEqual(readdirSync(dir), []);

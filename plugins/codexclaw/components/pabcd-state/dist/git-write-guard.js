@@ -303,32 +303,18 @@ function sourceGuard(command        , ctx                  )                   {
 
 function sourceDenyReason(git         , sourceRoot        )         {
   return [
-    `[codexclaw: WORKTREE-GUARD-04] blocked \`git ${git.verb}\` in ${canonicalize(git.dir)}:`,
-    "that is another worktree of the same repository, but this session's implementation",
-    `is bound to the source worktree ${sourceRoot} (\`cxc session source\`).`,
-    "Hooks cannot see exec_command's workdir, so name the directory in the command:",
-    `\`git -C ${sourceRoot} ${git.verb} ...\` or \`cd ${sourceRoot} && git ${git.verb} ...\`.`,
-    "Recovery flags (--abort, --quit) stay allowed in any worktree.",
+    `[codexclaw: WORKTREE-GUARD-04] Denied git ${git.verb}: target ${canonicalize(git.dir)} differs from source ${sourceRoot}.`,
+    `Use \`git -C ${sourceRoot} ${git.verb} ...\`. Owner: $codexclaw:cxc-worktree-guardian SKILL.md.`,
   ].join(" ");
 }
 
 function substDenyReason(risky        )         {
-  return [
-    `[codexclaw: SHELL-SUBST-01] blocked: a shell command substitution in this command would run \`${risky}\`.`,
-    "Backticks and $( ) outside single quotes are executed by the shell; this usually means",
-    "generated text (Markdown inline code) was interpolated into shell code.",
-    "Pass text through apply_patch, a file, a heredoc with a quoted delimiter (<<'EOF'), or",
-    "--body-file, and run git/gh mutations as their own explicit command.",
-  ].join(" ");
+  return `[codexclaw: SHELL-SUBST-01] Shell would execute \`${risky}\`. Use apply_patch, quoted heredoc, file or --body-file. Owner: $codexclaw:cxc-dev SKILL.md.`;
 }
 
 function substAdvisory(body        )         {
   const shown = body.length > 60 ? `${body.slice(0, 57)}...` : body;
-  return [
-    `[codexclaw: SHELL-SUBST-01 advisory] the shell will EXECUTE the backtick substitution \`${shown}\``,
-    "inside double quotes. If that text is Markdown inline code it is not literal here;",
-    "use single quotes, a quoted heredoc (<<'EOF'), apply_patch, or a file.",
-  ].join(" ");
+  return `[codexclaw: SHELL-SUBST-01 advisory] Shell executes backticks \`${shown}\` in double quotes. Use a quoted heredoc or file. Owner: $codexclaw:cxc-dev SKILL.md.`;
 }
 
 export function evaluateGitSafety(command        , ctx                  )                   {

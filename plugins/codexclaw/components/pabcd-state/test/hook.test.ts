@@ -21,6 +21,8 @@ import {
   interviewDirective,
   loopArmDirective,
   TRIGGER_AUTHORITY_NOTE,
+  AGBROWSE_SEARCH_DIRECTIVE,
+  phaseFooter,
   withFooter,
   type UserPromptSubmitPayload,
   type StopPayload,
@@ -243,7 +245,7 @@ test("wp3: phase pointers retain owners and active work-phase boundaries", () =>
   }
   assert.match(interviewDirective(), /\$codexclaw:cxc-interview/);
   assert.match(interviewDirective(), /Mind dispatch/i);
-  assert.match(phaseDirective("P"), /No implementation yet/);
+  assert.match(phaseDirective("P"), /plan-output\.md/);
   for (const phase of ["P", "B"] as const) {
     assert.doesNotMatch(phaseDirective(phase), /implementation ownership|main implements by default|defaults to the configured executor/i);
   }
@@ -251,50 +253,35 @@ test("wp3: phase pointers retain owners and active work-phase boundaries", () =>
   assert.match(phaseDirective("C"), /C-RENDER-GROUNDING-01/);
   const bound = phaseDirective("B", { activeWorkPhase: { id: "wp3", title: "minimal hooks" } });
   assert.match(bound, /ACTIVE WORK-PHASE: wp3 — minimal hooks/);
-  assert.match(bound, /other work-phases are OUT OF SCOPE until D closes/);
+  assert.match(bound, /LOOP-UNIT-CHAIN-01/);
 });
 
-test("260914: P and A directives carry the architect consultation contract", () => {
+test("P and A point to their consultation owners within the phase budget", () => {
   const p = phaseDirective("P");
-  // Formal-P sequence: read-only architect proposal before the executable plan,
-  // the concrete plan back to the SAME architect for reflection before A, and a
-  // recorded consultation — inside the existing user-limit wording.
-  assert.match(p, /read-only architect proposal BEFORE the executable plan/);
-  assert.match(p, /SAME architect for reflection BEFORE A/);
-  assert.match(p, /phase-plan\/plan-output/);
-  assert.match(p, /C0\/C1 fast path needs none/);
-  assert.match(p, /No-delegation means no dispatch/);
-
+  assert.match(p, /\$codexclaw:cxc-pabcd phase-plan\.md and plan-output\.md/);
+  assert.doesNotMatch(p, /architect proposal BEFORE|SAME architect/);
+  assert.ok(Buffer.byteLength(p) <= 300);
   const a = phaseDirective("A");
-  // A's reminder is the amendment recheck, distinct from P's initial sequence:
-  // only design-decision changes go back to the same architect.
-  assert.match(a, /module-responsibility, data-structure, interface or execution-flow/);
-  assert.match(a, /SAME architect before A completes/);
-  assert.match(a, /text\/test clarification alone does not/);
-  assert.match(a, /reviewer stays independent/i);
-  assert.doesNotMatch(a, /architect proposal BEFORE/i);
-
-  // No other phase carries an initial-consultation hint.
-  for (const phase of ["B", "C", "D"] as const) {
-    assert.doesNotMatch(phaseDirective(phase), /architect/i, `${phase} directive`);
-  }
-  assert.doesNotMatch(interviewDirective(), /architect/i);
+  assert.match(a, /\$codexclaw:cxc-pabcd phase-audit\.md/);
+  assert.match(a, /\$codexclaw:cxc-dev-code-reviewer/);
+  assert.doesNotMatch(a, /module-responsibility|SAME architect/);
+  assert.ok(Buffer.byteLength(a) <= 300);
 });
 
-test("260914: hook P output carries the architect sequence; A output carries the amendment recheck", () => {
+test("hook P and A output carry their consultation owner pointers", () => {
   const cwd = freshCwd();
   try {
     const pOut = handleUserPromptSubmit(ups("orchestrate P", cwd, "arch-seq", "t1"));
     assert.notEqual(pOut, "");
     const pCtx = JSON.parse(pOut.trimEnd()).hookSpecificOutput.additionalContext;
-    assert.match(pCtx, /read-only architect proposal BEFORE the executable plan/);
-    assert.match(pCtx, /SAME architect for reflection BEFORE A/);
+    assert.match(pCtx, /phase-plan\.md/);
+    assert.match(pCtx, /plan-output\.md/);
 
     const aOut = handleUserPromptSubmit(ups("orchestrate a", cwd, "arch-seq", "t2"));
     assert.notEqual(aOut, "");
     const aCtx = JSON.parse(aOut.trimEnd()).hookSpecificOutput.additionalContext;
-    assert.match(aCtx, /SAME architect before A completes/);
-    assert.match(aCtx, /text\/test clarification alone does not/);
+    assert.match(aCtx, /phase-audit\.md/);
+    assert.match(aCtx, /\$codexclaw:cxc-dev-code-reviewer/);
     assert.doesNotMatch(aCtx, /architect proposal BEFORE/i);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -336,10 +323,10 @@ test("wp3: CHECK negatives retain lexical trigger and the actual persisted phase
         assert.equal(detectTrigger(prompt), "C");
         const ctx = JSON.parse(handleUserPromptSubmit(ups(prompt, cwd, session, "n1")))
           .hookSpecificOutput.additionalContext as string;
-        assert.match(ctx, /within exact user limits and permissions/);
-        assert.match(ctx, /No-delegation means no dispatch/);
-        assert.match(ctx, /Forbidden checks: NOT RUN/);
-        assert.match(ctx, /No-goal\/no-FSM restrict creation\/mutations, not read-only inspection/);
+        assert.match(ctx, /\$codexclaw:cxc-pabcd/);
+        assert.match(ctx, /Owner: \$codexclaw:cxc-/);
+        assert.match(ctx, /phase-check\.md/);
+        assert.match(ctx, /TRIGGER-AUTHORITY-01/);
         assert.ok(ctx.includes(`IPABCD: ${phase} (`));
         const after = readState(cwd, session);
         assert.equal(after.phase, before.phase);
@@ -375,9 +362,9 @@ test("wp3: CHECK preserves separately allowed build and read-only state inspecti
       const before = readState(cwd, "wp3-exact-limits");
       const ctx = JSON.parse(handleUserPromptSubmit(ups(prompt, cwd, "wp3-exact-limits", "e1")))
         .hookSpecificOutput.additionalContext as string;
-      assert.match(ctx, /No-tests forbids tests, not separately authorized build\/typecheck/);
-      assert.match(ctx, /no-goal\/no-FSM restrict creation\/mutations, not read-only get_goal or orchestrate status/);
-      assert.match(ctx, /No-delegation means no dispatch/);
+      assert.match(ctx, /\$codexclaw:cxc-dev-testing/);
+      assert.match(ctx, /TRIGGER-AUTHORITY-01/);
+      assert.match(ctx, /Owner: \$codexclaw:cxc-/);
       assert.doesNotMatch(ctx, /forbids tests\/build\/typecheck|forbid agent goal\/state commands/);
       const after = readState(cwd, "wp3-exact-limits");
       assert.equal(after.phase, before.phase);
@@ -431,7 +418,7 @@ test("handleUserPromptSubmit: trigger emits directive envelope once", () => {
     assert.equal(parsed.hookSpecificOutput.hookEventName, "UserPromptSubmit");
     assert.equal(parsed.hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
     assert.match(parsed.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-pabcd/);
-    assert.match(parsed.hookSpecificOutput.additionalContext, /No implementation yet/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /plan-output\.md/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -495,12 +482,10 @@ test("handleUserPromptSubmit: agbrowse request injects search directive without 
     assert.equal(parsed.hookSpecificOutput.hookEventName, "UserPromptSubmit");
     assert.match(ctx, /\[codexclaw: SEARCH/);
     assert.match(ctx, /cxc-search/);
-    assert.match(ctx, /agbrowse fetch/);
-    assert.match(ctx, /Never use plain `agbrowse search/);
-    assert.match(ctx, /dev\/references\/browser-routing\.md/);
-    assert.match(ctx, /optional/);
-    assert.match(ctx, /diagnosed CDP connection failure/);
-    assert.match(ctx, /task-owned/);
+    assert.match(ctx, /\$codexclaw:cxc-search SKILL\.md/);
+    assert.match(ctx, /\$codexclaw:cxc-dev browser-routing\.md/);
+    assert.doesNotMatch(ctx, /agbrowse fetch|Set-Content|CDP connection failure/);
+    assert.ok(Buffer.byteLength(ctx) <= 200);
     assert.doesNotMatch(ctx, /browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use/);
     const st = readState(cwd, "s1");
     assert.equal(st.orchestrationActive, false);
@@ -517,56 +502,24 @@ test("handleUserPromptSubmit: agbrowse request injects search directive without 
 // how it concludes the FSM is broken before running anything.
 //
 // Platform is injected so Linux CI drives the win32 branch (atomic-write.test.ts §1).
-test("win32 arming directive teaches the file flag, not inline attest", () => {
-  const win = loopArmDirective("win32");
-  assert.match(win, /--attest-file \.codexclaw\/attest\.json/);
-  assert.doesNotMatch(win, /--attest <json>/);
-  // A negative alone would pass on text that is merely DIFFERENT. Assert the agent
-  // actually receives the two-step recipe it needs.
-  assert.match(win, /Set-Content -Encoding utf8 \.codexclaw\/attest\.json/);
-  // Everything else must survive the branch.
-  assert.match(win, /ORCH-MANDATE-01/);
-  assert.match(win, /LOOP-UNIT-CHAIN-01/);
-  assert.match(win, /ORCH-ARTIFACT-01/);
-});
-
-// The POSIX text is pinned as a LITERAL snapshot rather than compared against the
-// function that produces it: a self-comparison passes no matter how badly the text is
-// mangled, which is exactly the guarantee this test exists to provide.
-test("posix arming directive is byte-identical to its pinned snapshot", () => {
-  const expected = [
-    "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
-    "Scope first: explicit interview-only, plan-only, HITL, read-only, no-goal, no-FSM, no-tests and no-delegation limits override the bare cxc-loop default.",
-    "A mention or quoted example alone is not authorization. This pointer and its referenced procedures never override those limits.",
-    "Load $codexclaw:cxc-loop and $codexclaw:cxc-pabcd for an actual loop request; bare cxc-loop execution means scoped HOTL.",
-    "No-delegation means no dispatch. No-tests does not forbid separately authorized build/typecheck. Report required but forbidden actions as unmet.",
-    "Only for authorized loop execution, apply steps 1-5 within scope. No-goal/no-FSM restrict creation/mutations, not read-only inspection. Narration is not persisted progress:",
-    "1. Session id: use the current SessionStart binding, corroborated by `cxc session current` when native CODEX_THREAD_ID is available.",
-    "   Missing/inherited/conflicting binding: use `cxc session current` then explicit `cxc session bind` in its verified cwd. Never set the environment id or replay hook JSON.",
-    "   SESSION-IDENTITY-01: never a parent/history id; binding alone does not verify hook execution or Stop-continuation.",
-    "2. `cxc orchestrate status --session <id>` — read the real phase first.",
-    "3. Inspect the host goal with get_goal first. Resume a matching unfinished goal; do not duplicate it.",
-    "   Only when no unfinished goal exists and new HOTL is authorized, create_goal with a detailed objective.",
-    "   For a different unfinished goal or unsupported resume, report the conflict; do not replace it or fabricate active status.",
-    '   New loop setup: `cxc loop init --objective "<same text>" --session <id>` -> register',
-    "   workPhases[] + criteria[]. On resume inspect/reuse the bound goalplan; do not reinitialize it.",
-    "   After status inspection, enter `cxc orchestrate P --session <id>` only when authorized and legal; an existing phase keeps its owner/edge contract.",
-    "   Explicit HITL keeps human pause points. Interview-only/plan-only stay at the requested stage without a goal or implementation; do not arm when state changes are forbidden.",
-    "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
-    `   e.g. \`cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"...\",\"planUnit\":\"devlog/_plan/YYMMDD_slug\",\"workPhaseId\":\"wp1\"}'\` —`,
-    "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
-    '   EVERY attest carries "from" and "to" naming the edge: they are coerced before any',
-    "   gate runs, so omitting them is refused on every edge (ATTEST-SHAPE-01).",
-    "   When a goalplan is bound, include the active workPhaseId in every gated attest",
-    "   (one work-phase = one full PABCD cycle).",
-    "   Bound chat D-close requires workPhaseId as the fixed close target unless every work-phase is already done.",
-    "5. After authorized D closes to IDLE with authorized work remaining under an active goal, re-enter",
-    "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
-    "HOTL does not grant push, merge, release, deploy or external-message permission. Stop for missing authority.",
-    "Preserve guards and real evidence; do not bypass a gate or fabricate an attestation/receipt to satisfy this advice.",
-  ].join("\n");
-  assert.equal(loopArmDirective("linux"), expected);
-  assert.equal(loopArmDirective("darwin"), expected);
+test("loop arming pointers preserve platform flags, identity and byte budget", () => {
+  for (const platform of ["linux", "darwin", "win32"] as const) {
+    const d = loopArmDirective(platform, {
+      phase: "IDLE", goal: "inactive", sessionId: "01234567-89ab-cdef-0123-456789abcdef",
+    });
+    assert.match(d, /ORCH-MANDATE-01/);
+    assert.match(d, /SESSION-IDENTITY-01/);
+    assert.match(d, /FSM IDLE, goal-active inactive/);
+    assert.match(d, /01234567-89ab-cdef-0123-456789abcdef/);
+    assert.match(d, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
+    assert.match(d, /\$codexclaw:cxc-pabcd phase-control\.md/);
+    assert.doesNotMatch(d, /Set-Content|create_goal|steps 1-5/);
+    assert.ok(Buffer.byteLength(d) <= 600);
+    if (platform === "win32") {
+      assert.match(d, /--attest-file \.codexclaw\/attest\.json/);
+      assert.doesNotMatch(d, /--attest <json>/);
+    } else assert.match(d, /--attest <json>/);
+  }
 });
 
 test("ORCH-MANDATE-01: explicit loop requests arm; incidental persistence does not", () => {
@@ -619,7 +572,6 @@ test("260714 wp4: B directive starves context to the active work-phase iff bound
   assert.doesNotMatch(bare, /ACTIVE WORK-PHASE/);
   const bound = phaseDirective("B", { activeWorkPhase: { id: "wp2", title: "second slice" } });
   assert.match(bound, /ACTIVE WORK-PHASE: wp2 — second slice/);
-  assert.match(bound, /OUT OF SCOPE until D closes/);
   assert.match(bound, /LOOP-UNIT-CHAIN-01/);
   // other phases ignore opts
   assert.equal(phaseDirective("C", { activeWorkPhase: { id: "wp2", title: "x" } }), phaseDirective("C"));
@@ -633,10 +585,10 @@ test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mand
     const parsed = JSON.parse(out.trimEnd());
     const ctx = parsed.hookSpecificOutput.additionalContext as string;
     assert.match(ctx, /orchestrate arming mandate \(ORCH-MANDATE-01\)/);
-    assert.match(ctx, /cxc orchestrate status --session <id>/);
-    assert.match(ctx, /cxc orchestrate P --session <id>/);
+    assert.match(ctx, /FSM IDLE/);
+    assert.match(ctx, /Session s1/);
     assert.match(ctx, /--attest <json>/);
-    assert.match(ctx, /cxc loop init --objective/);
+    assert.match(ctx, /runtime-lifecycle\.md/);
     // The mandate never arms the FSM by itself — commands do.
     const st = readState(cwd, "s1");
     assert.equal(st.orchestrationActive, false);
@@ -690,10 +642,10 @@ test("wp3: loop arming output is scope-first and does not activate a phase", () 
     try {
       const out = handleUserPromptSubmit(ups(prompt, cwd, "scope-first", "t1"));
       const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
-      assert.match(ctx, /explicit interview-only, plan-only/);
-      assert.match(ctx, /mention or quoted example alone is not authorization/);
-      assert.match(ctx, /HOTL does not grant push, merge, release, deploy or external-message permission/);
-      assert.ok(ctx.indexOf("Scope first:") < ctx.indexOf("create_goal"));
+      assert.match(ctx, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
+      assert.match(ctx, /User limits win/);
+      assert.match(ctx, /No push\/merge\/release\/deploy\/messages without permission/);
+      assert.ok(Buffer.byteLength(ctx) <= 600);
       const state = readState(cwd, "scope-first");
       assert.equal(state.phase, "IDLE");
       assert.equal(state.orchestrationActive, false);
@@ -704,7 +656,7 @@ test("wp3: loop arming output is scope-first and does not activate a phase", () 
   }
 });
 
-test("wp3: arming limits precede recipes on both platforms and never arm a phase", () => {
+test("wp3: arming owner pointers respect scoped requests without phase activation on both platforms", () => {
   for (const platform of ["linux", "win32"] as const) {
     for (const prompt of [
       "Run cxc-loop, plan-only; no-goal, no-FSM, no-tests, no-delegation; read-only",
@@ -715,22 +667,19 @@ test("wp3: arming limits precede recipes on both platforms and never arm a phase
       try {
         const ctx = JSON.parse(handleUserPromptSubmit(ups(prompt, cwd, "wp3-arm", "a1"), platform))
           .hookSpecificOutput.additionalContext as string;
-        assert.match(ctx, /no-FSM, no-tests and no-delegation limits override/);
-        assert.match(ctx, /mention or quoted example alone is not authorization/);
-        assert.match(ctx, /Only for authorized loop execution, apply steps 1-5 within scope/);
-        assert.match(ctx, /No-delegation means no dispatch/);
-        assert.match(ctx, /No-tests does not forbid separately authorized build\/typecheck/);
-        assert.match(ctx, /No-goal\/no-FSM restrict creation\/mutations, not read-only inspection/);
-        assert.ok(ctx.indexOf("Scope first:") < ctx.indexOf("create_goal"));
-        assert.ok(ctx.indexOf("get_goal first") < ctx.indexOf("create_goal"));
-        assert.match(ctx, /Resume a matching unfinished goal; do not duplicate it/);
-        assert.match(ctx, /Only when no unfinished goal exists and new HOTL is authorized, create_goal/);
-        assert.match(ctx, /different unfinished goal or unsupported resume, report the conflict/);
-        assert.match(ctx, /On resume inspect\/reuse the bound goalplan; do not reinitialize it/);
-        assert.match(ctx, /Stop for missing authority/);
-        assert.match(ctx, /do not bypass a gate or fabricate an attestation\/receipt/);
+        assert.match(ctx, /\$codexclaw:cxc-pabcd phase-control\.md/);
+        assert.match(ctx, /User limits win/);
+        assert.match(ctx, /ORCH-MANDATE-01/);
+        assert.match(ctx, /Owner: \$codexclaw:cxc-/);
+        assert.ok(Buffer.byteLength(ctx) <= 600);
+        assert.doesNotMatch(ctx, /create_goal|Set-Content/);
+        assert.match(ctx, /runtime-lifecycle\.md/);
+        assert.match(ctx, /FSM IDLE/);
+        assert.match(ctx, /Session wp3-arm/);
+        assert.match(ctx, /SESSION-IDENTITY-01/);
+        assert.match(ctx, /phase-control\.md/);
         if (platform === "win32") {
-          assert.match(ctx, /Set-Content -Encoding utf8/);
+          assert.match(ctx, /--attest-file/);
           assert.match(ctx, /--attest-file \.codexclaw\/attest\.json/);
           assert.doesNotMatch(ctx, /--attest <json>/);
         } else assert.match(ctx, /--attest <json>/);
@@ -1091,7 +1040,7 @@ test("wp3: plain P/I hints never enter or advance, including explicit no-FSM", (
           const out = handleUserPromptSubmit(ups(prompt, cwd, session, turn));
           const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
           assert.match(ctx, /TRIGGER-AUTHORITY-01/);
-          assert.match(ctx, /No-delegation means no dispatch/);
+          assert.match(ctx, /Owner: \$codexclaw:cxc-/);
           assert.ok(ctx.includes(`IPABCD: ${phase} (`));
           const after = readState(cwd, session);
           assert.equal(after.phase, before.phase);
@@ -2184,5 +2133,51 @@ test("wp7 preservation: chat D-close keeps dependsOn and outcome", () => {
     assert.deepEqual(taskFields(saved), expectedTaskFields);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L1 phase renderers retain markers, resolvable owners and byte ceilings", () => {
+  const labels = { I: "INTERVIEW", P: "PLAN", A: "AUDIT", B: "BUILD", C: "CHECK", D: "DONE" } as const;
+  for (const phase of ["I", "P", "A", "B", "C", "D"] as const) {
+    const body = phase === "I" ? interviewDirective() : phaseDirective(phase);
+    assert.ok(body.includes(`[codexclaw: ${labels[phase]}]`));
+    assert.match(body, /\$codexclaw:cxc-/);
+    assert.ok(Buffer.byteLength(body) <= 300, `${phase}: ${Buffer.byteLength(body)} B`);
+    assert.doesNotMatch(body, /architect proposal BEFORE|Choose Minds|Forbidden checks:/);
+    const footer = phaseFooter(phase);
+    assert.ok(footer.includes(`IPABCD: ${phase} (${labels[phase]})`));
+    assert.match(footer, /\$codexclaw:cxc-pabcd phase-control\.md/);
+    assert.ok(Buffer.byteLength(footer) <= 200);
+  }
+  const bound = phaseDirective("B", { activeWorkPhase: { id: "wp1", title: "Prompt reduction" } });
+  assert.match(bound, /ACTIVE WORK-PHASE: wp1 — Prompt reduction/);
+  assert.match(bound, /LOOP-UNIT-CHAIN-01/);
+  assert.ok(Buffer.byteLength(bound) <= 300);
+  assert.match(TRIGGER_AUTHORITY_NOTE, /TRIGGER-AUTHORITY-01/);
+  assert.ok(Buffer.byteLength(TRIGGER_AUTHORITY_NOTE) <= 120);
+  assert.match(AGBROWSE_SEARCH_DIRECTIVE, /\$codexclaw:cxc-search/);
+  assert.ok(Buffer.byteLength(AGBROWSE_SEARCH_DIRECTIVE) <= 200);
+});
+
+test("L1 loop request delivery carries session/state facts and a bounded search addendum on both platforms", () => {
+  for (const platform of ["linux", "win32"] as const) {
+    const cwd = freshCwd();
+    const session = "01234567-89ab-cdef-0123-456789abcdef";
+    try {
+      const ctx = JSON.parse(handleUserPromptSubmit(ups("Use agbrowse to verify and run cxc-loop", cwd, session, "bytes"), platform))
+        .hookSpecificOutput.additionalContext as string;
+      assert.ok(ctx.includes(session));
+      assert.match(ctx, /FSM IDLE, goal-active (inactive|unreadable)/);
+      assert.match(ctx, /ORCH-MANDATE-01/);
+      assert.match(ctx, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
+      assert.match(ctx, /\$codexclaw:cxc-search/);
+      assert.ok(Buffer.byteLength(ctx.split("\n\n")[0]) <= 600);
+      assert.ok(Buffer.byteLength(ctx) <= 852);
+      if (platform === "win32") assert.match(ctx, /--attest-file/);
+      else assert.match(ctx, /--attest <json>/);
+      assert.equal(readState(cwd, session).phase, "IDLE");
+      assert.equal(readState(cwd, session).orchestrationActive, false);
+      assert.equal(handleUserPromptSubmit(ups("run cxc-loop", cwd, session, "bytes"), platform), "");
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
 });

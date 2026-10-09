@@ -19,7 +19,7 @@
  */
 import { readFileSync, writeFileSync, statSync, renameSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { DECLARED_FEATURES, SOFT_FEATURES, SOFT_FEATURE_IMPACT, readDeclaredState,                  } from "./features.js";
+import { DECLARED_FEATURES, SOFT_FEATURES, readDeclaredState,                  } from "./features.js";
 import { INSTALL_MANIFEST, parseInstallManifest } from "./activate.js";
 
 export const SELF_HEAL_MARKER = "codexclaw-self-heal.json";
@@ -243,16 +243,12 @@ export function renderSelfHealContext(outcomes                            )     
   const lines           = [];
   if (healed.length > 0) {
     lines.push(
-      `[codexclaw] Enabled the codex feature flag(s) codexclaw declares: ${healed.join(", ")}. ` +
-        `The tool list is fixed when a session starts, so anything they expose becomes available ` +
-        `from the NEXT session, not this one.`,
+      `[codexclaw] Enabled ${healed.join(", ")}; tools available NEXT session.`,
     );
   }
   for (const f of failed) {
-    const impact = SOFT_FEATURE_IMPACT[f.key] ?? "이 플래그에 의존하는 기능이 비활성화된다.";
     lines.push(
-      `[codexclaw] Could not enable '${f.key}' (exit ${f.exitCode}). ${impact} ` +
-        `Recover with: codex features enable ${f.key}`,
+      `[codexclaw] ${f.key} disabled (exit ${f.exitCode}); repair: cxc doctor.`,
     );
   }
   return `${lines.join("\n")}\n`;

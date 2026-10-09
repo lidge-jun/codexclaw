@@ -141,42 +141,19 @@ export function detectRenameIntent(prompt        )          {
 export function buildSessionStartContext(id                  , cwd        )         {
   if (!id.managed) return "";
   const checkout = id.checkoutRoot ?? "unconfirmed (no .git entry found)";
-  const gitAdvice = id.checkoutRoot
-    ? "- To name things, ADOPT IN PLACE: stay here; `git switch -c <name>` (detached) or\n  `git branch -m <name>` names the branch; commit early. The app thread title is\n  renamed by the user in the app sidebar — agents cannot rename it."
-    : "- Stay here and commit early. The app thread title is renamed by the user in\n  the app sidebar — agents cannot rename it.";
   return [
     "[codexclaw: MANAGED WORKTREE — identity guard (WORKTREE-GUARD-01)]",
-    `This session runs inside a Codex-app-managed worktree: ${checkout}`,
-    `(cwd: ${cwd}; slot: ${id.slotRoot}; worktrees root: ${id.worktreesDir}).`,
-    "- This thread is BOUND to this worktree. NEVER delete, recreate, or \"start fresh\"",
-    "  to rename it — that destroys uncommitted work and breaks the app binding.",
-    "- App worktrees usually start detached-HEAD: the \"worktree name\" is the directory",
-    "  slot, not a branch. branch ≠ worktree ≠ thread title (three namespaces).",
-    gitAdvice,
-    "- Do NOT `git worktree move` the ACTIVE worktree: it invalidates this session's",
-    "  cwd and app rebinding is not guaranteed. Move only OTHER/inactive worktrees.",
-    "- The app may auto-delete this worktree on chat archive (snapshot kept) and",
-    "  retains only the latest N managed worktrees: commit early, push on approval.",
-    "- Detection covers the default root + CODEXCLAW_WORKTREE_ROOTS; a custom app",
-    "  worktree root needs that env. Full procedures: $codexclaw:cxc-worktree-guardian.",
-  ].join("\n");
+    `Checkout ${checkout}; cwd ${cwd === id.checkoutRoot ? "checkout" : cwd}; slot ${id.slot}.`,
+    "Adopt in place, never delete/recreate/move the active checkout. Owner: $codexclaw:cxc-worktree-guardian SKILL.md.",
+  ].join(" ");
 }
 
 export function buildRenameGuidance(id                  )         {
   return [
     "[codexclaw: MANAGED WORKTREE — rename/adopt guidance (WORKTREE-GUARD-02)]",
-    "Rename request on a managed worktree. ADOPT IN PLACE — do not delete/recreate:",
-    "1. Stay in this worktree. It is bound to the app thread; recreating breaks that.",
-    "2. Name the BRANCH: `git switch -c <name>` (detached HEAD) or `git branch -m <name>`.",
-    "3. Commit the work early — the app auto-deletes managed worktrees on archive",
-    "   (snapshot kept) and retains only the latest N.",
-    "4. The app THREAD TITLE is renamed by the user in the app sidebar; neither the",
-    "   directory nor the branch rename changes it.",
-    "5. Do NOT `git worktree move` the ACTIVE worktree (session cwd dies). Move/repair",
-    "   are for OTHER inactive worktrees: `git worktree move <old> <new>`,",
-    "   `git worktree repair <new>` — feature-detect with `-h`, no version gates.",
-    `Slot protected by the PreToolUse guard: ${id.slotRoot ?? "unknown"}.`,
-  ].join("\n");
+    `Slot ${id.slotRoot ?? "unknown"}. Adopt in place.`,
+    "Owner: $codexclaw:cxc-worktree-guardian SKILL.md.",
+  ].join(" ");
 }
 
 // ---------------------------------------------------------------------------
@@ -486,13 +463,8 @@ export function evaluateCommand(
 
 function denyReason(what        , id                  )         {
   return [
-    `[codexclaw: WORKTREE-GUARD-03] blocked \`${what}\`: it deletes this session's`,
-    `own Codex-app-managed worktree (slot: ${id.slotRoot ?? "unknown"}). This thread`,
-    "is bound to that worktree; deletion destroys uncommitted work.",
-    "Remedies: finish and commit here; rename in place (git switch -c / branch -m);",
-    "teardown of THIS session's worktree is done by the user (archive the thread in",
-    "the app — snapshot preserved — or remove it from OUTSIDE this session).",
-    "See $codexclaw:cxc-worktree-guardian.",
+    `[codexclaw: WORKTREE-GUARD-03] Denied deletion via \`${what}\`; active slot ${id.slotRoot ?? "unknown"}.`,
+    "Adopt in place. Owner: $codexclaw:cxc-worktree-guardian SKILL.md.",
   ].join(" ");
 }
 

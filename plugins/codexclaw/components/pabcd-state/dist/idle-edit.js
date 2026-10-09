@@ -46,16 +46,10 @@ const EDIT_TOOLS = new Set(["apply_patch", "Write", "Edit"]);
 const NUDGE_EVERY = 5;
 
 export function idleEditAdvisory(sessionId        )         {
-  // Safe backtick-anchored rewrite: the single cxc command below is backticked;
-  // everything else is prose (no bare "cxc " outside backticks).
+  // The advisory points to owners; retain the emit-time resolver for commands.
   const text = [
-    "[codexclaw IDLE-EDIT] You are editing files while the PABCD FSM is un-armed",
-    "but this session expects loop/goal work. If this edit belongs to the loop,",
-    `arm first: \`cxc orchestrate status --session ${sessionId}\` -> enter P ->`,
-    "advance edges with --attest (one work-phase = one full PABCD cycle).",
-    "C0 edits need no automatic devlog record. C1 edits record only in an existing owning unit.",
-    "Do not create a unit just for a fast-path edit; explicit user/release record requirements remain controlling",
-    "(UNIT-RESIDENCE-01, dev §0.1).",
+    `[codexclaw IDLE-EDIT] FSM unarmed; loop expected. Session ${sessionId}.`,
+    "Owner: $codexclaw:cxc-loop runtime-lifecycle.md; $codexclaw:cxc-dev SKILL.md §0.1.",
   ].join(" ");
   try {
     const inv = cxcInvocation(import.meta.url);

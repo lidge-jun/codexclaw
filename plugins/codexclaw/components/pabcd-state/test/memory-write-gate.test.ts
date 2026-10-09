@@ -71,8 +71,13 @@ test("BLOCK: an unauthorized memory-tool write is denied with both remedies", ()
   assert.equal(env.hookSpecificOutput.permissionDecision, "deny");
   assert.match(env.hookSpecificOutput.permissionDecisionReason, /MEMORY-WRITE-GATE/);
   assert.match(env.hookSpecificOutput.permissionDecisionReason, /allow-write/);
-  assert.match(env.hookSpecificOutput.permissionDecisionReason, /remember this/);
-  assert.match(env.hookSpecificOutput.permissionDecisionReason, /stored per cwd/);
+  assert.match(env.hookSpecificOutput.permissionDecisionReason, /explicit user memory request/);
+  assert.match(env.hookSpecificOutput.permissionDecisionReason, /\$codexclaw:cxc-recall SKILL\.md/);
+  assert.match(env.hookSpecificOutput.permissionDecisionReason, /No self-authorization/);
+  assert.ok(env.hookSpecificOutput.permissionDecisionReason.includes("2026-09-09T10-00-00-note.md"));
+  assert.ok(Buffer.byteLength(env.hookSpecificOutput.permissionDecisionReason) <=
+    220 + Buffer.byteLength(cwd) + Buffer.byteLength(SESSION) + Buffer.byteLength("2026-09-09T10-00-00-note.md"));
+  assert.doesNotMatch(env.hookSpecificOutput.permissionDecisionReason, /outlive codexclaw|Two ways forward/);
   assert.ok(
     env.hookSpecificOutput.permissionDecisionReason.includes(cwd),
     "deny reason must name the session cwd the grant has to be issued from",
@@ -308,7 +313,7 @@ test("deny reason names the session cwd", () => {
   const out = handleMemoryWriteGate(ptu({ cwd }));
   const env = JSON.parse(out.trim());
   const reason = env.hookSpecificOutput.permissionDecisionReason as string;
-  assert.match(reason, /stored per cwd/);
+  assert.match(reason, /\$codexclaw:cxc-recall SKILL\.md/);
   assert.ok(reason.includes(cwd), "deny must name session cwd, got: " + reason);
 });
 

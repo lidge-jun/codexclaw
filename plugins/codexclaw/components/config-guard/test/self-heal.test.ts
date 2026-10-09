@@ -154,13 +154,20 @@ test("a healed round says the flag lands from the NEXT session", () => {
   const out = renderSelfHealContext([{ action: "healed", key: SOFT }]);
   assert.match(out, new RegExp(SOFT));
   assert.match(out, /NEXT session/);
+  assert.match(out, /\[codexclaw\]/);
+  assert.ok(Buffer.byteLength(out) <= 100);
+  assert.doesNotMatch(out, /tool list is fixed|codexclaw declares/);
 });
 
-test("a failed round names the impact and the recovery command", () => {
+test("a failed round names the disabled flag, exit code and doctor pointer", () => {
   const out = renderSelfHealContext([{ action: "failed", key: SOFT, exitCode: 2, message: "unknown" }]);
   assert.match(out, /exit 2/);
   assert.match(out, /request_user_input/);
-  assert.match(out, new RegExp(`codex features enable ${SOFT}`));
+  assert.match(out, new RegExp(SOFT));
+  assert.match(out, /disabled/);
+  assert.match(out, /cxc doctor/);
+  assert.ok(Buffer.byteLength(out) <= 100);
+  assert.doesNotMatch(out, /Could not enable|Recover with: codex features enable/);
 });
 
 // --- real-filesystem wrappers + the deactivate hookup

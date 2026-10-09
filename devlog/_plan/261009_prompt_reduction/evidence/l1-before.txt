@@ -1,0 +1,10 @@
+  6640 B  SessionStart root (plain repo)  {"session-start-ensuring-provider-bridge":100,"session-start-healing-declared-features":224,"session-start-announcing-map-affordance":4878,"session-start-announcing-subagent-fallback":1162,"session-start-injecting-recall-context":276}
+  8192 B  SessionStart root (managed worktree)  {"session-start-ensuring-provider-bridge":100,"session-start-healing-declared-features":224,"session-start-announcing-map-affordance":4878,"session-start-announcing-subagent-fallback":1162,"session-start-injecting-recall-context":276,"session-start-detecting-managed-worktree":1552}
+     0 B  UPS ordinary prompt  {}
+  3926 B  UPS loop request + search  {"user-prompt-submit-checking-pabcd-trigger":3926}
+  3926 B  UPS phase hint (plan)  {"user-prompt-submit-checking-pabcd-trigger":3926}
+   367 B  UPS recall intent  {"user-prompt-submit-detecting-recall-intent":367}
+   943 B  UPS managed rename intent  {"user-prompt-submit-guiding-worktree-rename":943}
+  6390 B  SessionStart after compaction  {"session-start-ensuring-provider-bridge":100,"session-start-announcing-map-affordance":4878,"session-start-announcing-subagent-fallback":1162,"session-start-injecting-recall-context":250}
+  2408 B  First UPS after compaction  {"post-compact-injecting-bg-terminal-affordance":2408}
+over budget: SessionStart root (plain repo); SessionStart root (managed worktree); UPS loop request + search; UPS phase hint (plan); SessionStart after compaction; First UPS after compaction
