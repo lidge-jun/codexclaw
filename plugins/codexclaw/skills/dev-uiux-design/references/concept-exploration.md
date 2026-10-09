@@ -86,4 +86,3 @@ skips generation unless a new brand-visible composition remains unresolved.
 C0/C1 patches and utility CRUD/dashboard surfaces also skip. Generator
 unavailability is a skip only after the complete fallback sequence above.
 ---
-

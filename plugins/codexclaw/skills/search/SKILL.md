@@ -46,6 +46,7 @@ Before querying, read [Korean Intent Guard](references/intent-guard.md) and [que
 
 | Condition | Reference |
 | --- | --- |
+| Before every query | [Korean Intent Guard](references/intent-guard.md), [query rewrite](references/query-rewrite.md) |
 | Discovering candidate URLs (Tier 1) | [Hosted discovery](references/hosted-discovery.md) |
 | Opening a source to settle a claim (Tier 2) | [Source-open proof](references/source-open-proof.md) (SEARCH-BROWSE-01) |
 | Blocked, JS, PDF or table source | [Blocked-URL reader](references/blocked-url-reader.md) |

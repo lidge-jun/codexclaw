@@ -13,4 +13,3 @@
 > output/process hygiene (FAMILY-SLOP-01), `dev-uiux-design` = concept/taste judgment
 > (is this direction generic or domain-wrong?), `dev-frontend` = rendered implementation
 > tell detection and removal (FE-AI-TELL-01).
-

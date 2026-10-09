@@ -12,4 +12,3 @@ It does not open a repository of its own, install itself or its scripts as a
 prerequisite, publish, deploy, upload or open an artifact nobody requested, or start a
 loop of its own. When something beyond the requested artifact looks necessary, say so
 and let the caller decide.
-

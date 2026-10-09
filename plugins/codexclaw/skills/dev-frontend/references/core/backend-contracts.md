@@ -31,4 +31,3 @@ Frontend does not operate in isolation. When consuming backend APIs or implement
 - Playwright smoke tests validate rendered flows AFTER backend API + contract tests pass
 - Frontend unit tests mock API responses using the **same envelope shape** defined in `dev-backend` §5
 - When backend error codes change, frontend error-mapping tests must be updated
-

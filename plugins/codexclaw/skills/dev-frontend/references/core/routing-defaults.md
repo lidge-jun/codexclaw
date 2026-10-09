@@ -10,4 +10,3 @@ Default rules:
 - For text-heavy surfaces (landing, marketing, editorial, public service), apply typography wrapping defaults — see `typography-wrapping.md`. Dashboard table cells are excluded.
 
 ---
-

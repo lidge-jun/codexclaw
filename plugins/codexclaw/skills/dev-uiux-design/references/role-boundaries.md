@@ -19,4 +19,3 @@
 > product personalities, design-isms, preset tokens, aesthetic vocabulary — is
 > `STYLE_SAMPLE` (defined in `dev` §0.2): examples to draw from, never universal requirements. Objective UX
 > correctness (state coverage, accessibility, readability) is owned by [frontend objective/style classification](../../dev-frontend/references/core/design-intake.md#15-objective-gates-vs-style-samples) and stays STRICT/DEFAULT.
-

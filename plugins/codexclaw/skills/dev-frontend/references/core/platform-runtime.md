@@ -83,4 +83,3 @@ Error state hierarchy:
 5. App-level: root Error Boundary → offline/crash page
 
 ---
-

@@ -116,4 +116,3 @@ If the brief is ambiguous, follow UX-INTENT-01: Design Read → ONE clarifying f
 If the project needs persistent design tokens across sessions, save the Design Read as a full `DESIGN.md` in the project root. Format spec: `design-system-bootstrap.md § DESIGN.md Format`.
 
 ---
-

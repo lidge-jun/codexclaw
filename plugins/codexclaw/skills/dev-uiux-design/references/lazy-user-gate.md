@@ -15,4 +15,3 @@ minimize DECISIONS; repeated-work tools (dense profiles) minimize repeated MOTIO
 collapsing expert controls into wizards is the inverse failure. STRICT exemptions:
 destructive/irreversible actions, consent/privacy/legal, payments confirmation, and
 accessibility affordances are never collapsed into magic defaults.
-

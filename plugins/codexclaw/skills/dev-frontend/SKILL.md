@@ -52,4 +52,3 @@ Before designing or coding, classify the work:
 | Asset need | none, screenshot, product photo, diagram, chart, illustration, soft 3D, game asset | Prevents asset-free gradient/card UI |
 | Soft 3D/character gate | not allowed, subtle, primary | Prevents generic cute 3D/mascot slop |
 | Motion intensity | static, feedback-only, expressive, cinematic | Prevents cinematic motion in utility workflows |
-

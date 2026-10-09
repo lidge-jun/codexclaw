@@ -48,7 +48,7 @@ On Windows without Unix tools, use PowerShell equivalents: `Get-ChildItem -Recur
 ### "Should I create a new module?"
 
 ```
-Does the code serve a distinct responsibility? 
+Does the code serve a distinct responsibility?
   NO  -> Keep in existing module
   YES -> Is it used by 3+ other modules?
     NO  -> Co-locate with primary consumer

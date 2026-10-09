@@ -34,4 +34,3 @@ focused explanation. Neither phrase grants permission to publish or install.
 No tool or companion skill is assumed installed. Inspect available capabilities;
 if a required exporter is absent, deliver the useful editable source and identify
 the missing requested output. Never call print-ready HTML a generated PDF.
-

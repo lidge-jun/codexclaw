@@ -22,7 +22,7 @@ Class: C3 docs-only refactor. Shared working tree; no Git writes, builds, spawni
 | --- | --- | --- |
 | `plugins/codexclaw/skills/search/SKILL.md` | Tier 1 — Hosted web search (discovery) | `plugins/codexclaw/skills/search/references/hosted-discovery.md#tier-1--hosted-web-search-discovery` |
 | `plugins/codexclaw/skills/qa/SKILL.md` | 0. Scope split (single ownership) | `plugins/codexclaw/skills/qa/references/scope-and-binding.md#0-scope-split-single-ownership` |
-| `plugins/codexclaw/skills/qa/SKILL.md` | 1. Trust nothing | pointer to `plugins/codexclaw/skills/dev/SKILL.md#3-verification-before-completion-strict` (owner verified) |
+| `plugins/codexclaw/skills/qa/SKILL.md` | 1. Trust nothing | moved: every sentence is in `plugins/codexclaw/skills/qa/references/evidence-contract.md` (QA freshness fields, no inferred or partial verdicts, cannot-run is FAIL, structural-only NA, worker receipts), which the router requires before any verdict; dev §3 owns only the generic proof gate (corrected after research/15 finding 2) |
 | `plugins/codexclaw/skills/qa/SKILL.md` | 3. Evidence contract | `plugins/codexclaw/skills/qa/references/evidence-contract.md#3-evidence-contract` |
 | `plugins/codexclaw/skills/qa/SKILL.md` | 4. Adversarial classes | `plugins/codexclaw/skills/qa/references/adversarial-oracles.md#4-adversarial-classes` |
 | `plugins/codexclaw/skills/qa/SKILL.md` | 5. Oracle passes (depth scales by work class) | `plugins/codexclaw/skills/qa/references/adversarial-oracles.md#5-oracle-passes-depth-scales-by-work-class` |

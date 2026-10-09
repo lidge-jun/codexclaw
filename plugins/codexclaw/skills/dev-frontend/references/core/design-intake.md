@@ -69,4 +69,3 @@ Adapt dynamically based on user requests. Dashboard â†’ density up. Portfolio â†
 Korean app/tool surfaces usually need higher density and clearer hierarchy, not oversized hero text.
 
 ---
-

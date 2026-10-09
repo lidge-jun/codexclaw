@@ -42,4 +42,3 @@ Korean consumer apps often carry more information and rely on colorful,
 domain-specific category/KPI icons for fast scanning. For D4-D6 Korean-first apps,
 prefer a restrained system library plus a coherent colored domain layer rather than
 forcing every concept into monochrome outline icons.
-

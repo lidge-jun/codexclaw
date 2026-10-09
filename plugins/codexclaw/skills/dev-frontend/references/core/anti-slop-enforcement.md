@@ -51,4 +51,3 @@ Audit composite convergence tells under FE-CONVERGENCE-01 (`anti-slop.md`): hair
 ### Do not ship these tells (FE-AI-TELL-01)
 Enforce the complete AI-default tell catalogs in `anti-slop.md` and `layout-discipline.md`.
 ---
-

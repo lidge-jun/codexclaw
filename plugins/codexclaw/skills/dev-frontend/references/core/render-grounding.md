@@ -8,4 +8,3 @@ visually or interactively correct. One clean observation is enough for unchanged
 state; do not re-render unchanged output just to repeat evidence.
 
 ---
-

@@ -75,4 +75,3 @@ optional compatibility samples, **not the normal authoring route**. Their dark-t
 CDN and environment defaults are not requirements. The shell helper wraps trusted
 local content, is not a sanitizer or inline-fragment generator, and needs an explicit
 authorized output path for durable delivery. Do not install it as a prerequisite.
-

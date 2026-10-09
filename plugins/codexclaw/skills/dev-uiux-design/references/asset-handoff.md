@@ -10,4 +10,3 @@ not shipped assets.
 Production assets are generated after concept lock
 and must pass integration requirements
 (`../../dev-frontend/references/core/asset-requirements.md`).
-

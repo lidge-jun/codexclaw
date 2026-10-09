@@ -61,4 +61,3 @@ Default navigation architecture by work shape; read `references/responsive-nav.m
 ## 2.5 Visual Concept Exploration (UX-CONCEPT-GEN-01, DEFAULT)
 
 Before implementing a C2+ expressive or brand-visible surface, read the [concept procedure](references/concept-exploration.md).
-

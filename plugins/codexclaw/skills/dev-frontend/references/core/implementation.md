@@ -49,4 +49,3 @@ Read `aesthetics.md` for full guidelines. Summary:
 ### Cutout Asset Generation
 Every cutout asset MUST follow `asset-requirements.md` § Asset Background Strategy; load it with `ima2 skill front ref asset-requirements` when ima2 is available.
 ---
-

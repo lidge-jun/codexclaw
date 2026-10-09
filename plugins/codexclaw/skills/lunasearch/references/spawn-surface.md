@@ -15,4 +15,3 @@ this session's own working directory on this branch. Luna lanes are safe to fan
 out because discovery writes nothing, which is exactly why this shape does not
 transfer to parallel write work. Branch or worktree lanes need one task each —
 see `cxc-pabcd` [dispatch-surfaces.md](../../pabcd/references/dispatch-surfaces.md).
-

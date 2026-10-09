@@ -39,4 +39,3 @@ reduced motion where applicable. These are composition decisions and apply to th
 smallest inline visual. The separate inspection pass — reading actual contrast and
 reading order in the rendered result — belongs to the tiers that already render;
 adding ARIA does not establish accessibility conformance either way.
-

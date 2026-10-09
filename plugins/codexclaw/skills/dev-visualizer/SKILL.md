@@ -49,4 +49,3 @@ Two rules hold in every tier. An unrun check is never written up as a passed one
 defect promotes the artifact: once the reader reports something wrong, or a first
 render shows it, render each further fix before sending it. Nothing here is enforced
 by a hook, and the calling task's own verification gate still governs its work.
-
