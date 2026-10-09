@@ -6,6 +6,8 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.42] - 2026-10-09
+
 ### Added
 
 - A prompt layering standard (`structure/70_prompt_architecture.md`): six layers from guard code to references, a placement test for any rule, one owner per rule, and size budgets per layer. `scripts/check-prompt-architecture.mjs` runs inside `gate.mjs` and fails on an over-budget description or router, a broken skill link or `#anchor`, or a rule ID defined in two files. Skills already over budget are recorded at their exact size in `prompt-architecture-baseline.json` and may only shrink.
@@ -19,6 +21,10 @@ All notable changes to codexclaw are documented here. The format follows
 - Always-on prompt text is much shorter. Each SessionStart, UserPromptSubmit and PreToolUse message now carries the current fact, one cue and a pointer to the skill that owns the rule; guard decisions, markers, dedupe keys and caps are unchanged. Measured through the real hook commands: SessionStart 6,640 → 2,437 B in a plain repo (8,192 → 2,833 B in a managed worktree; the remaining 1,162 B dispatch card moves next), a loop request 3,926 → 400 B, the first prompt after compaction 2,408 → 439 B, recall intent 367 → 125 B. Healthy provider-bridge status is now silent.
 - `cxc loop` mutations (`init`, `add-work-phase`, `add-criterion`, task and criterion updates) print a one-line receipt instead of the whole plan (about 2.6 KB → 200 B with a long objective); `cxc loop show` and `validate` still print the full plan. Scripts that parsed the old output should call `show`.
 - DISPATCH-FORK-LANE-01: when `create_thread` children start with reduced permission, the dispatch docs now describe a same-directory `fork_thread` as the thread route for an independent lane. The fork kept full access on the maintainer's host, but it shares the coordinator's checkout, so the lane creates its own worktree, pins it with `cxc session source`, and passes it as every workdir. The docs also record a `fork_thread` worktree fork that created its worktree but never registered a task, and why routing that lane another way cannot duplicate work, unlike a queued `create_thread`.
+
+### Compatibility
+
+- No hook file, handler or guard decision changed, so no hook retrust is needed beyond the usual install. Scripts that parsed the full plan printed by `cxc loop add-*` or `init` should call `cxc loop show`. Skill text moved: agents that relied on long SKILL.md bodies now read the references their router names.
 
 ## [0.2.41] - 2026-10-06
 
