@@ -2,49 +2,41 @@
 
 Read while awaiting dispatched work or long external processes in either HITL or HOTL.
 
-These continuation/dispatch rules concern this goal's own work and delegated
-subagents, not independent peer advice. Peer timeouts do not authorize retirement,
-replacement, forced wakeups, or an unconditional wait; use
-[peer collaboration](../../dev/references/peer-collaboration.md). Do not send
-unsolicited progress notices or nudges to independent tasks while waiting. Contact requires
-an explicit user request or necessary confirmed blocking CI/merge collision
-coordination, plus host permission and wake checks.
+These rules concern this task's work and delegated children. Independent peer
+timeouts grant no retirement, replacement or forced wake authority; before peer
+contact, read [peer collaboration](../../dev/references/peer-collaboration.md).
 
 ## Wait visibility (LOOP-WAIT-VISIBILITY-01, DEFAULT)
 
-Long silent waits read as a dead loop to the user and invite interrupts that
-kill the work-phase (019f4456: a 6-minute silent `wait_agent` stretch looked
-like "stopped after one work-phase"). While waiting on subagents or long
-external processes inside a loop:
+While awaiting children or long external processes, keep waits bounded by the
+live host contract and give a short progress update between waits naming the work
+and elapsed time. Communication cadence does not require another API call.
 
-- `wait_threads` watches **1-8 targets** with `timeoutMs` **0-120000** (default 120000),
-  so more than eight lanes means deliberate batching: watch the batch whose result changes
-  your next decision, carry each target's `afterCursor`, and never read an unwatched lane
-  as idle. A wait that times out returns progress for every target and is a normal
-  outcome. See [Lane dispatch](lane-dispatch.md).
-- Prefer bounded waits (`wait_agent` with `timeout_ms` <= 120000) over one
-  long blocking wait; between waits, emit a one-line progress update naming
-  what is being waited on and the elapsed time. Keep the two cadences separate:
-  how often you tell the user something is not how often you may ask an external
-  API. When lanes and the observer share one quota, the polling budget belongs to
-  the coordinator — see `cxc-pabcd` `references/dispatch-surfaces.md`
-  (DISPATCH-POLL-BUDGET-01).
-- Know which wait you are calling. V1's `wait_agent` may carry the child's final
-  message in its result; V2's is a no-content mailbox and the answer arrives
-  separately. Reading the answer out of the wait result works on V1 and silently
-  returns nothing on V2, which looks like a stalled agent rather than a schema
-  mismatch. Threads are different again: `wait_threads` takes per-target cursors.
-  See `cxc-pabcd` `references/delegation.md`.
-- On V1 the same completed report can reach you through the notification, the wait
-  result and the close result. Consume it once per child task per turn and do not
-  issue an extra wait to re-fetch something you already have
-  (DISPATCH-CONSUME-ONCE-01 in `references/delegation.md`). Closing is still
-  required: a completed child holds a concurrency slot until it is closed.
-- A timed-out wait is not a reason to end the turn — but it is also not a licence to
-  poll forever. Either keep waiting within this turn, or yield with a verified,
-  authorized wake already armed for the work that will outlive it
-  (DISPATCH-WAKE-01). If no wake mechanism is available, say so instead of yielding
-  and assuming something will resume you.
+- For `wait_threads` bounds, batching and cursors, read [lane dispatch](lane-dispatch.md).
+- For V1/V2 wait shapes and DISPATCH-CONSUME-ONCE-01, read
+  [delegation](../../pabcd/references/delegation.md#detect-the-family-first-dispatch-schema-detect-01-strict).
+- A timeout is not a reason to end the turn or to poll forever. Continue within
+  authority, or apply the wake contract below before yielding.
+
+## Observer budget
+
+**DISPATCH-POLL-BUDGET-01 (DEFAULT).** Lanes and the observer may share credentials
+and API quota. Main owns the aggregate: use one coordination observer,
+deduplicate snapshots, fetch each PR once per scheduled observation by default,
+and use minutes rather than seconds for long hosted jobs.
+Before sustained polling, inspect the relevant budget (for example
+`gh api rate_limit`) and reserve headroom for workers. Back off on evidenced
+limit responses; a 403 alone does not prove exhaustion, accounts may differ,
+and rate-limit categories are not interchangeable. This guidance is not a limiter.
+
+## Wake before yielding
+
+**DISPATCH-WAKE-01 (DEFAULT).** Before yielding with work running, name its
+continuation owner and mechanism, verify the wake is active and retain its ID.
+If no wake is available, continue in the turn within authority or report the
+limitation; never assume automatic resumption. Deleting a wake removes only the
+trigger, neither completes a goal nor authorizes reinstating it. Muting
+notifications leaves monitoring active; a scheduled run grants no merge authority.
 
 ## Progress, stagnation, failure, unobservable (LOOP-WAIT-EVIDENCE-01, DEFAULT)
 
@@ -92,23 +84,20 @@ termination is unknown, start no overlapping writer. A finished child may still
 hold a queued checkpoint response; reconcile its real status, and never treat a
 checkpoint request as permission to duplicate its work.
 
-Recovery from confirmed failure follows the bounded lifecycle
-(DISPATCH-RETIRE-01): at most one retry on the same handle, then a fresh spawn
-with the failure folded into the new packet. When the configured
-first-fallback protocol manages the dispatch its result owns the next step
-instead — `ready` means claim the next attempt, `main-direct` means main
-reclaims the work, and `reconcile`/`stop` authorize neither a replacement
-spawn nor direct execution. Cancellation or an exhausted bound grants no
+**DISPATCH-RETIRE-01 (DEFAULT).** For confirmed failure without managed dispatch,
+allow at most one retry on the same handle, then a fresh context carrying the
+failure and plan. If two distinct contexts fail the same packet, main reclaims
+only after prior work has stopped and partial results are inspected. Transport
+failures stop equivalent retries; see [failure classes](../../pabcd/references/delegation.md#failure-classes).
+Managed recovery replaces this retry allowance; follow
+[configured first fallback](../../pabcd/references/delegation.md#configured-first-fallback).
+Cancellation or an exhausted bound grants no
 continuation: stop within authority and report the cancellation or bound,
 never as a provider failure.
 
-For managed stagnation or unusable final output, report `outcome:task_failed`
-with the matching `taskFailure.kind`, concrete `taskFailure.evidence`, the
-recorded child ID, `executionState:stopped` and termination/partial-work
-`reconciliation`. Follow the [report contract](../../pabcd/references/delegation.md#configured-first-fallback).
-Provider errors use `outcome:failed`; do not invent a provider code for a task
-failure or label cancellation or exhausted bounds as stagnation. Validate the
-final work before reporting `outcome:complete`, which closes the dispatch.
+For managed stagnation, unusable output and provider failures, follow the
+[report contract](../../pabcd/references/delegation.md#configured-first-fallback).
+Do not invent provider codes or report unvalidated work complete.
 
 ## Automation ownership before mutation
 

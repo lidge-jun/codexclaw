@@ -9,7 +9,8 @@ When entering HOTL mode, the main agent MUST create a host goal with
 `create_goal` before relying on Stop-continuation. The objective should be
 detailed, concrete, and approach the host limit of 4000 characters.
 
-The objective must include:
+The objective must include the [plan output](../../pabcd/references/plan-output.md)
+fields, with:
 
 - The concrete outcome to achieve.
 - The file change scope and explicit out-of-scope boundaries.
@@ -25,8 +26,9 @@ HOTL mode. After `create_goal`, run `cxc loop init --objective "<same text>"
 After `loop init`, REGISTER the plan: fill `workPhases[]` (with tasks) and
 `criteria[]` in the goalplan file before the first work-phase. An init-only
 empty plan now FAILS `cxc loop validate` (E8), and `update_goal
-{status:"complete"}` is hook-denied while the bound goalplan fails that gate
-(GOAL-COMPLETE-GATE-01) — an unregistered plan cannot certify completion.
+{status:"complete"}` follows the
+[completion gate](runtime-lifecycle.md#completion-gate-goal-complete-gate-01-shipped)
+(GOAL-COMPLETE-GATE-01); an unregistered plan cannot certify completion.
 
 ## Durable Goalplan
 
@@ -69,8 +71,8 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   `web`, `tui` and `desktop` make the QA receipt
   mandatory through validation on schemaVersion 2+ plans with a final gate and through
   the final-gate spawn guard on any plan with a recorded finalGate; otherwise the value
-  is a classification. Builds older than 0.2.37 drop `desktop` on read and erase it on
-  their next write; builds older than 0.2.38 do the same to `presented`. `id` is auto-assigned and `status` is derived. `expectedEvidence` has no
+  is a classification. See [compatibility](#compatibility) before opening these
+  fields with an old build. `id` is auto-assigned and `status` is derived. `expectedEvidence` has no
   CLI flag on `add-criterion` — it stays `""` unless set via a steering batch op or a
   hand edit — so do not plan on passing it. `capturedEvidence` is written by
   `meet-criterion --evidence`. A criterion only reaches `met` when `capturedEvidence`
@@ -120,10 +122,18 @@ The host owns goal state in `goals_1.sqlite`; codexclaw reads it read-only to de
 HITL vs HOTL. A goalplan records work phases, criteria, evidence, and assumptions; it
 is not another goal database.
 
+## Compatibility
+
+Builds older than 0.2.37 drop `desktop` on read and erase it on their next write;
+builds older than 0.2.38 do the same to `presented`. Do not let an incompatible
+build rewrite a plan carrying these fields.
+
 ## HOTL resource bounds
 
-Goal-mode loops are unattended. The P-phase loop-spec for each HOTL work-phase must
-state the tool/credential scope, write scope, token/cost budget, and wall-clock bound.
-For C4 surfaces, an unstated unattended scope is an ESCALATE-class omission: stop and
-ask before starting or continuing the loop. Hitting a resource bound is
-`BUDGET_EXHAUSTED`, not `DONE`.
+Record tool/credential and write scope in each HOTL P-phase loop-spec. Record
+only the user's stated token/cost and wall-clock bounds, or
+`none stated; host limits apply`; never invent a budget. Follow
+[plan output](../../pabcd/references/plan-output.md) and the live host goal-tool
+contract. For C4 work, missing unattended tool/credential or write scope is an
+ESCALATE-class omission: ask before starting or continuing that work. Hitting a
+stated user or host resource bound is `BUDGET_EXHAUSTED`, not `DONE`.
