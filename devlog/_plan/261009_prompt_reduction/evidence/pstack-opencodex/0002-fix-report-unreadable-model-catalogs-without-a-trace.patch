@@ -1,4 +1,4 @@
-From ed273106987005889ff7269ae955fb15e76191fd Mon Sep 17 00:00:00 2001
+From 1f6db410bea0027df08a71a71dd8c43530434ec2 Mon Sep 17 00:00:00 2001
 From: bitkyc08-arch <bitkyc08@gmail.com>
 Date: Fri, 9 Oct 2026 15:12:55 +0900
 Subject: [PATCH 2/2] fix: report unreadable model catalogs without a traceback
@@ -8,10 +8,11 @@ so a missing file, malformed JSON or an unexpected shape ended in a Python
 traceback. check-runtime already reports the same inputs as a BLOCKED
 diagnostic.
 
-load_catalog now validates through pstack_runtime.catalog_records and keeps its
-return shape; check-models reads the catalog once, inside one error boundary,
-and exits 1 with "cannot read model catalog <path>: <reason>". The disabled-model
-check reuses the validated records instead of parsing the file a second time.
+catalog_models() now shape-checks every entry in file order (duplicates are
+kept, so a disabled or malformed earlier entry is still seen), catalog_efforts()
+projects reasoning efforts, and load_catalog() keeps its return shape.
+check-models reads the catalog once inside one error boundary and exits 1 with
+"cannot read model catalog <path>: <reason>".
 ---
  tests/test_runtime.py     | 60 +++++++++++++++++++++++++++++++++++++++
  tools/pstack_opencodex.py | 33 +++++++++++++++++----

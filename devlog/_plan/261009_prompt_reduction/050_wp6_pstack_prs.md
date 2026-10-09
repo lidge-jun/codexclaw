@@ -70,3 +70,14 @@ Implemented in a clone of foxytanuki/pstack-opencodex (`/tmp/pso.EjTe/repo`, bas
 
 Finding 1 (duplicate slugs): routing validation through `catalog_records` (a slug-keyed dict) dropped earlier entries for a repeated slug, so a disabled first entry or a malformed first entry stopped failing. Fixed by `catalog_models(path)`, which shape-checks every entry in file order and keeps duplicates; `catalog_efforts` walks that list; `load_catalog` keeps its return shape and its original per-entry validation, so `check-runtime` behaves as on `2dd2800`. New regression `test_every_duplicate_slug_entry_is_still_checked` (both cases). PR B is now 28/28 locally; the patch in `evidence/pstack-opencodex/0002-…` is refreshed.
 
+
+## wp6 delivery and D summary (2026-10-09)
+
+- PR A: https://github.com/foxytanuki/pstack-opencodex/pull/1 (`fix/upstream-lock-case` `1ee7f61`).
+- PR B: https://github.com/foxytanuki/pstack-opencodex/pull/2 (`fix/check-models-catalog-errors` `1f6db41`, on top of A, disclosed in the body).
+- Checks: GitGuardian SUCCESS on both heads. The repository's CI workflow runs are `action_required` (GitHub's approval gate for a first-time contributor's fork PR); only the maintainer can approve them, so hosted CI on these heads is approval-blocked, not failed. Local proof: fresh macOS clones of both branches pass the repository's four CI steps (`WP6_VERIFIED` under `cxc receipt test`). Review: research/19 GO-WITH-FIXES (duplicate slugs) → fixed → research/20 PASS.
+
+Conclusion: two small fixes for defects reproduced on macOS went to pstack-opencodex; nothing went to Cursor's pstack (no external change has been merged there). Three ideas from the comparison landed in codexclaw itself through #289 (neutral review packets, failure classes for delegated calls, compact routing).
+
+What did not go well: the first PR B routed validation through a slug-keyed helper and silently dropped duplicate entries, a behavior change only an independent probe caught; the FSM's source-delta rule cannot see work in another repository, so the B evidence had to be the recorded patches. Evidence the direction is wrong: the maintainer rejecting the lock rename in favor of renaming `upstream/`, or the macOS job being unwanted CI cost.
+
