@@ -188,15 +188,15 @@ test("the goal-idle block emits did, not evidence, and closes its backticks", ()
   }
 });
 
-test("the arming directive shows a from/to-bearing object on both platforms", () => {
+test("the arming directive points to the attestation owner on both platforms", () => {
   for (const platform of ["linux", "win32"] as const) {
     const d = loopArmDirective(platform);
-    assert.match(d, /"from":"P","to":"A"/, `${platform}: P>A object`);
-    assert.match(d, /planUnit/, `${platform}: planUnit`);
-    assert.match(d, /ATTEST-SHAPE-01/, `${platform}: names the rule`);
+    assert.match(d, /ORCH-MANDATE-01/);
+    assert.match(d, /\$codexclaw:cxc-pabcd phase-control\.md/);
+    assert.doesNotMatch(d, /"from"|planUnit|Set-Content/);
+    assert.ok(Buffer.byteLength(d) <= 600);
   }
 });
-
 
 // ---------------------------------------------------------------------------
 // Drift detection. Everything above fixes today's text; this is what fails the

@@ -23,10 +23,7 @@ import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-suppor
 import {
   countSourceFiles,
   renderMapAffordance,
-  renderKwriteAffordance,
-  renderLoopAffordance,
   renderSessionBinding,
-  renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
   runPostCompactAffordance,
   runUserPromptAffordance,
@@ -65,159 +62,114 @@ test("count skips vendored/build dirs and hidden dirs", () => {
   assert.equal(countSourceFiles(root), 5);
 });
 
-test("size gate: below threshold -> no map line (skill line only), at threshold -> map line", () => {
+test("size gate: below threshold has no map; at threshold has map", () => {
   const small = tmp();
   seedSources(small, MAP_AFFORDANCE_MIN_FILES - 1);
   const smallOut = runMapAffordanceSessionStart("", small);
-  assert.notEqual(smallOut, "", "skill-search affordance is always on");
-  const smallEnv = JSON.parse(smallOut);
-  assert.doesNotMatch(smallEnv.hookSpecificOutput.additionalContext, /cxc map/);
-  assert.match(smallEnv.hookSpecificOutput.additionalContext, /cxc skill search/);
-  assert.match(smallEnv.hookSpecificOutput.additionalContext, /User questions:/);
+  assert.notEqual(smallOut, "", "owner pointers are always on");
+  const smallCtx = JSON.parse(smallOut).hookSpecificOutput.additionalContext;
+  assert.doesNotMatch(smallCtx, /cxc map/);
+  assert.match(smallCtx, /User questions:/);
+  assert.match(smallCtx, /\$codexclaw:cxc-dev async-questions\.md/);
 
   const big = tmp();
   seedSources(big, MAP_AFFORDANCE_MIN_FILES);
-  const out = runMapAffordanceSessionStart("", big);
-  assert.notEqual(out, "");
-  const env = JSON.parse(out);
+  const env = JSON.parse(runMapAffordanceSessionStart("", big));
   assert.equal(env.hookSpecificOutput.hookEventName, "SessionStart");
-  assert.match(env.hookSpecificOutput.additionalContext, /cxc map/);
-  assert.match(env.hookSpecificOutput.additionalContext, /cxc skill search/);
+  assert.match(env.hookSpecificOutput.additionalContext, /40 source files/);
+  assert.match(env.hookSpecificOutput.additionalContext, /cxc map <dir>/);
+  assert.match(env.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-repo-map/);
 });
 
-test("affordance is a POINTER, not the map body (no preload)", () => {
-  const text = renderMapAffordance(120);
-  assert.match(text, /on demand/);
-  assert.match(text, /stateless one-shot/);
-  // must not embed a map / rank listing — a pointer stays short and generic.
-  assert.doesNotMatch(text, /Rank value|:\d+:/);
-  assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
+test("map pointer keeps count facts and has no map body", () => {
+  for (const [count, fact] of [[40, "40"], [120, "60+"]] as const) {
+    const text = renderMapAffordance(count);
+    assert.ok(text.includes(`${fact} source files`));
+    assert.match(text, /cxc map <dir>/);
+    assert.match(text, /\$codexclaw:cxc-repo-map/);
+    assert.doesNotMatch(text, /Rank value|:\d+:/);
+    assert.ok(Buffer.byteLength(text) <= 150);
+  }
 });
 
-test("skill-search affordance is a POINTER: names both commands, stays short", () => {
-  const text = renderSkillSearchAffordance();
-  assert.match(text, /cxc skill search/);
-  assert.match(text, /cxc skill show/);
-  assert.match(text, /cxc-dev/, "must state that built-in discipline wins on conflict");
-  assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
-});
-
-test("kwrite affordance: always on, genre-free pointer to $cxc-kwrite", () => {
-  const text = renderKwriteAffordance();
-  assert.match(text, /cxc-kwrite/);
-  assert.match(text, /윤문/);
-  // universal guidance only — no platform/genre routing in the hook line
-  assert.doesNotMatch(text, /thread|쓰레드|SNS|블로그|DC/i);
-  assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
-  // rides every SessionStart envelope regardless of repo size
-  const small = tmp();
-  const out = runMapAffordanceSessionStart("", small);
-  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /cxc-kwrite/);
-});
-
-test("critical loop and stack guidance survives SessionStart and PostCompact without intent triggers", () => {
-  const text = renderLoopAffordance();
-  assert.match(text, /Loop contract:/);
-  assert.match(text, /cxc orchestrate status/);
-  assert.match(text, /one full PABCD cycle/i);
-  assert.match(text, /cxc-loop/);
-  assert.match(text, /Bare cxc-loop means scoped HOTL/);
-  assert.match(text, /Exact user limits and separately allowed actions/);
-  assert.match(text, /No extra external permissions/);
-  assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
-  // rides every SessionStart envelope regardless of repo size
-  const small = tmp();
-  const out = runMapAffordanceSessionStart("", small);
-  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Loop contract:/);
-  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Bare cxc-loop means scoped HOTL/);
-  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Exact user limits and separately allowed actions/);
-  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /No extra external permissions/);
-});
-
-test("wp3: SessionStart and deferred compact recovery emit the same scoped loop pointer", () => {
+test("SessionStart and compact recovery carry bounded owner pointers, without removed tutorials", () => {
   const cwd = tmp();
   try {
+    seedSources(cwd, MAP_AFFORDANCE_MIN_FILES);
     const outputs = [
-      ["SessionStart", runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: "wp3-child" }), cwd)],
+      ["SessionStart", runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: "12345678-1234-1234-1234-123456789abc" }), cwd)],
       ["UserPromptSubmit", afterCompact(cwd)],
     ] as const;
     for (const [event, out] of outputs) {
-      const envelope = JSON.parse(out).hookSpecificOutput;
-      assert.equal(envelope.hookEventName, event);
-      const ctx = envelope.additionalContext as string;
-      const pointer = ctx.split("\n\n").find(line => line.startsWith("[codexclaw] Loop contract:"));
-      assert.ok(pointer);
-      assert.match(pointer, /Bare cxc-loop means scoped HOTL; a mention alone grants no authority/);
-      assert.match(pointer, /Exact user limits and separately allowed actions scope this pointer and its owners/);
-      assert.match(pointer, /No-delegation means no dispatch/);
-      assert.match(pointer, /Read-only inspection remains allowed under no-goal\/no-FSM/);
-      assert.match(pointer, /No-tests does not forbid an explicitly allowed build/);
-      assert.match(pointer, /One work-phase = one full PABCD cycle/);
-      assert.match(pointer, /No extra external permissions/);
-      assert.ok(pointer.length < 600);
-      const questions = ctx.split("\n\n").filter(line => line.startsWith("[codexclaw] User questions:"));
-      assert.equal(questions.length, 1, `${event} must surface the question policy exactly once`);
-      assert.match(questions[0], /including active goals/);
-      assert.match(questions[0], /Outside Interview.*request_user_input_async/);
-      assert.match(questions[0], /do not expect replies or wait/);
-      assert.match(questions[0], /Continue authorized work/);
-      assert.match(questions[0], /Interview uses `request_user_input` only/);
-      assert.match(questions[0], /Subagents send question candidates to main/);
-      assert.match(questions[0], /exposed.*host-allowed/);
-      assert.match(questions[0], /silence grants no approval/);
-      assert.ok(questions[0].length < 800, "question policy stays a compact pointer");
+      const envelope = JSON.parse(out);
+      assert.deepEqual(Object.keys(envelope), ["hookSpecificOutput"]);
+      assert.deepEqual(Object.keys(envelope.hookSpecificOutput).sort(), ["additionalContext", "hookEventName"]);
+      assert.equal(envelope.hookSpecificOutput.hookEventName, event);
+      const ctx = envelope.hookSpecificOutput.additionalContext as string;
+      const lines = ctx.split("\n\n");
+      const loop = lines.filter(line => line.startsWith("[codexclaw] Loop contract:"));
+      assert.equal(loop.length, 1);
+      assert.match(loop[0], /\$codexclaw:cxc-loop/);
+      assert.match(loop[0], /\$codexclaw:cxc-pabcd/);
+      assert.match(loop[0], /User limits/);
+      assert.match(loop[0], /no authority/);
+      const questions = lines.filter(line => line.startsWith("[codexclaw] User questions:"));
+      assert.equal(questions.length, 1);
+      assert.match(questions[0], /request_user_input_async/);
+      assert.match(questions[0], /when exposed/);
+      assert.match(questions[0], /silence.*not approval/);
+      assert.match(questions[0], /\$codexclaw:cxc-dev async-questions\.md/);
+      const terminal = lines.filter(line => line.startsWith("[codexclaw] Long commands:"));
+      assert.equal(terminal.length, 1);
+      for (const fact of ["exec_command", "yield_time_ms", "session_id", "write_stdin"]) {
+        assert.ok(terminal[0].includes(fact));
+      }
+      assert.match(terminal[0], /\$codexclaw:cxc-dev native-execution\.md/);
+      assert.doesNotMatch(ctx, /External skill catalogs|cxc skill search|cxc-kwrite|Korean prose|DEV-STACK-06|stacked-prs\.md|native stacks/);
+      for (const line of lines) assert.ok(line.length <= 400);
+      assert.ok(Buffer.byteLength(ctx) <= (event === "SessionStart" ? 900 : 500));
       assert.equal(existsSync(join(cwd, ".codexclaw", "sessions")), false, "guidance must not start a phase");
       assert.equal(existsSync(join(cwd, ".codexclaw", "goalplans")), false, "guidance must not start a goal");
       if (event === "SessionStart") {
-        assert.match(ctx, /This session's id is `wp3-child`/);
-        assert.match(ctx, /--session wp3-child/);
-        assert.match(ctx, /MOST RECENT SessionStart binding line/);
-      } else assert.doesNotMatch(ctx, /This session's id/);
+        assert.match(ctx, /Session `12345678-1234-1234-1234-123456789abc`/);
+        assert.match(ctx, /--session 12345678-1234-1234-1234-123456789abc/);
+      } else assert.doesNotMatch(ctx, /\[codexclaw\] Session /);
     }
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("wp3: SessionStart preserves the complete binding literal for each session", () => {
+test("binding carries each session's current identity and command facts", () => {
   for (const id of ["parent-session", "child-session"]) {
-    const expected = [
-      `[codexclaw] This session's id is \`${id}\`. Every mutating`,
-      "`cxc orchestrate` command (I/P/A/B/C/D/reset) MUST pass",
-      `\`--session ${id}\` — the implicit latest-session fallback is`,
-      "disabled for writes, which prevents ACCIDENTAL implicit-fallback",
-      "collisions between concurrent/forked sessions.",
-      "IDENTITY RULE: use the MOST RECENT SessionStart binding line, never a parent/history id.",
-      "With native CODEX_THREAD_ID, verify via `cxc session current` before mutation.",
-      "Missing/inherited/conflicting binding: use `cxc session current`, then `cxc session bind` in its verified cwd.",
-      "Never set the environment id. Binding does not verify hooks or arm Stop-continuation.",
-    ].join(" ");
     const cwd = tmp();
     try {
       const out = runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: id }), cwd);
       const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
-      assert.equal(renderSessionBinding(id), expected);
-      assert.equal(ctx.split("\n\n")[0], expected);
+      const binding = ctx.split("\n\n")[0];
+      assert.ok(binding.startsWith(`[codexclaw] Session \`${id}\`.`));
+      assert.ok(binding.includes(`--session ${id}`));
+      assert.match(binding, /cxc orchestrate/);
+      assert.match(binding, /cxc loop/);
+      assert.match(binding, /cxc session current/);
+      assert.match(binding, /Never use parent\/history ids/);
+      assert.match(binding, /\$codexclaw:cxc-pabcd phase-control\.md/);
+      assert.ok(Buffer.byteLength(binding) <= 400);
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
 });
 
-test("G3: session-id binding line rides the SessionStart envelope", () => {
+test("G3: session binding rides SessionStart only when an id is supplied", () => {
   const small = tmp();
   const out = runMapAffordanceSessionStart(
-    JSON.stringify({ hook_event_name: "SessionStart", cwd: small, session_id: "abc-123" }),
-    small,
+    JSON.stringify({ hook_event_name: "SessionStart", cwd: small, session_id: "abc-123" }), small,
   );
   const ctx = JSON.parse(out).hookSpecificOutput.additionalContext;
-  assert.match(ctx, /session's id is `abc-123`/);
+  assert.match(ctx, /Session `abc-123`/);
   assert.match(ctx, /--session abc-123/);
-  // no session_id on stdin -> no binding line, envelope still valid
   const noId = runMapAffordanceSessionStart(JSON.stringify({ cwd: small }), small);
-  assert.doesNotMatch(JSON.parse(noId).hookSpecificOutput.additionalContext, /session's id/);
-  // direct render stays bounded and carries the fork identity rule
+  assert.doesNotMatch(JSON.parse(noId).hookSpecificOutput.additionalContext, /\[codexclaw\] Session /);
   const binding = renderSessionBinding("x".repeat(40));
-  assert.ok(binding.length < 800);
-  assert.match(binding, /IDENTITY RULE/);
-  assert.match(binding, /MOST RECENT SessionStart binding line/);
-  assert.match(binding, /prevents ACCIDENTAL implicit-fallback/, "must not overclaim (explicit replay remains)");
+  assert.ok(Buffer.byteLength(binding) <= 400);
+  assert.match(binding, /phase-control\.md/);
 });
 
 test("cwd is read from the stdin payload; malformed stdin falls back safely", () => {
@@ -238,36 +190,10 @@ test("cwd is read from the stdin payload; malformed stdin falls back safely", ()
   // malformed stdin -> uses fallback cwd (the big repo) -> still fires, no throw
   const viaFallback = runMapAffordanceSessionStart("{not json", big);
   assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /cxc map/);
-  assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
-  // empty stdin + small fallback -> no map line, skill line still present, no throw
+  assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /\$codexclaw:cxc-loop/);
+  // empty stdin + small fallback -> no map line, other pointers remain, no throw
   const smallOut = runMapAffordanceSessionStart("", empty);
   assert.doesNotMatch(JSON.parse(smallOut).hookSpecificOutput.additionalContext, /cxc map/);
-});
-
-test("stack guidance survives SessionStart and deferred compact recovery without a DevOps trigger", () => {
-  const cwd = tmp();
-  try {
-    const out = runMapAffordanceSessionStart(JSON.stringify({ cwd }), cwd);
-    for (const [event, raw] of [["SessionStart", out], ["UserPromptSubmit", afterCompact(cwd)]]) {
-      const envelope = JSON.parse(raw);
-      assert.equal(envelope.hookSpecificOutput.hookEventName, event);
-      const ctx = envelope.hookSpecificOutput.additionalContext;
-      const stackLine = ctx.split("\n").find((line: string) => line.includes("DEV-STACK-06/07"));
-      assert.ok(stackLine, `${event} must expose stack guidance even in an empty non-Git repo`);
-      assert.match(stackLine, /cxc-dev.*references\/stacked-prs\.md/);
-      assert.match(stackLine, /ordinary PRs\/manual chains by default/);
-      assert.match(stackLine, /parent base or Can Stack banner is not opt-in/);
-      assert.match(stackLine, /one Codex task each, not subagents \(same checkout\)/);
-      assert.match(stackLine, /the lane request authorizes them/);
-      assert.match(stackLine, /Per-PR CI is expected/);
-      assert.match(stackLine, /Do not suggest or create GitHub native stacks unless the user clearly and strongly requests them for this task/);
-      assert.doesNotMatch(stackLine, /Publish GitHub stacks natively/);
-      assert.match(stackLine, /not authorization/);
-      assert.ok(stackLine.length < 600, "global guidance must remain a bounded pointer");
-      assert.deepEqual(Object.keys(envelope), ["hookSpecificOutput"]);
-      assert.deepEqual(Object.keys(envelope.hookSpecificOutput).sort(), ["additionalContext", "hookEventName"]);
-    }
-  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
 test("hook JSON wires SessionStart to the cxc-ops dist entry", () => {
@@ -276,6 +202,27 @@ test("hook JSON wires SessionStart to the cxc-ops dist entry", () => {
   const hook = JSON.parse(readFileSync(hookPath, "utf8"));
   const cmd = hook.hooks.SessionStart[0].hooks[0].command;
   assert.match(cmd, /components\/cxc-ops\/dist\/cli\.js" hook session-start/);
+});
+
+test("non-default invocation is emitted as a current command fact", () => {
+  const cwd = tmp();
+  const previous = process.env.CODEXCLAW_CXC;
+  try {
+    process.env.CODEXCLAW_CXC = "chosen-cxc";
+    const ctx = JSON.parse(runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: "current" }), cwd))
+      .hookSpecificOutput.additionalContext as string;
+    assert.ok(ctx.includes("[codexclaw] cxc invocation: chosen-cxc"));
+    assert.match(ctx, /chosen-cxc session current/);
+    assert.match(ctx, /chosen-cxc orchestrate/);
+    assert.match(ctx, /chosen-cxc loop/);
+    assert.ok(Buffer.byteLength(ctx) <= 900);
+    process.env.CODEXCLAW_CXC = "cxc";
+    assert.doesNotMatch(JSON.parse(runMapAffordanceSessionStart("", cwd)).hookSpecificOutput.additionalContext, /cxc invocation:/);
+  } finally {
+    if (previous === undefined) delete process.env.CODEXCLAW_CXC;
+    else process.env.CODEXCLAW_CXC = previous;
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("degraded mode: no CODEXCLAW_CXC + cxc-free PATH falls back to the payload bin; rewrite is backtick-anchored only", () => {
@@ -339,8 +286,8 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.match(res.stdout, /additionalContext/, "symlink invocation must emit the envelope");
   assert.match(res.stdout, /cxc map/, "envelope must carry the map pointer");
-  assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
-  assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /native stacks unless the user clearly and strongly requests them for this task/);
+  assert.doesNotMatch(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /DEV-STACK-06|stacked-prs\.md/);
+  assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /\$codexclaw:cxc-dev native-execution\.md/);
   assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /User questions:.*request_user_input_async/);
   const compact = spawnSync(process.execPath, [link, "hook", "post-compact"], {
     input: JSON.stringify({ hook_event_name: "PostCompact", cwd: big, session_id: "linked" }), encoding: "utf8" });
@@ -351,7 +298,8 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   assert.equal(prompt.status, 0, prompt.stderr);
   const compactEnvelope = JSON.parse(prompt.stdout).hookSpecificOutput;
   assert.equal(compactEnvelope.hookEventName, "UserPromptSubmit");
-  assert.match(compactEnvelope.additionalContext, /DEV-STACK-06\/07/);
-  assert.match(compactEnvelope.additionalContext, /native stacks unless the user clearly and strongly requests them for this task/);
+  assert.doesNotMatch(compactEnvelope.additionalContext, /DEV-STACK-06|stacked-prs\.md/);
+  assert.match(compactEnvelope.additionalContext, /\$codexclaw:cxc-dev native-execution\.md/);
+  assert.ok(Buffer.byteLength(compactEnvelope.additionalContext) <= 500);
   assert.match(compactEnvelope.additionalContext, /User questions:.*request_user_input_async/);
 });

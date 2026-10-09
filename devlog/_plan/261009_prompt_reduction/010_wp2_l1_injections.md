@@ -86,3 +86,24 @@ Tests: `test/fallback-dispatch-cli.test.ts:90,97,101`, `dispatch-card.test.ts:17
 
 Continuity (LOOP-CONTINUITY-01), quoting the wp1 D summary: "the roadmap is locked ... Next: wp2 per 010, re-verified against the tree at P." Re-verification: `git diff 6520b7b8 HEAD -- plugins` is empty (the only commits since the audited snapshot are this unit's docs), so every anchor audited in research/02-05 still holds. The architect consultation and reflection for this doc are the wp1 records (002, research/01 and 03 ALIGNED); no design decision changed, so no new consultation. Branch: `codex/prompt-reduction` (PR A). Lane workers: four gpt-6.1-sol subagents with the amended scopes; main writes `evidence/measure-l1.mjs`, rebuilds dist once, and runs the gates.
 
+
+## wp2 B record
+
+Four gpt-6.1-sol lanes (A cxc-ops, B pabcd-state, C subagent-config, D recall/bg-wake/provider/config/permissions) changed 38 files (+681/-919); main rebuilt dist (`npm run build`, 193 files). Lane suites from source: A 206/0 (2 dist tests rerun after build), B 1,427/0, C 389/0, D 449/0 (2 Windows skips). Per-emitter before/after tables are in each lane's report, summarized in `evidence/l1-measurements.md`.
+
+Aggregate through the real hook commands (`evidence/l1-before.txt` → `evidence/l1-after.txt`):
+
+| Scenario | Before | After |
+|---|---:|---:|
+| SessionStart, plain repo | 6,640 | 2,437 |
+| SessionStart, managed worktree | 8,192 | 2,833 |
+| SessionStart after compaction | 6,390 | 2,354 |
+| UPS ordinary | 0 | 0 |
+| UPS loop request + search | 3,926 | 400 |
+| UPS phase hint | 3,926 | 400 |
+| UPS recall intent | 367 | 125 |
+| UPS managed rename intent | 943 | 240 |
+| First UPS after compaction | 2,408 | 439 |
+
+The SessionStart totals still include the unchanged 1,162 B dispatch card, which moves in wp3 with its owner text (amendment Blocker 3). Without it they are 1,275 / 1,671 / 1,192 B. So the SessionStart ≤ 2,400 B check is enforced at wp3 C, not here; every UPS scenario already meets ≤ 1,200 B.
+

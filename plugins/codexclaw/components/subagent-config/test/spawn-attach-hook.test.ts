@@ -390,7 +390,9 @@ test("v2 leaf guard: subagent-issued spawn is denied without the token", () => {
   const parsed = JSON.parse(out);
   assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
   assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /LEAF-TOPOLOGY-01/);
-  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /recursion grant token/);
+  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /one-use grant/);
+  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /\$codexclaw:cxc-pabcd delegation\.md/);
+  assert.ok(Buffer.byteLength(parsed.hookSpecificOutput.permissionDecisionReason) <= 150);
   assert.ok(!("updatedInput" in parsed.hookSpecificOutput), "D1 denial runs before normalization");
 });
 
@@ -534,8 +536,9 @@ test("root recursion request mints a capability and keeps coordinator scope cons
   assert.ok(String(ui.message).startsWith(LEAF_GUARD_BLOCK_COORDINATOR));
   assert.match(String(ui.message), /CXC-SUBSPAWN-GRANT:[a-f0-9]{64}/);
   assert.ok(!String(ui.message).includes(SUBSPAWN_TOKEN));
-  assert.match(ui.message as string, /Do NOT run cxc orchestrate, cxc loop, or goal commands/);
-  assert.match(ui.message as string, /Stay inside the task's stated\nfile\/write scope/);
+  assert.match(ui.message as string, /FSM\/loop\/goals/);
+  assert.match(ui.message as string, /scoped edits/);
+  assert.match(ui.message as string, /\$codexclaw:cxc-pabcd.*delegation\.md/);
   assert.doesNotMatch(ui.message as string, /Do NOT spawn/);
 });
 

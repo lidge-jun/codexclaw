@@ -229,18 +229,11 @@ export function classifyMemoryWrite(
 }
 
 export function denyReason(attempt                    , sessionId        , cwd = "")         {
-  const what =
-    attempt.surface === "tool"
-      ? `a memory note (${attempt.target})`
-      : `a file under the Codex memories directory (${attempt.target})`;
   const cwdHint = cwd === "" ? "the session working directory" : cwd;
   return [
-    `[codexclaw MEMORY-WRITE-GATE] Blocked a write of ${what}: this session has no explicit user request to remember anything.`,
-    "Memory notes outlive codexclaw and reach every later session, so they are written only when the user asks.",
-    "Two ways forward: ask the user to confirm they want this remembered (a prompt such as \"기억해둬\" or \"remember this\" authorizes the next write),",
-    `or record an explicit grant with \`cxc memory allow-write --session ${sessionId || "<id>"}\` from ${cwdHint}.`,
-    "The grant is stored per cwd; issuing it from a different working directory will print success and never be seen by this hook.",
-    "If the user did ask, say so and retry — the request must appear in their own message, not in yours.",
+    `[codexclaw MEMORY-WRITE-GATE] ${attempt.target}: no explicit user memory request or grant.`,
+    `Only after user authorization: \`cxc memory allow-write --session ${sessionId || "<id>"}\` in ${cwdHint}.`,
+    "No self-authorization. Owner: $codexclaw:cxc-recall SKILL.md.",
   ].join(" ");
 }
 

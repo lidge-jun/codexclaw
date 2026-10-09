@@ -303,7 +303,14 @@ test("010: an unresolved tombstone DENIES goal completion (the verdict is not wa
     tool_input: { status: "complete" },
   });
   assert.notEqual(deny, "", "completion must be denied while evidence is unverified");
-  assert.match(deny, /exhausted evidence verification/);
+  const context = JSON.parse(deny).hookSpecificOutput;
+  assert.equal(context.permissionDecision, "deny");
+  assert.match(context.additionalContext, /GOAL-COMPLETE-GATE-01/);
+  assert.match(context.additionalContext, /1 unverified subagents/);
+  assert.match(context.additionalContext, /a1/);
+  assert.match(context.additionalContext, /cxc evidence resolve --session s1/);
+  assert.match(context.additionalContext, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
+  assert.ok(Buffer.byteLength(context.additionalContext) <= 250);
 });
 
 test("010: status blocked stays allowed — the honest escape hatch survives", () => {
@@ -498,7 +505,12 @@ test("010: an unrecordable verdict marker denies completion", async () => {
     tool_input: { status: "complete" },
   });
   assert.notEqual(deny, "", "a verdict that could not be persisted must still deny");
-  assert.match(deny, /could not be confirmed/);
+  const context = JSON.parse(deny).hookSpecificOutput;
+  assert.equal(context.permissionDecision, "deny");
+  assert.match(context.additionalContext, /GOAL-COMPLETE-GATE-01/);
+  assert.match(context.additionalContext, /\.codexclaw\/evidence-unrecordable\//);
+  assert.match(context.additionalContext, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
+  assert.ok(Buffer.byteLength(context.additionalContext) <= 200);
 });
 
 test("010: an UNREADABLE marker directory also denies (not read as absent)", () => {

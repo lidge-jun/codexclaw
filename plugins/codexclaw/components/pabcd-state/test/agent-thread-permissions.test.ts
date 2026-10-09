@@ -342,8 +342,14 @@ test("advises agent-created default thread without opt-in", (t) => {
   assert.match(result.systemMessage, /agentCreatedThreadAutoAllow/);
   assert.match(result.systemMessage, /one-time network/);
   assert.equal(result.hookSpecificOutput.hookEventName, "SessionStart");
-  assert.match(result.hookSpecificOutput.additionalContext, /network/);
-  assert.match(result.hookSpecificOutput.additionalContext, /git/);
+  const context = result.hookSpecificOutput.additionalContext;
+  assert.match(context, /\[codexclaw\]/);
+  assert.match(context, /Agent-created thread/);
+  assert.match(context, /approvals/);
+  assert.match(context, /full-access config/);
+  assert.match(context, /sandbox\/tools/);
+  assert.ok(Buffer.byteLength(context) <= 150);
+  assert.doesNotMatch(context, /Request escalation explicitly|answers pending approvals/);
 });
 
 test("advisory is silent outside degraded agent-created context", (t) => {

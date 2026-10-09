@@ -322,48 +322,12 @@ export function detectLoopArmRequest(prompt: string): boolean {
 }
 
 const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
-  I: [
-    "[codexclaw: INTERVIEW]",
-    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
-    "This also scopes the Mind instructions below. Load $codexclaw:cxc-interview for dimensions, questions, loop classification and readiness. Do not implement.",
-    "INTERVIEW-GROUND-01: when tracker writes are authorized, `cxc scan record --session <id> --derive --map <questionId>=<dimension> ...`",
-    "records known[]/unknown[]; read `.codexclaw/sessions/<id>.json` before the next question. Report unmet actions, not false readiness.",
-    "INTERVIEW-RENDER-01: show knowns, the weakest dimension and the answer's impact before the question.",
-    "INTERVIEW-INDEPENDENT-01: batch only INDEPENDENT questions; independence governs, not a count.",
-  ].join("\n"),
-  P: [
-    "[codexclaw: PLAN]",
-    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
-    "Load $codexclaw:cxc-pabcd for P and C2+ plan-output; $codexclaw:cxc-dev selects class and relevant surfaces. No implementation yet.",
-    "Formal P, including C2 compact and plan-only P: obtain the configured read-only architect proposal BEFORE the executable plan, send that concrete plan to the SAME architect for reflection BEFORE A, and record the consultation per $codexclaw:cxc-pabcd phase-plan/plan-output. The C0/C1 fast path needs none.",
-    "Plan-only ends with the plan. Forbidden checks: NOT RUN; naming an artifact grants no write permission.",
-  ].join("\n"),
-  A: [
-    "[codexclaw: AUDIT]",
-    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
-    "Load $codexclaw:cxc-dev-code-reviewer for review and $codexclaw:cxc-dev for relevant surfaces; authorized PABCD A uses $codexclaw:cxc-pabcd's audit owner. Do not build yet.",
-    "Authorized dispatch follows the owner's named-skill, same-reviewer and verdict contracts; main synthesizes. Report unmet independent review; inline review is not its proof. Do not bypass gates.",
-    "An amendment changing a module-responsibility, data-structure, interface or execution-flow decision needs reflection from the SAME architect before A completes ($codexclaw:cxc-pabcd phase-audit); text/test clarification alone does not. The reviewer stays independent.",
-  ].join("\n"),
-  B: [
-    "[codexclaw: BUILD]",
-    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
-    "Use $codexclaw:cxc-dev for class/surfaces; authorized PABCD B uses $codexclaw:cxc-pabcd. Implement only authorized scope.",
-    "Forbidden checks: NOT RUN; no invented proof.",
-  ].join("\n"),
-  C: [
-    "[codexclaw: CHECK]",
-    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
-    "Use $codexclaw:cxc-dev and $codexclaw:cxc-dev-testing; authorized PABCD C uses $codexclaw:cxc-pabcd's check owner, including C-RENDER-GROUNDING-01.",
-    "No-tests forbids tests, not separately authorized build/typecheck. No-goal/no-FSM restrict creation/mutations, not read-only inspection.",
-    "Independent review needs owner applicability and dispatch permission. Report unmet review; inline review is not its proof. Forbidden checks: NOT RUN. No pass or gate bypass without real evidence.",
-  ].join("\n"),
-  D: [
-    "[codexclaw: DONE]",
-    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
-    "For authorized D closure load $codexclaw:cxc-pabcd; report evidence and unmet work, then IDLE. Remaining authorized work follows $codexclaw:cxc-loop from disk.",
-    "A header or budget/time stop is not completion; never fabricate attestations/receipts.",
-  ].join("\n"),
+  I: "[codexclaw: INTERVIEW] Authorized Interview only. Owner: $codexclaw:cxc-interview SKILL.md (INTERVIEW-GROUND-01, INTERVIEW-RENDER-01, INTERVIEW-INDEPENDENT-01).",
+  P: "[codexclaw: PLAN] Plan within user limits; no implementation. Owner: $codexclaw:cxc-pabcd phase-plan.md and plan-output.md; $codexclaw:cxc-dev SKILL.md for class/surfaces.",
+  A: "[codexclaw: AUDIT] Audit within user limits. Owner: $codexclaw:cxc-pabcd phase-audit.md; $codexclaw:cxc-dev-code-reviewer SKILL.md for independent review.",
+  B: "[codexclaw: BUILD] Implement authorized scope only. Owner: $codexclaw:cxc-pabcd SKILL.md; $codexclaw:cxc-dev SKILL.md for class/surfaces.",
+  C: "[codexclaw: CHECK] Verify within user limits (C-RENDER-GROUNDING-01). Owner: $codexclaw:cxc-pabcd phase-check.md; $codexclaw:cxc-dev-testing SKILL.md.",
+  D: "[codexclaw: DONE] Close only verified work within user limits. Owner: $codexclaw:cxc-pabcd phase-control.md; $codexclaw:cxc-loop runtime-lifecycle.md for remaining work.",
 };
 
 /**
@@ -396,62 +360,22 @@ export function phaseDirective(phase: Phase, opts?: { activeWorkPhase?: { id: st
   if (phase === "B" && opts?.activeWorkPhase && base) {
     return [
       base,
-      `ACTIVE WORK-PHASE: ${opts.activeWorkPhase.id} — ${opts.activeWorkPhase.title}. This cycle`,
-      "implements THIS slice only; other work-phases are OUT OF SCOPE until D closes",
-      "(LOOP-UNIT-CHAIN-01). Attest gated edges with this workPhaseId.",
+      `ACTIVE WORK-PHASE: ${opts.activeWorkPhase.id} — ${opts.activeWorkPhase.title}. This slice only (LOOP-UNIT-CHAIN-01).`,
     ].join("\n");
   }
   return base;
 }
 
 export function interviewDirective(): string {
-  // L17: the I directive now carries the Mind-dispatch contract so the main session
-  // actually runs the contradiction-rescan loop (select Minds -> dispatch read-only
-  // lenses -> triage -> ask the user proceed/keep-interviewing). This is what wires
-  // minds.ts into the production hook path. It only ever reaches the agent OUTSIDE a
-  // goal: the goal-active firewall (explicit + passive I-path) suppresses the whole
-  // Interview when a goal is active.
-  // Resolve backticked commands such as the I pointer's scan-record hint here,
-  // at emit time; detailed Mind configuration examples live in its reference.
-  // Safe per the resolveCxcInDirective contract: every cxc COMMAND in both parts is
-  // backticked; `$codexclaw:cxc-*` skill mentions carry no "`cxc " prefix.
+  // Keep both Interview and Mind owners on the production delivery path; the
+  // existing goal-active firewall suppresses the complete Interview directive.
   return resolveCxcInDirective(`${PHASE_DIRECTIVES.I}\n\n${MIND_DISPATCH_DIRECTIVE}`);
 }
 
-/**
- * Question-shape directive (L10.1 / 101). The main session (never a subagent)
- * uses request_user_input with this shape: background + why it matters + where
- * the answer changes the plan, 2-3 concrete options, recommendation FIRST, and
- * one impact/tradeoff sentence per option. assistant-emitted choice fences are
- * not the primary selector.
- */
-export const QUESTION_SHAPE_DIRECTIVE = [
-  "[codexclaw: INTERVIEW — user question]",
-  "Ask via request_user_input only (not an assistant choice fence). Each question must include:",
-  "- background: what is unresolved and why it matters,",
-  "- where the answer changes the plan,",
-  "- 2-3 concrete options (recommendation FIRST),",
-  "- one impact/tradeoff sentence per option.",
-  "Only the main session asks; subagents never generate or deliver questions.",
-  "While a question is pending, refuse or restate unrelated free-form answers.",
-].join("\n");
-
 export const AGBROWSE_SEARCH_DIRECTIVE = [
   "[codexclaw: SEARCH — agbrowse requested]",
-  "Honor the user's agbrowse preference when the required capability is available and authorized.",
-  "Load cxc-search and the shared dev/references/browser-routing.md policy when available.",
-  "agbrowse and Aside are optional tools; inspect the actual CLI/tool schema and session access.",
-  "For a known public URL, prefer HTTP proof such as `agbrowse fetch \"<url>\" --json --browser never`.",
-  "Discover candidate URLs with available hosted search first. Never use plain `agbrowse search \"<query>\"` as discovery.",
-  "For independent extraction or built-UI QA, use a suitable available browser capability.",
-  "Prefer suitable Aside for authenticated/judgment-heavy work unless the user specifies another tool.",
-  "If a preferred tool is absent, use a capability-preserving alternative and disclose the limitation; respect explicit tool restrictions.",
-  "Start a browser only for a diagnosed CDP connection failure and only when the session is task-owned.",
-  "HTTP, authentication, and missing-content failures do not justify blindly starting Chrome.",
-  "Inspect whether a side effect completed before retrying or switching tools; never assume cookies transfer.",
-  "Do not install tools or change accounts without authorization. No equivalent capability means report the gap, not PASS.",
-  "Verify inspect -> act -> re-inspect, read captured evidence, and confirm the actual source claim or interaction.",
-].join("\n");
+  "Use authorized capabilities. Owner: $codexclaw:cxc-search SKILL.md; $codexclaw:cxc-dev browser-routing.md.",
+].join(" ");
 
 /**
  * Arming mandate injected when a loop/goalplan request arrives against an
@@ -464,73 +388,21 @@ export const AGBROWSE_SEARCH_DIRECTIVE = [
  * phase the FSM will not move to. The directive still goes out — the request is
  * legitimate work — but the phase on disk is unchanged, and this says how to move it.
  */
-export const TRIGGER_AUTHORITY_NOTE = [
-  "[codexclaw: PHASE UNCHANGED — TRIGGER-AUTHORITY-01]",
-  "A lexical phase hint is not execution authority. The phase on disk is unchanged;",
-  "no-goal/no-FSM restrict creation/mutations, not read-only get_goal or orchestrate status.",
-  "Do not start orchestration for ordinary work. Preserve adjacency, attestations and ledger checks.",
-  "Only if a phase transition is authorized, use the cxc-pabcd phase-control owner and",
-  "`cxc orchestrate <I|P|A|B|C|D> --session <id>` — work edges carry --attest.",
-].join(" ");
+export const TRIGGER_AUTHORITY_NOTE =
+  "[codexclaw: PHASE UNCHANGED — TRIGGER-AUTHORITY-01] Hint grants no authority; transitions use cxc orchestrate.";
 
-/**
- * The arming mandate, injected at prompt time by UserPromptSubmit.
- *
- * Step 4 is platform-dependent because PowerShell cannot pass inline JSON as one
- * argv token: single quotes are stripped (`{from:P,to:A,did:wrote the plan}`) and
- * escaping them ends the quoted span so the value splits at its first space. Every
- * gated edge requires a `did` narrative, which always contains spaces, so there is
- * no inline spelling that works. Telling a Windows agent otherwise is how it
- * concludes the FSM is broken. Same reasoning as `stopNextCommand` below.
- */
-/** The P>A object every arming surface shows. One definition, so the win32 and
- *  posix branches cannot drift, and so from/to are never dropped from one of them. */
-const PA_ATTEST_EXAMPLE =
-  '{"from":"P","to":"A","did":"...","planUnit":"devlog/_plan/YYMMDD_slug","workPhaseId":"wp1"}';
-
-export function loopArmDirective(platform: NodeJS.Platform = process.platform): string {
-  const advance = platform === "win32"
-    ? [
-        "4. Advance EVERY forward edge yourself. On Windows write the JSON first, then attest:",
-        `   \`'${PA_ATTEST_EXAMPLE}' | Set-Content -Encoding utf8 .codexclaw/attest.json\` then`,
-        "   `cxc orchestrate <phase> --session <id> --attest-file .codexclaw/attest.json` —",
-        "   inline --attest cannot survive PowerShell argument parsing (quotes are stripped,",
-        "   and escaping them splits the value at its first space).",
-      ]
-    : [
-        "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
-        `   e.g. \`cxc orchestrate A --session <id> --attest '${PA_ATTEST_EXAMPLE}'\` —`,
-      ];
+/** Prompt-time facts plus the owners of arming and platform-specific attestations. */
+export function loopArmDirective(
+  platform: NodeJS.Platform = process.platform,
+  facts?: { phase: Phase; goal: string; sessionId: string },
+): string {
   return [
     "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
-    "Scope first: explicit interview-only, plan-only, HITL, read-only, no-goal, no-FSM, no-tests and no-delegation limits override the bare cxc-loop default.",
-    "A mention or quoted example alone is not authorization. This pointer and its referenced procedures never override those limits.",
-    "Load $codexclaw:cxc-loop and $codexclaw:cxc-pabcd for an actual loop request; bare cxc-loop execution means scoped HOTL.",
-    "No-delegation means no dispatch. No-tests does not forbid separately authorized build/typecheck. Report required but forbidden actions as unmet.",
-    "Only for authorized loop execution, apply steps 1-5 within scope. No-goal/no-FSM restrict creation/mutations, not read-only inspection. Narration is not persisted progress:",
-    "1. Session id: use the current SessionStart binding, corroborated by `cxc session current` when native CODEX_THREAD_ID is available.",
-    "   Missing/inherited/conflicting binding: use `cxc session current` then explicit `cxc session bind` in its verified cwd. Never set the environment id or replay hook JSON.",
-    "   SESSION-IDENTITY-01: never a parent/history id; binding alone does not verify hook execution or Stop-continuation.",
-    "2. `cxc orchestrate status --session <id>` — read the real phase first.",
-    "3. Inspect the host goal with get_goal first. Resume a matching unfinished goal; do not duplicate it.",
-    "   Only when no unfinished goal exists and new HOTL is authorized, create_goal with a detailed objective.",
-    "   For a different unfinished goal or unsupported resume, report the conflict; do not replace it or fabricate active status.",
-    '   New loop setup: `cxc loop init --objective "<same text>" --session <id>` -> register',
-    "   workPhases[] + criteria[]. On resume inspect/reuse the bound goalplan; do not reinitialize it.",
-    "   After status inspection, enter `cxc orchestrate P --session <id>` only when authorized and legal; an existing phase keeps its owner/edge contract.",
-    "   Explicit HITL keeps human pause points. Interview-only/plan-only stay at the requested stage without a goal or implementation; do not arm when state changes are forbidden.",
-    ...advance,
-    "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
-    '   EVERY attest carries "from" and "to" naming the edge: they are coerced before any',
-    "   gate runs, so omitting them is refused on every edge (ATTEST-SHAPE-01).",
-    "   When a goalplan is bound, include the active workPhaseId in every gated attest",
-    "   (one work-phase = one full PABCD cycle).",
-    "   Bound chat D-close requires workPhaseId as the fixed close target unless every work-phase is already done.",
-    "5. After authorized D closes to IDLE with authorized work remaining under an active goal, re-enter",
-    "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
-    "HOTL does not grant push, merge, release, deploy or external-message permission. Stop for missing authority.",
-    "Preserve guards and real evidence; do not bypass a gate or fabricate an attestation/receipt to satisfy this advice.",
-  ].join("\n");
+    `Loop requested; FSM ${facts?.phase ?? "IDLE"}, goal-active ${facts?.goal ?? "uninspected"}. Session ${facts?.sessionId ?? "<id>"}.`,
+    "User limits win; a mention grants no authority. No push/merge/release/deploy/messages without permission.",
+    "Owner: $codexclaw:cxc-loop runtime-lifecycle.md; $codexclaw:cxc-pabcd phase-control.md (SESSION-IDENTITY-01).",
+    platform === "win32" ? "Windows: --attest-file .codexclaw/attest.json." : "POSIX: --attest <json>.",
+  ].join(" ");
 }
 
 const STAGE_LABELS: Partial<Record<Phase, string>> = {
@@ -555,17 +427,7 @@ export function buildStageHeader(phase: Phase): string {
  */
 export function phaseFooter(phase: Phase): string {
   const label = STAGE_LABELS[phase] ?? phase;
-  return [
-    `Prompt-time persisted snapshot: \`IPABCD: ${phase} (${label})\`.`,
-    "At the end of your reply, print exactly one status line in the format",
-    "`IPABCD: <phase> (<LABEL>)`, using the latest verified persisted phase",
-    "and its matching label for the current SessionStart-bound session and cwd.",
-    "A later authorized, successful phase transition supersedes this snapshot for reporting.",
-    "Otherwise retain the latest verified state; a request, lexical hint, narration,",
-    "or failed transition is not a persisted phase change.",
-    "This reporting instruction requires no additional tool calls and authorizes no transitions or gate bypasses.",
-    "D closes to IDLE; a later authorized successful re-entry supersedes that resting state too.",
-  ].join(" ");
+  return `IPABCD: ${phase} (${label}) is a prompt-time snapshot; end with the latest verified persisted phase. No transition authority. Owner: $codexclaw:cxc-pabcd phase-control.md.`;
 }
 
 /** Append the phase footer to a directive/header (one blank line between). */
@@ -742,10 +604,11 @@ export function handleUserPromptSubmit(
       injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
     });
     const parts: string[] = [];
-    // 260724 WP1: resolve the invocation at emit time (constant untouched). Safe
-    // per resolveCxcInDirective: every cxc command in the arming directive is
-    // backticked; "cxc-loop"/"cxc-pabcd" skill nouns carry no "`cxc " prefix.
-    parts.push(resolveCxcInDirective(loopArmDirective(platform)));
+    // Current facts are read-only; arming and dedupe decisions remain above.
+    // Retain emit-time command resolution for any commands in the renderer.
+    parts.push(resolveCxcInDirective(loopArmDirective(platform, {
+      phase: state.phase, goal: getGoalActiveStatus(payload.session_id), sessionId: payload.session_id,
+    })));
     if (agbrowseRequested) parts.push(AGBROWSE_SEARCH_DIRECTIVE);
     return buildContextOutput("UserPromptSubmit", parts.join("\n\n"));
   }

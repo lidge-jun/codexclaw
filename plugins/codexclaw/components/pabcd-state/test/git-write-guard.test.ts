@@ -69,6 +69,8 @@ test("SHELL-SUBST-01: interpolated Markdown that runs a git write is denied with
   const verdict = evaluateGitSafety(incident, noBinding);
   assert.equal(verdict.action, "deny");
   assert.match((verdict as { reason: string }).reason, /SHELL-SUBST-01.*git cherry-pick/);
+  assert.match((verdict as { reason: string }).reason, /\$codexclaw:cxc-dev SKILL\.md/);
+  assert.ok(Buffer.byteLength((verdict as { reason: string }).reason) <= 250);
   assert.equal(evaluateGitSafety(`zsh -lc 'echo "${BT}git push${BT}"'`, noBinding).action, "deny", "-c payload is scanned");
   assert.equal(evaluateGitSafety("echo $(gh pr close 4)", noBinding).action, "deny");
   assert.equal(evaluateGitSafety("echo $(echo $(git reset --hard))", noBinding).action, "deny", "nested");
@@ -81,6 +83,8 @@ test("SHELL-SUBST-01: read-only substitutions pass; Markdown backticks get an ad
   const advised = evaluateGitSafety(`git commit -m "fix ${BT}parseArgs${BT} edge"`, noBinding);
   assert.equal(advised.action, "advise");
   assert.match((advised as { context: string }).context, /advisory.*parseArgs/);
+  assert.match((advised as { context: string }).context, /\$codexclaw:cxc-dev SKILL\.md/);
+  assert.ok(Buffer.byteLength((advised as { context: string }).context) <= 250);
   assert.equal(evaluateGitSafety(`git commit -m 'fix ${BT}parseArgs${BT}'`, noBinding).action, "allow");
 });
 
@@ -116,6 +120,8 @@ test("WORKTREE-GUARD-04: a git write in the native checkout is denied, naming bo
   const reason = (verdict as { reason: string }).reason;
   assert.match(reason, /WORKTREE-GUARD-04/);
   assert.ok(reason.includes(f.native) && reason.includes(f.source), reason);
+  assert.match(reason, /\$codexclaw:cxc-worktree-guardian SKILL\.md/);
+  assert.ok(Buffer.byteLength(reason) <= 200 + Buffer.byteLength(f.native) + 2 * Buffer.byteLength(f.source));
   assert.equal(evaluateGitSafety("git status && git commit -m x", f.ctx).action, "deny");
   assert.equal(evaluateGitSafety(`git -C ${f.native} push`, { ...f.ctx, startDir: f.source }).action, "deny");
 });

@@ -29,7 +29,7 @@ export interface PreToolUsePayload {
 
 const CREATE_GOAL_TOOL_NAME = "create_goal";
 const CREATE_GOAL_WARNING =
-  "Use create_goal with objective only. Omit token_budget so the goal stays unlimited, and put lifecycle status changes on update_goal.";
+  "CXC policy: create_goal objective only; omit token_budget. Lifecycle: update_goal.";
 
 import { getGoalActiveStatus, suppressesInterview, type GoalActiveDeps, type GoalActiveStatus } from "./goal-active.ts";
 import { readStateStrict } from "./state.ts";
@@ -61,7 +61,7 @@ function cxcInvocation(moduleUrl: string): string {
 
 const REQUEST_USER_INPUT_TOOL = "request_user_input";
 const GOAL_MODE_DENY_REASON =
-  "Goal mode denies blocking Interview / request_user_input, also when goal state is unreadable. For useful mid-work questions, use exposed and host-allowed request_user_input_async without expecting a reply; keep working with verified facts and authorized assumptions. Silence grants no approval.";
+  "Blocking Interview / request_user_input denied. Owner: $codexclaw:cxc-dev async-questions.md; silence is not approval.";
 
 const UPDATE_GOAL_TOOL_NAME = "update_goal";
 
@@ -221,12 +221,12 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled 
     // delegated anything still completes normally.)
     if (unreadable) {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: this session's state is unreadable, so unresolved subagent evidence failures cannot be ruled out. Restore or reset the session state after verifying the delegated work, or use update_goal status "blocked".`,
+        `GOAL-COMPLETE-GATE-01: session state unreadable; delegated evidence unconfirmed. Restore verified state. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
     if (pabcdEnabled && state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: a PABCD cycle is in flight at phase ${state.phase}. Close the cycle first (advance to D via \`cxc orchestrate ... --session ${payload.session_id}\`, or \`cxc orchestrate reset --session ${payload.session_id}\`), then mark the goal complete. If an external blocker prevents closing, use update_goal status "blocked" instead.`,
+        `GOAL-COMPLETE-GATE-01: cycle in flight at phase ${state.phase}, session ${payload.session_id}. Close via D. Owner: $codexclaw:cxc-pabcd phase-control.md.`,
       );
     }
     // EVIDENCE-TERMINAL-01 (260826): the SubagentStop gate no longer blocks a child
@@ -237,7 +237,7 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled 
     // with no bound goalplan.
     if (state.unverifiedCorrupt) {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: the subagent verification record for this session is unreadable or overflowed, so unresolved evidence failures cannot be ruled out. Re-verify the delegated work, or use update_goal status "blocked".`,
+        `GOAL-COMPLETE-GATE-01: subagent verification record unreadable or overflowed. Re-verify delegated work. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
     // A verdict that existed but could not be persisted must not read as "no verdict",
@@ -245,7 +245,7 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled 
     const marker = unrecordableVerdictStatus(payload.cwd, payload.session_id);
     if (marker.present || marker.unreadable) {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: a delegated subagent failed evidence verification but the verdict could not be confirmed (see .codexclaw/evidence-unrecordable/). Re-verify that work and clear the marker, or use update_goal status "blocked".`,
+        `GOAL-COMPLETE-GATE-01: delegated verdict unconfirmed (.codexclaw/evidence-unrecordable/). Re-verify and clear marker. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
     // Independent durable signal: a retry counter still at the cap means an agent
@@ -260,14 +260,14 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled 
         .map((e) => (e.resolvable ? e.agentId : "<no agent id>"))
         .join(", ");
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: ${unresolved.length} delegated subagent completion(s) exhausted evidence verification without a valid receipt (${named}). Their work is unverified. Re-run or verify it and record a receipt with \`cxc evidence resolve --session ${payload.session_id} --agent <agent-id> --receipt <path>\`, or use update_goal status "blocked" if an external blocker prevents it.`,
+        `GOAL-COMPLETE-GATE-01: ${unresolved.length} unverified subagents exhausted verification (${named}). Re-verify: \`cxc evidence resolve --session ${payload.session_id} --agent <agent-id> --receipt <path>\`. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
     // Checked AFTER the tombstone list so the specific verdict speaks first. This is
     // the fallback signal for the case a tombstone could not be written.
     if (hasSpentBudget(payload.cwd, payload.session_id)) {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: a delegated subagent exhausted its evidence-verification budget without a valid receipt. Re-verify that work and record a receipt with \`cxc evidence resolve --session ${payload.session_id} --agent <agent-id> --receipt <path>\`, or use update_goal status "blocked".`,
+        `GOAL-COMPLETE-GATE-01: subagent verification budget exhausted without receipt. Re-verify: \`cxc evidence resolve --session ${payload.session_id} --agent <agent-id> --receipt <path>\`. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
     if (pabcdEnabled && state.slug) {
@@ -287,12 +287,12 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled 
         if (!verdict.ok) {
           const reasons = verdict.reasons.slice(0, 4).join("; ");
           return goalCompleteDenyEnvelope(
-            `GOAL-COMPLETE-GATE-01: the session-bound goalplan '${state.slug}' fails the E8 quality/integrity gate: ${reasons}. Repair invalid dependency, outcome, and criteria references first; then finish remaining work and record fresh capturedEvidence in .codexclaw/goalplans/${state.slug}/goalplan.json (check with \`cxc loop validate --session ${payload.session_id} --slug "${state.slug}"\`), or use update_goal status "blocked" if an external blocker prevents completion. Do not shrink the objective to escape the gate (LOOP-CONTINUE-01).`,
+            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' fails E8: ${reasons}. Repair .codexclaw/goalplans/${state.slug}/goalplan.json; \`cxc loop validate --session ${payload.session_id}\`. Owner: $codexclaw:cxc-loop durable-goalplan.md (LOOP-CONTINUE-01).`,
           );
         }
       } else {
         return goalCompleteDenyEnvelope(
-          `GOAL-COMPLETE-GATE-01: session has a bound goalplan slug '${state.slug}' but the plan could not be read (missing or malformed). Restore the goalplan or use update_goal status "blocked".`,
+          `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' unreadable (missing or malformed). Restore it. Owner: $codexclaw:cxc-loop durable-goalplan.md.`,
         );
       }
     }

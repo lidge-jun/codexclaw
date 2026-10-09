@@ -20,24 +20,14 @@ test("L9.1: all five Mind ids exist with fixed prompts", () => {
   }
 });
 
-test("L9.3: dispatch directive states main owns loop + hook is injector-only + .codexclaw surface", () => {
-  assert.match(MIND_DISPATCH_DIRECTIVE, /OWN this interview loop/i);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /hook only injects directives/i);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /\.codexclaw\//);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /if you are yourself a subagent/i); // T7
-});
-
-test("MIND-SPAWN-SHAPE-01: runtime pointer preserves scope and resolves the schema-dependent owner", () => {
-  assert.match(MIND_DISPATCH_DIRECTIVE, /only when Mind dispatch is authorized/);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /Use the live tool schema; never invent unsupported arguments/);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /read-only explorer intent/);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /mind_<mindname> labels/);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /NON-full-history tasks and explicit user settings/);
-  const reference = MIND_DISPATCH_DIRECTIVE.match(/references\/[\w/-]+\.md/)?.[0];
-  assert.equal(reference, "references/mind-dispatch.md");
-  assert.ok(existsSync(new URL(`../../../skills/interview/${reference}`, import.meta.url)));
-  // Runtime routing/packaging proof only; native N22 proves actual schema use.
-  assert.match(MIND_DISPATCH_DIRECTIVE, /interview snapshot/i);
+test("MIND-SPAWN-SHAPE-01: dispatch pointer names the authorized main and existing owner", () => {
+  assert.match(MIND_DISPATCH_DIRECTIVE, /\[codexclaw: INTERVIEW — Mind dispatch\]/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /MIND-SPAWN-SHAPE-01/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /\$codexclaw:cxc-interview mind-dispatch\.md/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /Authorized main/);
+  assert.ok(existsSync(new URL("../../../skills/interview/references/mind-dispatch.md", import.meta.url)));
+  assert.doesNotMatch(MIND_DISPATCH_DIRECTIVE, /Choose Minds|concurrent cap|pack the lens prompt/);
+  assert.ok(Buffer.byteLength(MIND_DISPATCH_DIRECTIVE) <= 150);
 });
 
 test("L9.2: normalizeMindOutput rejects missing dimension/invalid severity/missing evidence", () => {

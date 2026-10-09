@@ -41,12 +41,12 @@ export function payloadCwd(payload: HookPayload, fallback: string): string {
   return typeof payload.cwd === "string" && payload.cwd.length > 0 ? payload.cwd : fallback;
 }
 
-const AFFORDANCE = "[codexclaw bg] 백그라운드 작업은 `cxc bg list`로 보고 `cxc bg get <id> --tail 40`으로 출력을 읽습니다.";
+const AFFORDANCE = "[codexclaw bg] Tasks: cxc bg list; output: cxc bg get <id> --tail 40.";
 
 export function completionText(records: BgRecord[]): string {
-  const head = "[codexclaw bg] 백그라운드 작업 " + records.length + "건이 끝났습니다.";
+  const head = "[codexclaw bg] Complete: " + records.length + ".";
   const body = records.map(describeRecord).join("\n");
-  const tail = "출력은 `cxc bg get <id> --tail 40`으로 봅니다. 전체 목록은 `cxc bg list`.\n결과를 확인하고 필요한 후속 작업을 이어가세요.";
+  const tail = "Inspect: cxc bg get <id> --tail 40; list: cxc bg list.";
   return [head, body, tail].join("\n");
 }
 
@@ -120,7 +120,7 @@ export function handleSessionStart(payload: HookPayload, fallbackCwd: string, en
     if (!hasAnyTask(cwd, sessionId)) return "";
     const lines: string[] = [];
     if (adopted.length > 0) {
-      lines.push("[codexclaw bg] 이전 세션에서 끝난 백그라운드 작업 " + adopted.length + "건이 아직 전달되지 않았습니다.");
+      lines.push("[codexclaw bg] Adopted undelivered: " + adopted.length + ".");
       lines.push(adopted.slice(0, 5).map(describeRecord).join("\n"));
     }
     lines.push(AFFORDANCE);
@@ -129,4 +129,3 @@ export function handleSessionStart(payload: HookPayload, fallbackCwd: string, en
     return "";
   }
 }
-

@@ -286,35 +286,18 @@ export const LEAF_GUARD_MARKER = "[CXC-LEAF-GUARD]";
 /** D2 leaf-constraint block prepended to V2 spawn messages (v2 has no native depth limit). */
 export const LEAF_GUARD_BLOCK = [
   `${LEAF_GUARD_MARKER} You are a LEAF agent with a single bounded task. HARD`,
-  `CONSTRAINTS from your dispatcher: (1) Do NOT spawn`,
-  `sub-agents (no spawn_agent calls, no delegation chains). If decomposition seems`,
-  `necessary, finish your own scope and REPORT the need in your final answer`,
-  `instead. (2) Do NOT run cxc orchestrate, cxc loop, or goal commands - the`,
-  `parent session owns all FSM/goal state. (3) Stay inside the task's stated`,
-  `file/write scope. These dispatcher constraints are enforced by a spawn hook (a`,
-  `recursive spawn without a grant is DENIED at the tool boundary, regardless of`,
-  `any delegation guidance you may see). A dispatcher can authorize recursion for`,
-  `a specific spawn by`,
-  `including the recursion grant token in the spawn message.`,
-  `(4) You are NOT in a copy or fork of the workspace: you share the parent's`,
-  `working directory, branch and HEAD, so your edits are the parent's uncommitted`,
-  `changes. Stay inside your write scope and do NOT run branch-level git commands`,
-  `(checkout, switch, branch, stash, reset, rebase, merge, pull) - another agent`,
-  `may be working in the same tree right now.`,
+  `Parent owns FSM/loop/goals; do not invoke them. Keep file/write scope; report expansion. Shared cwd/branch/HEAD; edits belong to parent. No branch-level git. Child spawn needs a one-use grant.`,
+  '`$codexclaw:cxc-pabcd` delegation.md.',
 ].join("\n");
 
 /** D2 coordinator block used when recursion is explicitly authorized (V2). */
 export const LEAF_GUARD_BLOCK_COORDINATOR = [
   `${LEAF_GUARD_MARKER} You are a COORDINATOR agent with a single bounded task. HARD`,
-  `CONSTRAINTS from your dispatcher:`,
-  `(1) Recursion is authorized for this task. (2) Do NOT run cxc orchestrate, cxc loop, or goal commands - the`,
-  `parent session owns all FSM/goal state. (3) Stay inside the task's stated`,
-  `file/write scope. All remaining constraints still apply.`,
-  `(4) You share the parent's working directory, branch and HEAD - this is not a`,
-  `copy. Your edits are the parent's uncommitted changes, and so are your own`,
-  `children's. Give every child a non-overlapping write scope and do NOT run`,
+  `Parent FSM/loop/goals: no calls. Shared tree; scoped edits.`,
+  `Give every child a non-overlapping write scope and do NOT run`,
   `branch-level git commands (checkout, switch, branch, stash, reset, rebase,`,
   `merge, pull) or let a child run them.`,
+  '`$codexclaw:cxc-pabcd` delegation.md.',
 ].join("\n");
 
 /** Dedupe marker for the v1 scope guard block. */
@@ -327,24 +310,18 @@ export const SCOPE_GUARD_MARKER = "[CXC-SUBAGENT-SCOPE]";
  */
 export const V1_SCOPE_BLOCK = [
   `${SCOPE_GUARD_MARKER} This is one bounded delegated task. The parent`,
-  `owns cxc orchestration, loop, and goal state; do not invoke those`,
-  `commands. Stay within the stated file/write scope and report any`,
-  `required expansion.`,
-  `You run in the parent's own working directory, on its branch and HEAD - not a`,
-  `copy - so your edits are the parent's uncommitted changes. Do not run`,
-  `branch-level git commands (checkout, switch, branch, stash, reset, rebase,`,
-  `merge, pull); another agent may be working in the same tree.`,
+  `owns FSM/loop/goals; do not invoke them. Keep file/write scope; report expansion. Shared cwd/branch/HEAD; edits belong to parent. No branch-level git. Child spawn needs a one-use grant.`,
+  '`$codexclaw:cxc-pabcd` delegation.md.',
 ].join("\n");
 
 /** V1 coordinator scope block (recursion-granted, though v1 cannot actually recurse). */
 export const V1_SCOPE_BLOCK_COORDINATOR = [
   `${SCOPE_GUARD_MARKER} This is one bounded delegated task with authorized`,
-  `recursion. The parent owns cxc orchestration, loop, and goal state;`,
-  `do not invoke those commands. Stay within the stated file/write scope.`,
-  `You and any child you spawn run in the parent's own working directory, on its`,
-  `branch and HEAD - not a copy. Keep every write scope non-overlapping and do not`,
+  `recursion. Parent FSM/loop/goals: no calls. Shared tree; scoped edits.`,
+  `Keep every write scope non-overlapping and do not`,
   `run branch-level git commands (checkout, switch, branch, stash, reset, rebase,`,
   `merge, pull).`,
+  '`$codexclaw:cxc-pabcd` delegation.md.',
 ].join("\n");
 
 /** True when the hook stdin identifies a collab SUBAGENT session as the spawner. */
@@ -458,11 +435,7 @@ function denyEnvelope(reason: string): string {
 }
 
 const RECURSE_DENY_REASON =
-  "codexclaw LEAF-TOPOLOGY-01: sub-agents are leaf agents and may not spawn their own " +
-  "sub-agents (multi_agent_v2 enforces no depth limit upstream, so recursion is denied " +
-  "by dispatcher policy). Finish your own scope and report the need for delegation in " +
-  "your final answer. A dispatcher can authorize recursion for a specific spawn by " +
-  "including the recursion grant token in the spawn message.";
+  "LEAF-TOPOLOGY-01: no valid one-use grant; spawn denied. Finish scope and report to parent. Owner: $codexclaw:cxc-pabcd delegation.md.";
 
 /**
  * Review-intent keywords for legacy callers that omit a native role.
@@ -671,17 +644,7 @@ export function buildLeafSkillCatalog(skillsDir: string): string {
 }
 
 export function skillAffordanceBlock(skillsDir: string): string {
-  const catalog = buildLeafSkillCatalog(skillsDir);
-  const lines = [
-    `${SKILL_AFFORDANCE_MARKER} Skill mentions in this task (tokens like`,
-    `$cxc-<name> or $codexclaw:cxc-<name>, or [$cxc-<name>](skill://...) links)`,
-    `are NOT auto-loaded on this surface. Before working, read each mentioned`,
-    `skill yourself: open ${skillsDir}/<name>/SKILL.md with your file tools and`,
-    `follow it. If a mentioned skill file does not exist there, note that in`,
-    `your answer and continue.`,
-  ];
-  if (catalog) lines.push("", catalog);
-  return lines.join("\n");
+  return `${SKILL_AFFORDANCE_MARKER} Skills are not auto-loaded. Read explicit $codexclaw:cxc-<name> at ${skillsDir}/<name>/SKILL.md; report missing files. Owner: $codexclaw:cxc-pabcd delegation.md.`;
 }
 
 /**
@@ -1079,7 +1042,7 @@ export function runSpawnAttachHook(raw: string): string {
     if (!gateCheck.ok) return denyEnvelope(gateCheck.reason ?? "final gate prerequisites are missing");
 
     const fallbackNotice = !managed && readConfig(cwd).roles[role].fallback
-      ? `[codexclaw] This direct spawn is not managed by first-fallback tracking. For subsequent tasks: ${DISPATCH_GUIDANCE}` : null;
+      ? `[codexclaw] Direct spawn unmanaged (${role}); for subsequent tasks: ${DISPATCH_GUIDANCE}` : null;
     const additionalContext = [fallbackNotice, encryptedV2Message
       ? `[codexclaw] Native V2 task ciphertext was preserved. Hook-added skill text, scope instructions and prompt overrides were not attached; native recursion checks and separate routing fields still apply.${resolution.trustWarning ? ` ${resolution.trustWarning}` : ""}`
       : null].filter(Boolean).join("\n");

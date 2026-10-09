@@ -2,12 +2,11 @@
 /**
  * provider-bridge — SessionStart hook entry (L23, detect-only).
  *
- * Detects opencodex (`ocx`) and emits a machine-readable provider status line
- * inside the SessionStart hook envelope. The `detect` command keeps the raw line
+ * Detects opencodex (`ocx`) and reports errors in the SessionStart hook envelope.
+ * Healthy/native sessions stay silent. The `detect` command keeps the raw line
  * for downstream catalog (L25) and GUI (L27) consumers. DETECT-ONLY (Q-P2-2):
  * never runs `ocx ensure`, never mutates codex config, never vendors opencodex.
- * Always exits 0 — a missing or broken ocx must not fail the session; the status
- * line carries native/provider/error so consumers can react.
+ * Always exits 0 — a missing or broken ocx must not fail the session.
  */
 import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { spawnSync } from "node:child_process";
@@ -70,11 +69,11 @@ export function runBridge(deps: DetectDeps = { which: whichOcx, runStatus: runOc
 
 export function runSessionStartHook(deps: DetectDeps = { which: whichOcx, runStatus: runOcxStatus }): number {
   const status = detectOcx(deps);
+  if (status.mode !== "error") return 0;
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      // SessionStart additionalContext: a single JSON status line for consumers.
-      additionalContext: renderStatusLine(status),
+      additionalContext: "[codexclaw provider] ocx status error; inspect: cxc doctor.",
     },
   };
   process.stdout.write(`${JSON.stringify(envelope)}\n`);

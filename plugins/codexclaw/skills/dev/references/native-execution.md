@@ -75,6 +75,8 @@ the same oversized batch merely to recover its missing tail.
 
 ## Wait for the thing that actually exists
 
+For long-running commands, use `exec_command` with a short `yield_time_ms`, then poll the returned `session_id` with `write_stdin` while continuing authorized work (BG-TERMINAL-AFFORDANCE-01).
+
 Code Mode wait takes a returned running-cell identifier. A shell session_id uses
 the shell continuation tool; an agent handle uses that agent's wait API. Do not
 interchange them. Yield/notify is partial progress, not completion. A wait timeout
