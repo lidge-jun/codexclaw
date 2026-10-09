@@ -47,3 +47,12 @@ Dispositions: W1, W3, W5 accepted as planned. W2 accepted: the collision test li
 
 Gap P1 (delivery dependency) resolved: PR B is stacked on PR A's branch (base `main` in the PR, with a note that it contains A's commit until A merges), so its fresh macOS proof runs on a tree where A's rename exists. If A merges first, B is rebased onto `main`. Gap P2 and P3 folded above.
 
+
+## wp6 P revalidation and A residuals (2026-10-09)
+
+Continuity, quoting the wp5 D summary: "Next: wp6 (pstack-opencodex PRs) per 050." Upstream `main` is still `2dd2800` with no PRs, so both defects and the plan stand. Fork: `lidge-jun/pstack-opencodex` (created during wp5 wait, no branches pushed).
+
+Residual 1 (research/09): the delivery line "independent, either order" is replaced. PR A targets `main`. PR B is branched from PR A's branch and also targets `main`; its description says it contains A's commit until A merges, links A, and names its own review range (the last commit). After A merges, B is rebased onto `main` and re-verified.
+
+Residual 2: tests are labeled by role. RED regression tests must fail on `2dd2800` and pass after the fix: the case-collision test against the real index (A); the eight catalog error-contract cases (B: missing file, malformed JSON, non-object document, non-array `models`, non-object entry, missing slug, non-string slug, malformed effort). Compatibility tests pass before and after: the collision helper's shared-parent fixture (A) and the successful `check-models` run with a clamped effort (B). C records the RED run on `2dd2800` and the GREEN run on each branch, plus `git diff --exit-code 2dd2800 HEAD -- upstream/`.
+
