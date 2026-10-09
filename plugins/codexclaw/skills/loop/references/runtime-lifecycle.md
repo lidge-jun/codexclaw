@@ -10,6 +10,9 @@ Before claiming loop progress, apply ORCH-MANDATE-01 in
 [phase control](../../pabcd/references/phase-control.md)
 (SESSION-IDENTITY-01, ORCH-ARTIFACT-01, ATTEST-SHAPE-01).
 A phase without a persisted transition and real artifact did not happen.
+If PATH resolves an older development `cxc`, run session, orchestrate and loop
+commands through the installed plugin, `node "<pluginRoot>/bin/cxc.mjs"`, and
+leave the development checkout untouched.
 
 For a new authorized HOTL goal, create the host goal, initialize and register its
 [durable plan](durable-goalplan.md), then enter P. On resume, inspect and reuse

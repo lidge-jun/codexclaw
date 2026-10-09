@@ -65,8 +65,12 @@ test("the resolver cell resolves the family and calls once", async () => {
 
 test("delegation.md carries the resolver cell verbatim under the card's anchor", () => {
   const doc = readFileSync(fileURLToPath(new URL("../../../skills/pabcd/references/delegation.md", import.meta.url)), "utf8");
-  assert.match(doc, /^#{2,4} SessionStart dispatch card$/m);
-  assert.ok(doc.includes(RESOLVER_CELL), "delegation.md must contain RESOLVER_CELL exactly");
+  const start = doc.search(/^#{2,4} SessionStart dispatch card$/m);
+  assert.ok(start >= 0, "delegation.md has no SessionStart dispatch card section");
+  const rest = doc.slice(start);
+  const next = rest.search(/\n#{1,4} /);
+  const section = next < 0 ? rest : rest.slice(0, next);
+  assert.ok(section.includes(RESOLVER_CELL), "the card section must contain RESOLVER_CELL exactly");
 });
 
 test("alias catalog membership and full ID passthrough", () => {

@@ -130,14 +130,14 @@ and apply managed fallback first. With the V1 override, use
 `tools.multi_agent_v1__spawn_agent`; wait, close, `send_input` and resume use the
 same `multi_agent_v1__` prefix. Catalog membership does not prove runtime routing.
 
-Aliases (map 2026-10-09; local catalog membership only):
+Aliases (map 2026-09-24; local catalog membership only):
 
 | Alias | ID |
 |---|---|
-| deepseek | `command-code/deepseek-deepseek-v4.1-flash-fast` |
+| deepseek | `command-code/deepseek-deepseek-v4.1-flash` |
 | swe2 | `devin/swe-2` |
-| kimi | `kimi/k3` |
-| sol | `gpt-6.1-sol` |
+| kimi | `kimi/kimi-for-coding-highspeed` |
+| sol | `gpt-6-sol` |
 | luna | `gpt-6-luna` |
 
 ```js
@@ -146,7 +146,7 @@ const s = n.filter(x => /spawn_agent$/.test(x));
 if (s.length !== 1) throw new Error("expected one spawn_agent helper, found " + s.length);
 const v1 = has(/(send_input|close_agent|resume_agent)$/), v2 = has(/(followup_task|interrupt_agent|list_agents)$/);
 if (v1 === v2) throw new Error("collab family unresolved: v1=" + v1 + " v2=" + v2);
-const a = {message:"Report your model and say OK; do not edit files.",model:"command-code/deepseek-deepseek-v4.1-flash-fast",reasoning_effort:"low"};
+const a = {message:"Report your model and say OK; do not edit files.",model:"command-code/deepseek-deepseek-v4.1-flash",reasoning_effort:"low"};
 text(await tools[s[0]](v1 ? a : {...a, task_name:"model_probe", fork_turns:"none"}));
 ```
 

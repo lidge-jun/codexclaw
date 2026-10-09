@@ -1,11 +1,11 @@
 import { readNativeCatalog } from "./catalog.js";
 
-export const ALIAS_MAP_DATE = "2026-10-09";
+export const ALIAS_MAP_DATE = "2026-09-24";
 export const MODEL_ALIASES = {
-  deepseek: "command-code/deepseek-deepseek-v4.1-flash-fast",
+  deepseek: "command-code/deepseek-deepseek-v4.1-flash",
   swe2: "devin/swe-2",
-  kimi: "kimi/k3",
-  sol: "gpt-6.1-sol",
+  kimi: "kimi/kimi-for-coding-highspeed",
+  sol: "gpt-6-sol",
   luna: "gpt-6-luna",
 }         ;
 
@@ -57,4 +57,3 @@ export function renderDispatchCard(env                    = process.env)        
   const card = core + "\nAliases (map " + ALIAS_MAP_DATE + ", ? = not in local catalog): " + items.join(", ");
   return card.length <= DISPATCH_CARD_MAX ? card : core;
 }
-

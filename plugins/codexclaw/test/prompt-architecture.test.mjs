@@ -79,3 +79,28 @@ test("router baseline: exact size only, eligible skills only", () => {
   assert.match(run(fixture({ newcomer: { "SKILL.md": big } }, { routers: { newcomer: size } })).violations.join("\n"), /outside the frozen eligible set/);
 });
 
+
+test("reviewer-reproduced false greens now fail", () => {
+  // Inline-code rule ID in a heading, defined in two files.
+  const headingDup = run(fixture({ alpha: { "SKILL.md": skill("Use for alpha.", "## \x60FOO-BAR-01\x60 rule\n") }, beta: { "SKILL.md": skill("Use for beta.", "## \x60FOO-BAR-01\x60 again\n") } }));
+  assert.match(headingDup.violations.join("\n"), /rule FOO-BAR-01: defined in 2 files/);
+  // Emphasized class and the "(CLASS, ID" lead-in both count as definitions.
+  const decorated = run(fixture({ alpha: { "SKILL.md": skill("Use for alpha.", "FOO-BAR-01 (**STRICT**) must do.\n") }, beta: { "SKILL.md": skill("Use for beta.", "**Lead (DEFAULT, FOO-BAR-01):** do.\n") } }));
+  assert.match(decorated.violations.join("\n"), /rule FOO-BAR-01: defined in 2 files/);
+  // Folded and literal YAML descriptions are measured in full.
+  const folded = "---\nname: x\ndescription: >\n  " + "y".repeat(400) + "\n---\n# S\n";
+  assert.match(run(fixture({ alpha: { "SKILL.md": folded } })).violations.join("\n"), /description alpha: 400 chars exceeds 320/);
+  const literal = "---\nname: x\ndescription: |\n  " + "z".repeat(200) + "\n  " + "z".repeat(200) + "\n---\n# S\n";
+  assert.match(run(fixture({ alpha: { "SKILL.md": literal } })).violations.join("\n"), /description alpha: 401 chars exceeds 320/);
+  const shortYaml = fixture({ alpha: { "SKILL.md": skill("Use for alpha."), "agents/openai.yaml": "interface:\n  display_name: a\n  short_description: >\n    " + "s".repeat(150) + "\n" } });
+  assert.match(run(shortYaml).violations.join("\n"), /short_description alpha: 150 chars exceeds 100/);
+  // Reference-style link definitions are resolved.
+  const refStyle = run(fixture({ alpha: { "SKILL.md": skill("Use for alpha.", "| a | [owner][r] |\n\n[r]: references/nope.md\n") } }));
+  assert.match(refStyle.violations.join("\n"), /references\/nope\.md does not exist/);
+});
+
+test("a heading with an inline-code rule ID is a valid link target", () => {
+  const root = fixture({ alpha: { "SKILL.md": skill("Use for alpha.", "See [r](references/r.md#foo-bar-01-rule).\n"), "references/r.md": "## \x60FOO-BAR-01\x60 rule\n" } });
+  assert.deepEqual(run(root).violations, []);
+});
+

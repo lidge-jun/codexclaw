@@ -43,24 +43,39 @@ function walk(dir, out = []) {
   return out;
 }
 
-export function frontmatterDescription(text) {
-  const fm = /^---\n([\s\S]*?)\n---/.exec(text);
-  if (!fm) return null;
-  const line = fm[1].split("\n").find((l) => l.startsWith("description:"));
-  if (!line) return null;
-  let v = line.slice("description:".length).trim();
-  if (v.startsWith('"')) { try { v = JSON.parse(v); } catch { v = v.slice(1, -1); } }
-  else if (v.startsWith("'")) v = v.slice(1, -1).replace(/''/g, "'");
+/**
+ * Read one YAML scalar by key: plain, single- or double-quoted, or a folded/literal
+ * block (> or |, whose indented continuation lines are counted). Any other form is
+ * measured as written, so an unusual spelling is never silently shortened.
+ */
+export function yamlScalar(text, key) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const keyRe = new RegExp("^\\s*" + key + ":(\\s|$)");
+  const i = lines.findIndex((l) => keyRe.test(l));
+  if (i < 0) return null;
+  const indent = /^\s*/.exec(lines[i])[0].length;
+  const v = lines[i].replace(new RegExp("^\\s*" + key + ":"), "").trim();
+  if (/^[>|][+-]?\d*$/.test(v)) {
+    const body = [];
+    for (let j = i + 1; j < lines.length; j++) {
+      const l = lines[j];
+      if (l.trim() !== "" && /^\s*/.exec(l)[0].length <= indent) break;
+      body.push(l.trim());
+    }
+    return body.join(v.startsWith(">") ? " " : "\n").trim();
+  }
+  if (v.startsWith('"')) { try { return JSON.parse(v); } catch { return v.slice(1, -1); } }
+  if (v.startsWith("'")) return v.slice(1, -1).replace(/''/g, "'");
   return v;
 }
 
+export function frontmatterDescription(text) {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  return fm ? yamlScalar(fm[1], "description") : null;
+}
+
 function shortDescription(yamlText) {
-  const m = /^\s*short_description:\s*(.*)$/m.exec(yamlText);
-  if (!m) return null;
-  let v = m[1].trim();
-  if (v.startsWith('"')) { try { v = JSON.parse(v); } catch { v = v.slice(1, -1); } }
-  else if (v.startsWith("'")) v = v.slice(1, -1).replace(/''/g, "'");
-  return v;
+  return yamlScalar(yamlText, "short_description");
 }
 
 /** GitHub-style heading slug. */
@@ -68,14 +83,19 @@ export function slug(heading) {
   return heading.trim().toLowerCase().replace(/<[^>]+>/g, "").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/g, "-");
 }
 
+function stripFences(text) {
+  return text.replace(/^(\x60{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
+}
+
 function stripCode(text) {
-  return text.replace(/^(\x60{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "").replace(/\x60[^\x60\n]*\x60/g, "");
+  return stripFences(text).replace(/\x60[^\x60\n]*\x60/g, "");
 }
 
 function headings(text) {
   const out = new Set();
   const counts = new Map();
-  for (const m of stripCode(text).matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)) {
+  // Headings keep inline code text; GitHub drops only the backticks from the slug.
+  for (const m of stripFences(text).matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)) {
     const explicit = /\{#([A-Za-z0-9_-]+)\}\s*$/.exec(m[1]);
     if (explicit) out.add(explicit[1].toLowerCase());
     const base = slug(m[1].replace(/\s*\{#[A-Za-z0-9_-]+\}\s*$/, ""));
@@ -134,20 +154,28 @@ export function checkPromptArchitecture({ pluginRoot = DEFAULT_PLUGIN_ROOT, base
     const text = readFileSync(file, "utf8");
     const rel = relative(pluginRoot, file).split(sep).join("/");
     const prose = stripCode(text);
-    for (const m of prose.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-      const target = m[1];
+    const fenced = stripFences(text);
+    const targets = [...prose.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)].map((m) => m[1]);
+    for (const m of prose.matchAll(/^\s{0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?/gm)) targets.push(m[1]);
+    for (const target of targets) {
       if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
       const [pathPart, frag] = target.split("#");
       const dest = pathPart ? resolve(dirname(file), decodeURIComponent(pathPart)) : file;
       if (!existsSync(dest)) { violations.push("link " + rel + ": " + target + " does not exist"); continue; }
       if (frag && dest.endsWith(".md") && !headingsOf(dest).has(frag.toLowerCase())) violations.push("link " + rel + ": #" + frag + " is not a heading in " + relative(pluginRoot, dest).split(sep).join("/"));
     }
-    for (const line of prose.split("\n")) {
-      const isHeading = /^#{1,6}\s/.test(line);
+    for (const full of fenced.split("\n")) {
+      const isHeading = /^#{1,6}\s/.test(full);
+      const line = isHeading ? full : full.replace(/\x60/g, "");
       for (const m of line.matchAll(ID_RE)) {
         const id = m[1];
         const after = line.slice(m.index + id.length, m.index + id.length + 24);
-        const defined = isHeading || new RegExp("^\\)?\\*{0,2}\\s*[(,]\\s*(?:" + CLASSES + ")\\b").test(after);
+        const before = line.slice(Math.max(0, m.index - 24), m.index);
+        // Accepted definition forms: a heading naming the ID; "ID (CLASS", "ID, CLASS", "ID: CLASS"
+        // with optional emphasis or backticks; and "(CLASS, ID" as used in bold lead-ins.
+        const defined = isHeading
+          || new RegExp("^[)*\\s]*[(,:\u2014-]\\s*[*_]*\\s*(?:" + CLASSES + ")\\b").test(after)
+          || new RegExp("\\(\\s*[*_]*(?:" + CLASSES + ")[*_]*\\s*,\\s*$").test(before);
         if (!defined) continue;
         if (!defs.has(id)) defs.set(id, new Set());
         defs.get(id).add(rel);

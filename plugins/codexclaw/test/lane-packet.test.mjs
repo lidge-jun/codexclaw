@@ -407,3 +407,21 @@ test("a drifted value is reported as drift, not silence", () => {
   if (report.results[0].status === "NOT_RUN") return; // artifact absent on this machine
   assert.equal(report.verdict, "FAIL");
 });
+
+test("the host envelope row for each call carries its measured bound", () => {
+  const rows = readFileSync(laneOwner, "utf8").split(/\r?\n/).filter((line) => line.startsWith("|"));
+  const bound = (id) => String(fixture.bounds.find((b) => b.id === id).value);
+  const rowFor = (needle) => rows.find((line) => line.includes(needle)) ?? "";
+  for (const [call, id] of [
+    ["wait_threads(", "wait_threads.targets.max"],
+    ["wait_threads(", "wait_threads.timeoutMs.max"],
+    ["read_thread(", "read_thread.turnLimit.max"],
+    ["read_thread(", "read_thread.maxOutputCharsPerItem.max"],
+    ["list_threads(", "list_threads.limit.max"],
+    ["get_handoff_status(", "get_handoff_status.waitMs.max"],
+    ["agents.max_threads", "subagents.maxThreads.defaultV1"],
+  ]) {
+    assert.ok(new RegExp("\\b" + bound(id) + "\\b").test(rowFor(call)), id + " is not stated on the " + call + " row");
+  }
+});
+

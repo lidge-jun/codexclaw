@@ -48,11 +48,11 @@ Production: deployed to real users beyond the author; excludes prototypes/spikes
 
 ## Companion Skills
 
-DEV-ROUTE-01 (STRICT): before writing, read every matching surface router SKILL.md. References are conditional; C0/C1 exceptions apply.
+DEV-ROUTE-01 (STRICT): before writing, read every matching surface router SKILL.md; C0/C1 exceptions apply.
 
 ### Reading contract
 
-Read active SKILL.md fully; references only when applicable. Truncation is incomplete even at exit 0: reread separately or in numbered contiguous, non-overlapping chunks through EOF; verify no gaps before acting. Respect output limits/C0-C1 exceptions.
+Read active SKILL.md fully; references only when applicable. Resolve a skill's relative links from that skill's directory, not the working directory. Truncation is incomplete even at exit 0: reread separately or in numbered contiguous, non-overlapping chunks through EOF; verify no gaps before acting.
 
 | Change surface | Primary router | Also load |
 |---------------|----------------|-----------|
@@ -155,5 +155,5 @@ Read matching rows; repo tools own local facts.
 | Code smells | `cxc-dev-code-reviewer` §3; boundary errors: `dev-architecture` §4 |
 | Types/static checks | [Static analysis](references/static-analysis.md), [gates](references/static-analysis-gate.md) |
 | Lane observation | [Waiting](../loop/references/waiting.md) (DISPATCH-POLL-BUDGET-01) |
-| Capability gap | DEV-SKILL-DISCOVERY-01 (DEFAULT): [catalog](references/skill-catalog.md), `cxc skill search <query>` (jaw first; --source all adds clawhub/hermes), needed `cxc skill show <id>`; built-ins win, adapters preserve dev |
+| Capability gap | Installed skills come from the host's skill list and these routers. DEV-SKILL-DISCOVERY-01 (DEFAULT): only for gaps, the external [catalog](references/skill-catalog.md) via `cxc skill search/show`; built-ins win |
 | Ownership | [Ownership](references/skill-ownership.md); update owner first |
