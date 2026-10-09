@@ -52,3 +52,12 @@ OUT: guard predicates and decisions; hooks/*.json registrations and handler iden
 - 002_architect_consultation.md: proposal D1-D12, dispositions, reflection verdict.
 - 003_outside_research.md: what six open-source families do and what was adopted.
 
+
+## wp1 D summary (2026-10-09)
+
+Conclusion: the roadmap is locked. 001 is the standard; 010-040 are the executable phase docs, amended through three audit rounds (research/02 FAIL, 04 FAIL, 05 PASS) and two architect reflections (01 MISALIGNED, 03 ALIGNED). PR #287 is merged to `dev` as-is (6520b7b8); its dated narrative is condensed in wp3. A new work-phase wp6 (pstack / pstack-opencodex comparison and PRs) was appended at the user's request.
+
+What did not go well: the first plan scheduled the description budget a PR before the descriptions were trimmed, and merged child-scope texts that a trust recognizer compares byte for byte; both were caught only by the independent audit. The hypothesis that died: that L1 owners "already exist", so injections can be cut first without coordinating with the skill rewrite (the dispatch card and the terminal sentence had no other owner). Evidence the direction is wrong: wp2 tests needing to keep long phrase locks to stay green, or measure-l1 showing that the aggregate UPS text cannot reach 1,200 B without dropping a guard-relevant fact.
+
+Next: wp2 per 010, re-verified against the tree at P.
+
