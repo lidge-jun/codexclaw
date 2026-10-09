@@ -28,6 +28,7 @@ where" hub; the numbered files carry the durable reasoning.
 | [`40_enforcement_methods.md`](40_enforcement_methods.md) | Enforcement ladder E1-E8: how strongly each intent can be enforced given the four Codex hook surfaces, and which tier to pick per contradiction. |
 | [`50_emergence_gap.md`](50_emergence_gap.md) | Why PABCD is a convergence (exploitation) machine with no divergence/plateau surface — the structural weakness on emergent/algorithmic tasks (NYPC 3.5/8 diagnosis), with an honest E-tier fix taxonomy. |
 | [`60_native_capabilities.md`](60_native_capabilities.md) | Live-verified Codex native capability matrix (browser/computer use, deferred V1 collab tools, catalog/flag-selected V2, lifecycle equivalents, `update_plan`, `view_image`, `imagegen`, flag-gated CSV fan-out) and the per-skill gap map the WP-N track patches. |
+| [`70_prompt_architecture.md`](70_prompt_architecture.md) | Prompt layering standard: the six layers (guards, hook injections, catalog, SKILL.md routers, references, tests), the placement test for a rule, one owner per rule, size budgets and the `check-prompt-architecture.mjs` gate. |
 
 Writing rule: keep this directory flat. Add or extend lexicographically ordered
 `NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so

@@ -1,5 +1,11 @@
 ## Phase Control / Orchestrate
 
+### State files
+
+- `.codexclaw/sessions/<sessionId>.json` — current phase (IDLE/I/P/A/B/C/D), derived flags, injection dedupe, and bounded interview tracker.
+- `.codexclaw/ledger.jsonl` — append-only audit trail of transitions.
+- `.codexclaw/interviews/<sessionId>.jsonl` — shipped append-only Interview Q/A capture (and scan-evidence) ledger, written by the PostToolUse `request_user_input` hook.
+
 ### Chat Surface
 
 The chat command grammar is:

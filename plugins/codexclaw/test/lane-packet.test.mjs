@@ -367,31 +367,27 @@ test("the subagent cap and its failure string are recorded together", () => {
   assert.ok(laneDoc.includes(err.value), "the document must name the failure a caller will actually see");
 });
 
-// Anchored drift checks. "The number appears somewhere in the file" is too weak: these
-// require the bound to appear on the line that actually describes the call.
+// The host envelope has one owner. Other references resolve a Markdown route to it.
 const skills = join(pluginRoot, "skills");
-const lineWith = (file, needle) =>
-  readFileSync(file, "utf8").split(/\r?\n/).filter((l) => l.includes(needle));
-const boundValue = (id) => String(fixture.bounds.find((b) => b.id === id).value);
+const laneOwner = join(skills, "loop", "references", "lane-dispatch.md");
 
-test("waiting.md states the wait bounds on the line that describes wait_threads", () => {
-  const lines = lineWith(join(skills, "loop", "references", "waiting.md"), "wait_threads");
-  const stated = lines.filter((l) => l.includes(boundValue("wait_threads.targets.max")));
-  assert.ok(stated.length > 0, "waiting.md does not state the target bound where it describes the wait");
-  const doc = readFileSync(join(skills, "loop", "references", "waiting.md"), "utf8");
-  assert.ok(doc.includes(boundValue("wait_threads.timeoutMs.max")), "the timeout bound drifted out of waiting.md");
-});
+for (const parts of [
+  ["loop", "references", "waiting.md"],
+  ["pabcd", "references", "delegation.md"],
+]) {
+  test(parts.at(-1) + " links to the lane-dispatch host envelope", () => {
+    const file = join(skills, ...parts);
+    const doc = readFileSync(file, "utf8");
+    const targets = [...doc.matchAll(/\]\(([^)]+)\)/g)]
+      .map((match) => resolve(dirname(file), match[1].split("#")[0]));
+    assert.ok(targets.includes(laneOwner), "the reference has no route to the host envelope owner");
+    assert.ok(readFileSync(laneOwner, "utf8").length > 0, "the host envelope owner is empty");
+  });
+}
 
-test("the delegation thread-surface table carries the measured bounds", () => {
-  const table = readFileSync(join(skills, "pabcd", "references", "delegation.md"), "utf8");
-  for (const id of ["wait_threads.targets.max", "wait_threads.timeoutMs.max", "read_thread.turnLimit.max", "read_thread.maxOutputCharsPerItem.max", "list_threads.limit.max", "get_handoff_status.waitMs.max"])
-    assert.ok(table.includes(boundValue(id)), id + " is missing from the delegation table");
-});
-
-test("dispatch-surfaces states the subagent cap and routes to the lane contract", () => {
+test("dispatch-surfaces routes its fan-out rule to the lane contract", () => {
   const doc = readFileSync(join(skills, "pabcd", "references", "dispatch-surfaces.md"), "utf8");
   assert.ok(doc.includes("DISPATCH-FANOUT-CAP-01"), "the fan-out rule is missing");
-  assert.ok(doc.includes(boundValue("subagents.maxThreads.defaultV1")), "the subagent cap drifted");
   assert.ok(doc.includes("](../../loop/references/lane-dispatch.md)"), "dispatch-surfaces does not route to the lane contract");
 });
 
@@ -411,3 +407,21 @@ test("a drifted value is reported as drift, not silence", () => {
   if (report.results[0].status === "NOT_RUN") return; // artifact absent on this machine
   assert.equal(report.verdict, "FAIL");
 });
+
+test("the host envelope row for each call carries its measured bound", () => {
+  const rows = readFileSync(laneOwner, "utf8").split(/\r?\n/).filter((line) => line.startsWith("|"));
+  const bound = (id) => String(fixture.bounds.find((b) => b.id === id).value);
+  const rowFor = (needle) => rows.find((line) => line.includes(needle)) ?? "";
+  for (const [call, id] of [
+    ["wait_threads(", "wait_threads.targets.max"],
+    ["wait_threads(", "wait_threads.timeoutMs.max"],
+    ["read_thread(", "read_thread.turnLimit.max"],
+    ["read_thread(", "read_thread.maxOutputCharsPerItem.max"],
+    ["list_threads(", "list_threads.limit.max"],
+    ["get_handoff_status(", "get_handoff_status.waitMs.max"],
+    ["agents.max_threads", "subagents.maxThreads.defaultV1"],
+  ]) {
+    assert.ok(new RegExp("\\b" + bound(id) + "\\b").test(rowFor(call)), id + " is not stated on the " + call + " row");
+  }
+});
+

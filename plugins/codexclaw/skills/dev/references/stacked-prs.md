@@ -1,70 +1,49 @@
 # Stacked Pull Requests (canonical — `DEV-STACK-*`)
 
-Canonical owner: `dev`. Other skills carry pointer stubs only (see
-`references/skill-ownership.md`). Rules here are tool-agnostic: the portable model first,
-CLI recipes second.
+Dev owns this procedure. Other skills point here. Apply the portable branch model
+before choosing tool-specific recipes.
 
 ## Native stacks are explicit-only (DEV-STACK-OPT-IN-01)
 
-Use ordinary pull requests by default; use a manual branch chain when dependencies
-justify it. GitHub native stacks are default-off. Do not suggest, register, convert
-to, or select a native-stack workflow unless the user clearly and strongly requests
-GitHub native stacks for this specific task.
+Use ordinary PRs by default, or a manual branch chain when dependencies justify
+one. Do not suggest, register, convert to or select GitHub native stacks unless
+the user clearly and strongly requests that feature for this task.
 
-A generic request to "stack", split PRs, follow a dependency roadmap, improve CI,
-merge, or release is not native opt-in. Neither platform support, a Can Stack banner,
-nor existing membership supplies that intent. Do not ask users to opt in as a routine
-step. One unmistakable request naming the native feature is enough: no repeated
-confirmation, begging, emotional-word test, or special phrase is required. Preserve
-that authorization within its stated task scope and respect later changes of mind.
+Generic requests to stack, split PRs, follow a roadmap, reduce CI, merge or release
+are not native opt-in. Existing membership, platform support and a Can Stack
+banner do not supply it. One unmistakable request naming the feature suffices;
+do not ask routinely or require special wording. Preserve its task scope and
+respect later withdrawal.
 
-This selection rule governs every native procedure below. Read-only inspection of
-an existing stack remains allowed for safety; it does not authorize creating one,
-merging its members, restacking, or dissolving it. If an existing stack prevents an
-ordinary authorized operation, explain the concrete blocker and continue independent
-work. Ask for direction only when necessary; do not push the user toward native use.
-Explicit requests to leave or remove an existing stack are separate scoped actions,
-not requests to adopt native stacks. Never change membership merely to avoid an error.
+Read-only membership inspection is allowed; it grants no registration, restack,
+merge or dissolution. If a stack blocks an ordinary authorized operation, explain
+the blocker and continue independent work; ask only for needed direction.
+Leaving/removing an existing stack is separate cleanup authority. Never change
+membership merely to evade an error.
 
 ## The model
 
-A **stack** is an ordered chain of branches. The **bottom** branch is based on trunk
-(usually `main`); every branch above is based on the branch below it. Each branch gets its
-own PR whose base is the branch below, so each PR's diff shows only that layer.
+A stack is a chain: bottom based on trunk, each upper branch based on its parent,
+one PR per layer with that parent as base. Four invariants apply:
 
-```
-feature/ui        → PR #3 (base: feature/api)     ← top
-feature/api       → PR #2 (base: feature/schema)
-feature/schema    → PR #1 (base: main)            ← bottom
-──────────────────  main (trunk)
-```
-
-Four invariants hold across every stacking tool (GitHub `gh stack`, Graphite, Git Town,
-plain git). Learn these, not a vendor's flags:
-
-1. **The base ref is the dependency edge.** The chain is your phase map, made reviewable.
-2. **Editing a lower layer invalidates every layer above it** — always cascade.
-3. **Merging is bottom-up.** Out-of-order merges are the pathological case. One
-   documented exception: a lane whose members are chained children merges
-   top-down, because merging a child lands in its parent's branch rather than in
-   trunk (`DEV-STACK-08`).
-4. **Every layer must stand alone for review**: own thesis, own build, own tests.
+1. Base ref expresses the dependency.
+2. Editing a lower layer requires cascading every layer above.
+3. Merge bottom-up, except the cumulative chained-child order in DEV-STACK-08.
+4. Each layer has its own reviewable thesis, build and verification.
 
 ## DEV-STACK-06 — Recognize and register deliberately (DEFAULT)
 
-Apply this preflight during PR creation, review, restacking or merge work, including
-when inspection reveals that a PR targets another PR's head. Do not wait for a DevOps
-invocation. "stacked PR", "스택 PR", "연쇄 브랜치", and dependent work-phase delivery
-are signals to inspect, not proof of a stack. CSS stacks and runtime stack traces are
-unrelated. Keep three states distinct:
+Inspect topology and membership during PR creation, review, restack or merge,
+including a PR targeting another PR's head. Dependent work-phase delivery is an
+inspection signal; generic CSS/runtime stacks are unrelated.
 
-| State | Evidence | Meaning |
-|---|---|---|
-| Manual branch chain | Same-repo child base = parent head; native membership absent | Layered diffs, but no native stack guarantees |
-| Registered GitHub stack | API membership includes this PR, ordered members and trunk | Native stack behavior can apply |
-| Unknown membership | API unavailable, denied or unsupported | Report uncertainty; do not treat an error as absence |
+| State | Evidence |
+|---|---|
+| Manual chain | Same-repo child base equals parent head; native membership absent |
+| Registered native stack | Successful API membership gives ordered members and trunk |
+| Unknown | API denied, unsupported or unavailable; an error is not absence |
 
-Start read-only, using the actual repository and PR number:
+Start read-only with the actual repository and PR:
 
 ```sh
 gh pr view <number> -R <owner/repo> --json number,baseRefName,headRefName,headRefOid,isCrossRepository
@@ -72,260 +51,171 @@ gh api 'repos/<owner>/<repo>/pulls/<number>'
 gh api 'repos/<owner>/<repo>/stacks?pull_request=<number>'
 ```
 
-Compare head/base **repository identities**, not branch names alone. Read the PR's
-`stack` object or a successful stacks response; record the stack number, trunk and
-bottom-to-top PR list. A successful `[]` reports no membership; non-success responses
-remain unknown. Refresh before publication/merge because another actor may register
-or restack while you work. GitHub native stacks currently require one repository.
+Compare head/base repository identities, not names alone. Read the PR stack
+object or successful stacks response; record stack number, trunk and bottom-to-top
+members. Successful `[]` means no membership. Refresh before publication/merge:
+another actor may change membership or ancestry. Native stacks require one repo;
+verify current platform support before relying on it.
 
-`gh pr create --base <parent>`, a body stack map, labels, and the **Can Stack** banner
-do not certify native registration. The banner offers conversion; confirmation is a
-separate operation. **Ordinary PRs and manual chains are the default delivery path;
-native registration requires the clear, strong, task-specific opt-in above.** A
-manual chain satisfies a generic stacked-PR request without a native upgrade prompt.
-Only after native selection and the particular write are authorized, inspect the
-available tooling and use a supported native registration path. Re-read membership
-after the write and record the stack number, trunk and ordered members. Never install
-an extension automatically. If explicitly requested native support is unavailable,
-report that limitation; do not claim a manual chain delivered the requested native
-feature or silently change the user's chosen mode.
+A parent base, body map, label or Can Stack banner does not certify registration.
+Apply the selection rule above, then require authority for the particular native
+write. Use supported tooling and re-read membership afterward. Do not install an
+extension automatically. If the requested native feature is unavailable, report
+that gap instead of claiming a manual chain delivered it or silently changing mode.
 
-**Authority:** inspection is read-only. Registration, branch rewrites, PR retargeting,
-CI changes/cancellation and merging need authority for that operation and those PRs.
-A diagnosis/review or a request to publish one unrelated PR grants none of those writes.
+Inspection grants no branch rewrite, registration, PR retarget, CI change/
+cancellation or merge authority. A review/diagnosis or unrelated PR publication
+request authorizes none of those writes.
 
 ## DEV-STACK-07 — Diagnose CI independently (DEFAULT)
 
-Record four separate facts: branch topology, native membership, each layer's current
-head/check SHA, and the workflow event/ref/concurrency policy. **Native registration
-does not deduplicate CI.** GitHub runs applicable CI for each registered layer;
-separate runs alone are not a stack defect. Manual chains depend on actual workflow
-filters and branch rules; do not assume trunk protections are inherited.
+Record topology, native membership, each layer's current head and checked SHA,
+and workflow event/ref/concurrency policy separately. Registration does not
+deduplicate CI: applicable native CI runs per layer. Manual children depend on
+actual workflow filters and branch rules, not assumed trunk protection.
 
-For "CI runs separately/too often", inspect workflow triggers and job guards alongside
-`gh pr checks`, `gh run list` and `gh run view` (use installed help for flags). Distinguish
-different PRs from duplicate events for the same PR/head, rerun attempts, historical
-heads and cancelled/superseded runs. Record the event, head SHA, ref/group, run ID and
-conclusion. A PR-ref concurrency key cancels within that PR, not across the stack;
-unknown cancellation causes stay unknown. Inspect required checks, not only a green
-summary or check count. Missing, skipped or cancelled tests are not passing tests.
-Apply the hosted-CI evidence procedure in `cxc-dev` §3 (DEV-CI-EVIDENCE-01) to tell
-those states apart before acting on them. When the work is split across parallel Codex
-tasks rather than one stack, the lane manifest and merge handoff in `cxc-pabcd`
-`references/dispatch-surfaces.md` (DISPATCH-LANE-MANIFEST-01, DISPATCH-LANE-MERGE-01)
-own duplicate-ownership detection and landing order. Note also that a `[WRONG BRANCH]`
-verdict can be a repository enforcer rejecting a legitimate parent base: inspect that
-policy and preserve the dependency topology instead of retargeting children.
+For excessive runs, inspect workflow triggers/guards with `gh pr checks`,
+`gh run list` and `gh run view`; use installed help for flags. Distinguish separate
+PRs, duplicate events at one head, reruns, old heads and cancelled/superseded runs.
+Record event, head SHA, ref/group, run ID and conclusion. A PR-ref concurrency
+key cancels within that PR; unknown cancellation causes remain unknown.
 
-CI cost reduction is a separate, authorized workflow change. Preserve each mergeable
-layer's required evidence and final integration checks; reverify after a cascade or
-base/head change. Do not introduce blanket top-only skips, stack-wide cancellation,
-branch-protection bypasses, or filters that silently exclude manual child bases merely
-because a PR has a stack label or body map. If optimization is requested, specify which
-jobs may be shared/deferred and how every required check gets truthful evidence.
+Before judging jobs or merge readiness, apply
+[hosted CI evidence](../references/hosted-ci-evidence.md) (DEV-CI-EVIDENCE-01).
+For independent task lanes, apply manifest and landing rules in
+[dispatch surfaces](../../pabcd/references/dispatch-surfaces.md)
+(DISPATCH-LANE-MANIFEST-01, DISPATCH-LANE-MERGE-01).
+A WRONG BRANCH verdict may be a base-policy rejection of a legitimate parent:
+inspect the enforcer rather than destroy the dependency topology.
 
-`DEV-STACK-08` is the one owner-authorized form of that optimization: tip-only CI
-inside a cumulative lane. It does not relax this rule — it is the specification
-this paragraph demands, and it still treats a skipped non-tip check as not passing.
+CI optimization is a separately authorized workflow change. Specify shareable/
+deferred jobs and truthful evidence for every required check. Preserve each
+mergeable layer's evidence and final integration checks; reverify after a cascade
+or base/head change. No blanket tip-only skips, stack-wide cancellation,
+branch-protection bypasses or filters excluding manual child bases merely because
+of labels/maps. DEV-STACK-08 is a scoped exception, not evidence that a skipped
+non-tip check passed.
 
 ## DEV-STACK-08 — Lane-parallel stacks with a tip-only gate (ESCALATE)
 
-A throughput strategy for landing many pull requests in one day, learned from a
-36-PR batch. It relaxes the per-PR merge gate, so it is **owner-authorized only**:
-the repository owner must decide to accept it for a named batch. Without that
-decision, every rule above applies unchanged.
+Only a repository-owner authorization for a named batch permits this per-PR gate
+exception. Otherwise retain per-PR required checks.
 
 ### The shape
 
-Group the open PRs into **lanes** by dominant file domain. Lanes prepare in
-parallel; inside a lane the order is fixed. Each lane is a **cumulative stack**:
-the bottom branch merges trunk, and each branch above merges its parent's
-resulting commit, so every branch contains its ancestors and the diffs shrink as
-the lane lands.
-
-Lanes are prepared by separate Codex tasks, one task per lane, each in its own
-worktree. They are not `spawn_agent` subagents — a subagent runs in the parent's
-own checkout on the parent's branch, so N subagents preparing N lanes means N
-writers on one HEAD. Asking for parallel lane preparation is the user request
-those tasks need. See `cxc-pabcd` `references/dispatch-surfaces.md`.
+Group PRs by dominant file domain. Lanes prepare in parallel, but each lane is
+cumulative: the bottom merges trunk, each upper branch merges its parent's new
+commit. Before independent lane preparation, follow
+[dispatch surfaces](../../pabcd/references/dispatch-surfaces.md) for isolation and
+creation authority.
 
 ### Tip-only CI
 
-Push every **non-tip** head with `[skip ci]` in its commit subject so only the
-lane tip runs the expensive suite, and use that tip run as the lane's gate.
-
-This works only where the expensive workflow triggers on `pull_request` plus a
-`push` pinned to trunk branches. A push to a feature branch then produces no run
-of its own, the run comes from the `pull_request` synchronize event, and GitHub
-suppresses `push` and `pull_request` runs whose head commit subject carries
-`[skip ci]`. Verify that trigger shape in the actual workflow files before
-relying on it. Workflows on `pull_request_target` keep running and cannot be
-skipped this way — usually the cheap hygiene, labeling and base-enforcement
-checks, which is fine, because those are what keep PR descriptions honest.
+Push each non-tip head with `[skip ci]` in its commit subject; the tip runs the
+expensive suite. Verify the actual workflow shape first: `pull_request` plus
+`push` pinned to trunk lets a feature-branch push rely on PR synchronize, which
+skip markers suppress. `pull_request_target` continues, including cheap hygiene,
+label and base checks. Do not assume this recipe fits other trigger shapes.
 
 ### Mandatory guards
 
-- Per-PR required checks remain the **default**. This rule is an exception for a
-  named, owner-authorized batch, not a new baseline.
-- A missing, skipped or cancelled check is **not** a passing check (`DEV-STACK-07`).
-  The tip run is evidence for the lane only while the tip actually contains every
-  link; record which run covers which PRs.
-- No blanket top-only skip outside this authorization, no branch-protection
-  bypass, no merge-queue bypass (`DEV-STACK-04`).
-- `--admin`, and the choice of merge method, are mechanisms, not authorization.
-- **Never** let `[skip ci]` reach a commit that lands on trunk. It would suppress
-  the trunk regression run, which is the safety net this whole strategy depends on.
-- Watch trunk after each lane lands and stop the lane on red rather than
-  continuing. The gate moves from before-merge to immediately-after-merge; it does
-  not disappear.
-- Merging stays user-authorized under `DEV-STACK-04`. This rule describes an order,
-  never permission to merge.
+- Missing/skipped/cancelled checks are not passing checks. The tip covers links
+  only while it contains their current heads; record which run covers which PRs.
+- No unauthorized top-only skip, branch-protection bypass or merge-queue bypass.
+  `--admin` and merge-method selection are mechanisms, not authority.
+- Never let a `[skip ci]` subject land on trunk and suppress trunk regression.
+- Watch trunk after each lane lands; stop the lane on red. Moving the gate to
+  immediately after merge does not remove it.
+- Apply DEV-STACK-04 merge authority; this procedure grants only an order.
 
 ### Merge with a merge commit, not a squash
 
-For a lane tip, use `--merge`. A squash collapses the branch into one new commit
-and discards the ancestry of the links beneath it, so the forge cannot see that
-those heads are already in trunk; their pull requests stay open and have to be
-closed by hand, reported as closed rather than merged. A merge commit keeps the
-ancestry, and because the lane is cumulative the tip's history contains every
-link's head, so one merge marks the whole lane `MERGED` with the right status.
-An owner running this strategy reported six pull requests closing correctly from
-a single `--merge` on the lane tip.
-
-Use `--squash` for a pull request being landed alone.
+Use `--merge` for a lane tip. Squashing discards link ancestry, leaving lower
+PRs open and requiring manual closure reported as closed, not merged. A merge
+commit retains ancestry so a cumulative tip can mark covered links MERGED.
+Use `--squash` for a PR landed alone.
 
 ### The ancestry invariant
 
-Auto-close holds only while the tip is a descendant of **every** link's current
-remote head. Re-merging a lower link after the chain was built gives that link a
-new head the tip has never seen, and it silently stops working. Check each link
-before merging the tip:
+The tip must descend from every link's current remote head. Refreshing a lower
+link without carrying it upward invalidates auto-close. Check every link:
 
 ```sh
 git merge-base --is-ancestor origin/<link-branch> <tip-commit>
 ```
 
-A non-zero exit means that link will not auto-close. Repair by propagating
-upward: merge the refreshed lower link into the one above it and carry that
-result to the tip. In the live batch, two of five lanes had already broken this
-by absorbing a trunk landing at the bottom without propagating up.
+A nonzero exit requires repair: merge the refreshed link into its next child,
+then propagate that result through the tip. Absorbing trunk only at the bottom
+also breaks this invariant.
 
 ### Chained children merge top-down
 
-Merging a stacked child lands nothing on trunk — it collapses into its parent's
-branch. Only a PR whose base is trunk lands on trunk. So a lane containing a base
-chain merges **deepest child first**, then its parent, up to the trunk-based root
-last. Each merge closes one pull request as `MERGED`.
+A child merge lands in its parent branch; only a trunk-based root lands on trunk.
+For an already cumulative base chain, merge deepest child first, then parents,
+then the root; each PR closes MERGED. Direct-to-trunk independent links retain
+bottom-up order.
 
-This inverts the bottom-up rule, which still governs lanes whose members all
-target trunk directly, where each merge is independent.
-
-Doing the child merges top-down first also limits squash damage: when a parent
-squashes to trunk, a child carrying those commits goes dirty immediately, and the
-conflict is mechanical — trunk gained the squashed form of content the child
-already has, so the child's side is a strict superset. Resolve to the child, then
-verify nothing the parent introduced went missing. Top-down keeps this to one
-re-merge per lane instead of one per link.
+Parent squashes can make children conflict with the squashed form of their own
+content. If resolving to a child that is a strict superset, verify no parent
+content was lost. Child-first order limits repeated re-merges.
 
 ### Order within a wave
 
-Order by what reduces later rework, not by size or ease:
+Prefer the designated next reviewed slot with fresh exact-head evidence, then
+lanes owning contended shared files, then independent trunk singles with no open
+review threads. A single sweeping change goes last so it rebases once; a lane
+owning shared files goes early to reduce other lanes' rework.
 
-1. The designated next slot, especially right after review fixes landed — its head
-   is new, so it needs a fresh exact-head check before merging.
-2. Lanes owning the most-contended shared files. Landing them early shrinks every
-   later lane's rebase.
-3. Trunk-based singles with no open review threads; they are independent and can
-   fill gaps while a lane waits on CI.
-4. A single change that touches nearly everything goes **last**, so it rebases
-   once onto a landed trunk instead of being rebased by every lane after it.
-
-Points 2 and 4 are not in conflict: a *lane* that holds contended files goes
-early because landing it helps the others, while a *single sweeping change* goes
-last because nothing helps it.
-
-Lanes merge one at a time. The next lane re-merges trunk at its tip and re-runs
-the tip's CI before it is merged; that re-merge is what absorbs cross-lane file
-overlap, which lane grouping by dominant domain does not eliminate.
+Land lanes serially. Before the next lane lands, re-merge trunk at its tip and
+rerun tip CI; dominant-domain grouping does not remove cross-lane file overlap.
 
 ## DEV-STACK-01 — When to stack (DEFAULT)
 
-Stack when **all** of these hold:
+Use a stack only when the parts have real implementation dependencies, one PR
+would exceed the repo's review-size convention (or reviewer judgment), and lower
+layers are independently correct, safe and mergeable.
 
-- the work splits into 2+ parts with a real dependency order (later parts consume earlier
-  parts' output), and
-- shipping it as one PR would produce a diff too large to review in one sitting — by your
-  repository's own review-size convention if it has one, otherwise reviewer judgment, and
-- the lower parts are mergeable on their own — they do not need the upper parts to be
-  correct or safe.
+Do not stack a cohesive thesis, independent parts, speculative lower layers
+likely to be rewritten, or slices with no standalone proof. Independent parts
+use parallel trunk PRs. A phase map alone selects neither stacking nor native
+registration. Dependency order follows PHASE-SPLIT-01 in
+[Plan](../../pabcd/references/phase-plan.md); native choice follows the opt-in rule.
 
-A `cxc-pabcd` PHASE-SPLIT-01 map orders implementation dependencies, not GitHub
-features. A phase map or `cxc-loop` chain alone selects neither a PR stack nor native
-registration. Decide whether a manual chain is useful using the criteria above;
-the native feature still requires DEV-STACK-OPT-IN-01.
-
-Do **not** stack when:
-
-- the change is one cohesive thesis (splitting adds review and CI surface, buys nothing);
-- the parts are independent — open parallel PRs off trunk instead, since a stack imposes a
-  false merge order;
-- the lower layer is speculative and likely to be rewritten (every rewrite re-cascades);
-- you cannot name what each layer proves on its own (that is a slicing failure — fix the
-  slice before opening anything).
-
-**Depth (HEURISTIC — practitioner guidance, not a measured limit).** Aim for 2–4 layers
-and think hard at 5. Community practice guides suggest each layer be reviewable in roughly
-10–15 minutes and report stacks becoming unwieldy past about 4–5 layers; treat that as
-experience, not a rule. What is certain: every layer is a separate fully gated PR with its
-own review and its own CI, and every layer above an edit has to be re-stacked by hand or
-by tool. If the map is longer, ship the bottom half, land it, then stack the rest.
-
-`DEV-STACK-08` narrows "its own CI" for an owner-authorized lane: the tip's run is
-the gate for the lane, and the non-tip layers are covered by it rather than by
-their own runs. Outside that authorization, every layer keeps its own gate.
-
-**Slice by dependency, never by effort.** "Quick wins first" produces layers whose
-dependency runs opposite to the merge order, so the stack cannot land bottom-up. This is
-`cxc-pabcd` PHASE-SPLIT-01 applied to branches.
+Depth is a heuristic: aim for 2–4 layers and reassess at 5. Each layer adds review,
+CI and cascade work; land a lower group before extending a long map.
+[Historical research](../../../../../devlog/_plan/260803_stacked_pull_requests/000_research.md)
+holds practitioner estimates. Every layer remains gated unless the owner
+explicitly selects the named DEV-STACK-08 tip-coverage exception.
 
 ## DEV-STACK-02 — Cascading edits (STRICT)
 
-When a lower layer changes, every layer above it must be checked against the new
-lower tip; a rewrite leaves descendants on obsolete ancestry. Re-push the cascade
-before asking for review:
+When a lower layer changes, check every upper branch against its new tip and
+cascade before requesting review or publishing. Use supported tooling:
 
-- Plain git (no extension): `git rebase --update-refs` force-updates any branch pointing
-  at a commit inside the rebased range. Branches checked out in another worktree are not
-  updated. Prefer the per-invocation flag; do not change global Git configuration as
-  an incidental step of stack work.
-- Only for an explicitly authorized native workflow, `gh stack rebase` fetches origin and cascades from trunk upward; if a layer's PR has
-  already merged it switches to `--onto` mode automatically. Conflicts pause the run;
-  resume with `--continue`, unwind everything with `--abort`. Scope with `--downstack` /
-  `--upstack` / `--no-trunk`.
-- Other tools (Graphite `gt restack` / `gt modify`, Git Town `git town sync`, `spr diff`)
-  express the same cascade — read their own docs before using their flags.
+- Plain git: `git rebase --update-refs` moves branches in the rebased range but
+  excludes branches checked out in other worktrees. Prefer the per-call flag;
+  do not incidentally change global Git configuration.
+- Authorized native workflow: `gh stack rebase` fetches and cascades from trunk;
+  a merged layer switches to `--onto`. Conflicts pause: `--continue` resumes,
+  `--abort` unwinds. Scope with `--downstack`, `--upstack` or `--no-trunk`.
+- Other tools express the same operation; read their current docs before flags.
 
-After the cascade, publish with `git push --force-with-lease` (never bare `--force`) and
-re-check each PR's base ref. A rebase rewrites the reviewed commits, so depending on
-repository settings a force-push can invalidate existing review state and leave inline
-comments attached to commits that no longer exist. Assume review state is stale after a
-cascade: say what changed and re-request review rather than expecting prior approvals to
-carry.
+Push only with DEV-GIT-PUSH-01 authority; rewritten heads use
+`git push --force-with-lease`, never bare `--force`.
+Recheck each PR's base. Treat review state as stale after rewrites; describe
+changes and re-request review because approvals and inline anchors may change.
 
-**Verification (STRICT):** a cascade is not done because the command exited 0. Confirm each
-upper branch actually contains the new lower-layer commit (`git merge-base --is-ancestor
-<lower> <upper>` exits 0), inspect `git log --oneline <lower>..<upper>` for the layer-only
-delta, and confirm each PR's base ref still names the branch below it.
+Exit zero is insufficient. Verify each upper branch contains the new lower tip
+with `git merge-base --is-ancestor <lower> <upper>`, inspect
+`git log --oneline <lower>..<upper>` for only that layer's delta, and verify its
+PR base still names the parent.
 
 ## DEV-STACK-03 — Layer shape (DEFAULT)
 
-Each layer:
-
-- has one thesis, stated in its PR title;
-- builds and passes its own tests at its own tip — do not defer a layer's tests upward,
-  except under an owner-authorized `DEV-STACK-08` lane, where deferring to the tip is
-  the explicit, recorded trade;
-- carries a stack map in its PR body so reviewers can navigate:
+Each layer has one thesis in its title, builds and passes verification at its
+own tip, and includes a navigable stack map and review focus in its PR body.
+Deferring verification upward is allowed only by the recorded DEV-STACK-08
+exception.
 
 ```markdown
 **Stack** (merge bottom-up):
@@ -338,147 +228,93 @@ Each layer:
 Depends on #101. Review this PR's diff only.
 ```
 
-Mid-stack layers are **not** lightly gated: in a **registered GitHub stack**, branch protection such as CODEOWNERS
-approval is enforced on every PR in the stack — including mid-stack PRs that do not target
-the default branch — and CI configured for the default branch runs for all of them, not
-just the bottom. Budget for that: a 5-layer stack is 5 fully gated PRs, not one.
-For manual chains, verify the actual branch rules and workflow coverage (`DEV-STACK-07`).
+Registered native members inherit required protection, including CODEOWNERS and
+configured trunk CI, even mid-stack. Budget for each gated PR. For manual chains,
+inspect actual branch rules and coverage under DEV-STACK-07.
 
 ## DEV-STACK-05 — Reviewing a layer (DEFAULT)
 
-When you are reviewing one layer of a stack:
-
-- **Review this layer's diff only.** Its base is the branch below, so the diff is already
-  scoped to the layer. Do not re-litigate a lower layer's decisions here — comment on that
-  layer's own PR.
-- **Judge the layer standalone** (`DEV-STACK-03`). Does it build and pass its tests at its
-  own tip? "Tests come in the next PR" is a blocking finding, not a courtesy.
-- **Verify the base ref.** A layer whose base points at trunk instead of its parent, or
-  whose branch lacks the parent's latest commits, is a stale cascade (`DEV-STACK-02`) —
-  block until it is re-stacked.
-- **Re-check your findings after a force-push.** A cascade rewrites commits, so confirm
-  earlier findings and approvals survived rather than assuming they carried.
-- **Approving a layer is not approval to merge the stack.** Merge order and authorization
-  stay with `DEV-STACK-04`.
+Review its own diff against the parent; address lower-layer decisions on their
+own PR. Demand standalone build/test evidence: deferring tests to a later layer
+blocks review. Check the parent base and latest-parent ancestry; a stale cascade
+blocks until repaired. After force-push, recheck findings and approvals.
+Review approval grants no merge authority.
 
 ## DEV-STACK-04 — Merging and safety (ESCALATE)
 
-Native procedures in this section require DEV-STACK-OPT-IN-01 plus authorization
-for the affected members. Existing membership and a generic merge request do not
-authorize a native merge of lower members. Inspect first and report a real blocker;
-do not auto-convert, dissolve, or issue native writes to complete an ordinary PR.
+Apply native opt-in and authority for all affected members before native writes.
+Existing membership or a generic single-PR merge request does not authorize a
+native merge of lower members. Inspect blockers; never auto-convert, dissolve
+or perform native writes to complete an ordinary PR.
 
-- **Merge bottom-up.** In a **registered GitHub stack**, merging the top PR brings every PR below it; merging a
-  mid-stack PR merges everything below it while the PRs above stay open and re-target the
-  stack's base automatically. For a manual chain of children, `DEV-STACK-08` inverts
-  this: merge the deepest child first and the trunk-based root last.
-- **Manual chains are different.** Merging a child PR merges into its named parent base,
-  not automatically into trunk. Land the bottom PR, retarget/restack its children, and
-  verify new base/head CI before proceeding. Keep parent branches until no open child
-  targets them; deletion can close a dependent PR. Where the chain is already built and
-  cumulative rather than being landed layer by layer, `DEV-STACK-08` describes the
-  top-down order that preserves each child's `MERGED` status.
-- **Native API merges are asynchronous.** Use the supported async stack merge API, not
-  legacy synchronous merge endpoints. Accepted/queued is not merged: poll the result,
-  handle later rule/protection failures and verify actual landing before reporting success.
-- **Merging stays user-authorized.** `DEV-GIT-PUSH-01` already gates pushing; merging a
-  stack is a strictly larger external state change. Never merge, never enable auto-merge,
-  and never bypass a queue on the agent's own initiative.
-- **Never reorder or drop a layer that has already merged** — reconstruct forward instead.
-- **A superseded layer** is closed with the supersede procedure in `cxc-dev-devops`
-  `references/agent-pr-intake.md` (DEVOPS-PR-SUPERSEDE-01); keep a superseded parent
-  branch while any child PR is open.
-- **Squash caution.** Squash merging collapses a PR's commits into one and does not
-  preserve the originals. GitHub's own guidance is that squash merging works best for
-  short-lived branches: if you keep working on the same head branch afterwards, later PRs
-  can include commits already squashed into the base, making conflicts more likely and
-  forcing you to resolve the same conflict more than once. In a stack, cascade immediately
-  after any manual-chain squash merge; for native stacks verify the automatic rebase
-  completed and re-check the resulting heads instead of assuming old approvals/CI apply.
-- **Required reviews interact with shared commits.** Under required reviews, collaborators
-  cannot merge a PR while other open PRs have a head branch pointing at the same commit
-  with pending or rejected reviews — a shape stacks produce easily. Resolve those first.
-- Merge requirements for every PR in a **registered GitHub stack** are determined by the **bottom** PR's
-  base branch.
+- Ordinary stacks land bottom-up. Native top/mid merges include lower members;
+  upper members remain open and retarget automatically. Verify that behavior.
+  For an already cumulative child chain, apply DEV-STACK-08 child-first order.
+- Manual children merge into their named parent, not trunk. When landing layer
+  by layer, land the bottom, retarget/restack children and verify new base/head
+  CI. Keep parent branches until no child targets them; deleting a parent can
+  close a dependent PR. Already cumulative lanes use the separate child-first order.
+- Use supported async native merge transport. Acceptance or queueing is not
+  merged: inspect later protection failures and actual landing.
+- Merge, auto-merge and queue bypass remain user-authorized. Push authority
+  under DEV-GIT-PUSH-01 alone grants no stack merge.
+- Never reorder or drop an already merged layer; reconstruct forward.
+- Superseding follows DEVOPS-PR-SUPERSEDE-01 in
+  [PR intake](../../dev-devops/references/agent-pr-intake.md); retain a superseded
+  parent while any child stays open.
+- Squashes discard original commits. Continuing a squashed head can repeat
+  prior deltas/conflicts. Cascade after a manual squash; verify native automatic
+  rebase and new heads rather than assuming old approvals or CI.
+- Resolve pending/rejected reviews on other open heads at the same commit
+  before merging under required-review rules.
+- A native stack's merge requirements come from its bottom PR's base branch.
 
-### Known failure: `gh pr merge --admin` still calls the legacy API
+### Native merge transport
 
-Observed in an owner-provided OpenCodex transcript on 2026-09-05: a native-stack
-`gh pr merge ... --merge --admin --match-head-commit ...` failed with exit 1:
+A legacy GraphQL rejection requires membership and CLI diagnosis. Do not repeat
+the same call across members, retarget or change membership to evade it.
+Unstacking requires separate cleanup authority. Blocked mergeability proves no
+transport recovery; inspect the actual result.
 
-```text
-GraphQL: This pull request is part of a stack and must be merged using the asynchronous merge REST API. (mergePullRequest)
-```
-
-That invocation used the unsupported GraphQL path; `--admin` did not change it.
-Do not automatically repeat the same command for every layer, dissolve the stack,
-or retarget it to evade this error. An explicit user request to unstack is a
-separately scoped cleanup action, not native adoption. `mergeable_state: blocked` is a separate observation, not proof
-that this transport error was fixed. Inspect membership and the actual merge result.
-
-After the required native opt-in and authorization for the stack prefix, verify
-current member heads and target the
-highest PR in that prefix **once**. Recheck installed CLI support; otherwise use the
+After native selection and authorized-prefix review, verify member heads and
+target its highest PR once. Recheck installed CLI support, or use the
 [async REST API](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request-asynchronously):
 
 ```sh
-# Substitute the approved repository, PR and reviewed head SHA; this is a write.
+# Approved repository, PR and reviewed SHA only; this is a write.
 gh api --method PUT 'repos/OWNER/REPO/pulls/PR/merge-async' \
   -f sha='REVIEWED_HEAD_SHA' -f merge_method=merge -f merge_action=default
-# Use the returned details.uuid to poll the same request (read-only).
+# Poll the same returned request, read-only.
 gh api 'repos/OWNER/REPO/pulls/PR/merge-async/UUID'
 ```
 
-The `sha` guard covers the requested PR, not independent pins for all lower members.
-On 202, retain `details.uuid`; on 409, inspect the existing request/options instead of
-resubmitting. Poll with bounded waits; HTTP 200 may still contain `status: pending`.
-Already merged/queued responses are distinct; neither acceptance nor queue entry proves
-landing. Verify `status: merged`, returned SHA and each PR's actual target integration.
-Rule failures can arrive later. Do not invent an `admin` parameter or treat
-`direct_merge` as permission to bypass repository rules.
+The SHA guard pins the requested PR, not every lower member. On 202 retain
+`details.uuid`; on 409 inspect the existing request/options instead of resubmit.
+Poll with bounded waits: HTTP 200 may still say pending. Distinguish already
+merged from queued; verify status merged, returned SHA and every target landing.
+Rules can fail later. Never invent an admin parameter or treat direct_merge as
+permission to bypass rules.
 
 ## Anti-patterns
 
-| Anti-pattern | Why it bites |
-|---|---|
-| Deep stacks (practitioner guidance: past ~4–5 layers) | Every added layer is another gated PR to review and another branch to re-stack on each cascade; practitioners report navigation cost outweighing the benefit past that range (experience, not a measured limit — see Depth above) |
-| Effort-bucketed layers ("quick wins first") | Produces layers whose dependency runs opposite to the merge order, so the stack cannot land bottom-up |
-| Mid-stack rewrites without a cascade | Upper branches keep a base that no longer exists; the PR diff shows unrelated commits |
-| Force-push without `--force-with-lease` | Overwrites collaborator work, and may invalidate existing review state |
-| Treating a base chain or Can Stack banner as native registration | Native rules and merge behavior require verified membership |
-| Assuming registration reduces CI to one run | Applicable native CI still runs per layer; optimization is separate work |
-| Assuming mid-stack PRs are lightly gated | Native stacks inherit trunk rules; manual chains need explicit coverage checks |
-| Merging the top PR without checking membership | Native merge includes lower PRs; manual merge targets the parent branch |
-| Stacking a single cohesive change | Every layer is a separately gated PR with its own review and CI, for no parallelism gain |
+Apply each named owner: excessive depth (DEV-STACK-01), missing cascade
+(DEV-STACK-02), weak mid-layer proof (DEV-STACK-03), and unreviewed membership,
+force-push or merge (DEV-STACK-04/06/07). Labels, banners and maps are neither
+native registration nor CI evidence.
 
 ## Tooling
 
-You do not need an extension for a **manual branch chain**: `gh pr create --base
-<branch-below>` expresses the dependency and `git rebase --update-refs` maintains it.
-Native registration is separate (`DEV-STACK-06`). Pass `--base` explicitly for every layer: when it
-is omitted, `gh` uses the `branch.<current>.gh-merge-base` config and, if that is unset,
-the repository's default branch — so a layer can silently target trunk instead of its
-parent.
+Manual chains need no extension: `gh pr create --base <branch-below>` expresses
+the edge and `git rebase --update-refs` maintains it. Always pass `--base`:
+otherwise `gh` uses `branch.<current>.gh-merge-base`, then the repo default,
+which can silently retarget a child to trunk.
 
-Only when the user clearly and strongly selected GitHub native stacks for this
-task should these native tools be considered. Do not suggest or install them for
-ordinary PRs or manual chains. GitHub's first-party extension is `gh stack` (`gh extension install github/gh-stack`,
-requires `gh` v2.0+). Core verbs: `init`, `add`, `push`, `view`, `submit`, `rebase`,
-`modify`; `up`/`down` navigate (up = away from trunk). Stack metadata lives in
-`.git/gh-stack` (JSON, uncommitted) and it enables `git rerere` on init so conflict
-resolutions replay across cascades. It also ships an agent-facing skill:
-`gh skill install github/gh-stack`.
-
-GitHub's native stacked-PR feature was in **public preview** as of 2026-09-05 — verify
-current status before relying on preview-only behavior.
-
-Registration, native/manual distinctions and CI semantics rechecked 2026-09-05:
+Before any native extension write/install, apply native opt-in and specific
+operation authority. Verify current official docs and installed help rather than
+reuse dated recipes. Primary sources:
 [creating stacks](https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/creating-stacked-pull-requests),
 [native rules and CI](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs),
 [stack REST API](https://docs.github.com/en/rest/pulls/stacks), and
 [API/webhook and async merge contract](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests-apis-and-webhooks).
-
-Sources for the behavioral claims above, all opened 2026-08-03: `git rebase` docs
-(`--update-refs`), GitHub Docs "About stacked pull requests", "Pull request merges", and
-"About protected branches", the `gh pr create` manual, and the `github/gh-stack` README.
-Claim-by-claim provenance: `devlog/_plan/260803_stacked_pull_requests/000_research.md`.
+Claim-by-claim history is in
+[the research record](../../../../../devlog/_plan/260803_stacked_pull_requests/000_research.md).

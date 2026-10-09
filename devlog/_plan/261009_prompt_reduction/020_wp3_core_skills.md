@@ -52,3 +52,27 @@ phase-control stays the single attest schema; the table rows pinned by AST:214-2
 - Blocker 4 (scopes). Lane "dev" writes `skills/dev/SKILL.md`, `skills/dev/references/hosted-ci-evidence.md` (NEW) and nothing else under dev/. Lane "loop-pabcd" writes the two SKILL.md files. Lane "refs" writes the nine reference files listed in B4 plus `pabcd/references/phase-control.md` (state-file section) and `plugins/codexclaw/test/lane-packet.test.mjs`. Main writes the standard, gate, baseline, tests, evidence files and dispatch card.
 
 - R1 (round 2). The refs lane is the only writer of `delegation.md`: it adds the dispatch-card probe/alias table there (main gives it the text from `dispatch-card.ts` before it starts). Main edits only `subagent-config/src/dispatch-card.ts` and its tests. Main's test scope is `test/prompt-architecture.test.mjs` and the subagent-config card tests; `lane-packet.test.mjs` belongs to the refs lane alone.
+
+## wp3 P revalidation (2026-10-09)
+
+Continuity, quoting the wp2 D summary: "Next: deliver PR A, then wp6 ... and wp3." Order changed: the goalplan cursor activates the first ready phase in map order, so wp3 runs now and wp6 (appended last) runs after wp5; wp6's plan (050) and its audit stay valid until then.
+
+Tree check: since the audited snapshot, skills changed only in `dev/references/native-execution.md` (+3 lines: the terminal owner sentence and `/ps` `/stop`, from wp2) and the PR #287 additions (already in the research/20 anchors, which were taken after #287 merged). Current sizes are the "Before" figures above. The dispatch card is still in `subagent-config/src/dispatch-card.ts` and `delegation.md` still points readers at its helper; B moves both per R1.
+
+Additions from wp6 research (research/50 `3, ADOPT-NOW), assigned to the refs lane in `delegation.md`:
+
+- Neutral review packets: a reviewer packet carries the original brief, constraints, rubric and source anchors, and not the parent's or a previous reviewer's conclusion; repair rounds may carry the prior findings list for continuity.
+- Failure classes for delegated calls: transport (e.g. an encrypted task the parent cannot read), capacity (rate limit), timeout, and child failure are reported separately; equivalent retries stop after a transport failure; a timeout proves neither a rate limit nor encryption; no settings are changed to work around one.
+- Compact routing (research/50 `3 row 1) is already this unit's L3 method; nothing new.
+
+PR B branches from `codex/prompt-reduction` (PR #288, not yet merged) as `codex/prompt-reduction-core` and is retargeted to `dev` after #288 merges.
+
+
+## wp3 D summary (2026-10-09)
+
+Conclusion: the core is three routers again. `dev` 32,812 → 12,288 B, `loop` 11,159 → 4,467 B, `pabcd` 12,335 → 5,393 B (56,306 → 22,148 B); ten core references −21.8%; SessionStart 1,655 B (plain) / 2,051 B (managed) with every UPS scenario ≤ 439 B, all under the 001 budgets (`evidence/l1-after-wp3.txt`). The standard is published (`structure/70_prompt_architecture.md`) and enforced by `check-prompt-architecture.mjs` inside `gate.mjs` with an exact-size baseline (18 descriptions, 3 short descriptions, 16 routers, 10 legacy duplicate IDs). Full suite 3,771 tests, 0 failures. Independent review: 197-row obligation ledger with 0 LOST after round 2; gate review PASS at round 3.
+
+What did not go well: the first build lost three obligations (skill-relative link base, native vs external discovery, installed-CLI recovery) because lane ledgers called them "duplicates" of owners that did not actually contain them; only an independent ledger read caught it. The first scanner trusted favorable spellings (no inline-code headings, no emphasized classes, single-line YAML) and passed four false greens. A lane silently refreshed the model alias map, a behavior change outside a text reduction. The receipt refused once because a reviewer wrote into the tree mid-run. The hypothesis that died: that lane self-reported ledgers are enough to prove preservation. Evidence the direction is wrong: agents failing to find a rule that used to be inline, for example resolving references against the user's cwd, or loading an external skill when an installed one exists.
+
+Next: deliver PR B, then wp4 per 030.
+

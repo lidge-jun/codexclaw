@@ -107,6 +107,6 @@ test("managed protocol precedes card and combined context is bounded", () => {
   assert.ok(Buffer.byteLength(prefix) <= 300);
   assert.equal(context.slice(prefix.length + 1), renderDispatchCard());
   assert.ok(context.length <= 4096);
-  assert.ok(renderDispatchCard().length <= 1200);
+  assert.ok(renderDispatchCard().length <= 450);
   assert.throws(() => sessionFallbackNotice(cwd, () => "x".repeat(4097)), /SessionStart dispatch context exceeds 4096 characters/);
 });

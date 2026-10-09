@@ -1,68 +1,47 @@
 # Loop runtime lifecycle
 
 Read only for authorized HOTL entry/resume or continuation/completion diagnosis.
-Mode selection belongs to ../SKILL.md; phase control belongs to
-../../pabcd/references/phase-control.md. Follow the live host tool contract.
+Mode selection belongs to [cxc-loop](../SKILL.md); follow the live host tool contract.
 
-## Orchestrate mandate (ORCH-MANDATE-01, STRICT)
+## Entry and resume
 
-A loop claim without persisted FSM evidence is INVALID. Narrating phases ("now I'm in
-B", "audit passed") without their `cxc orchestrate` transitions is the exact
-failure mode this rule exists to stop: the Stop hook never arms, the ledger stays
-empty, and the "loop" is one ordinary turn wearing a loop costume. Mandatory sequence
-for EVERY loop entry or re-entry:
+Before claiming loop progress, apply ORCH-MANDATE-01 in
+[cxc-loop](../SKILL.md#execution-invariants) and the binding, status and artifact procedure in
+[phase control](../../pabcd/references/phase-control.md)
+(SESSION-IDENTITY-01, ORCH-ARTIFACT-01, ATTEST-SHAPE-01).
+A phase without a persisted transition and real artifact did not happen.
+If PATH resolves an older development `cxc`, run session, orchestrate and loop
+commands through the installed plugin, `node "<pluginRoot>/bin/cxc.mjs"`, and
+leave the development checkout untouched.
 
-1. Use YOUR current SessionStart binding (SESSION-IDENTITY-01). When native
-   CODEX_THREAD_ID is present, corroborate it with `cxc session current` before
-   mutation. Missing, inherited or conflicting line: run `cxc session current`,
-   then explicit `cxc session bind` from the verified native cwd. Never set the
-   environment ID yourself, choose latest state or replay a synthetic hook event.
-   If validation fails, report it and continue independently authorized work.
-   Binding creates missing FSM state only; it does not verify hooks or arm Stop.
-2. `cxc orchestrate status --session <id>` — read the real phase before claiming any.
-3. For a new authorized HOTL goal: create_goal, cxc loop init, register the plan,
-   then enter P. On resume, inspect and reuse the matching active goal and bound
-   plan; do not recreate or overwrite them. Resolve a mismatched goal/scope first.
-   HITL enters I or P only within the requested scope and without a host goal.
-4. Advance the four gated work edges (P>A, A>B, B>C, C>D) with
-   `cxc orchestrate <phase> --attest <json>` — or `--attest-file <path>`, which is
-   REQUIRED on Windows because PowerShell cannot pass inline JSON as one argument —
-   carrying the phase's real artifact
-   (ORCH-ARTIFACT-01). Every attest names the edge it advances with `from`/`to`,
-   plus that edge's own keys (`planUnit` on P>A, `workPhaseId` on every gated edge
-   under a bound goalplan, `testReceiptPath` on C>D) — canonical table and
-   copy-paste objects: [Phase control](../../pabcd/references/phase-control.md) (ATTEST-SHAPE-01).
-   Entry edges (IDLE→P, I→P) are explicit commands without an
-   attest JSON — the shipped gate (`dist/attest.js` GATED_TRANSITIONS) gates exactly
-   those four. A phase without its persisted transition did not happen — the
-   footer/ledger is the only proof of phase.
-5. After D closes to IDLE, read durable state (goalplan + ledger) to confirm remaining
-   work, then re-enter P for the next work-phase with
-   `cxc orchestrate P --session <id>`.
+For a new authorized HOTL goal, create the host goal, initialize and register its
+[durable plan](durable-goalplan.md), then enter P. On resume, inspect and reuse
+the matching active goal and plan; resolve scope mismatches instead of overwriting
+them. HITL enters only within its requested scope and without a host goal.
+After D closes to IDLE, read goalplan and ledger, then apply the
+[next-work-phase rule](../SKILL.md) before another P.
 
-Work performed outside the FSM does not count as loop progress: re-enter and attest
-it before building on it. Runtime companions (shipped): a loop/goalplan/
-continue-until-done request hitting an UN-ARMED FSM gets the arming mandate injected
-at prompt time (`LOOP_ARM_DIRECTIVE`, hook `UserPromptSubmit`), and an active goal
-with no in-flight cycle gets the Stop-time block naming the arming command
-(GOAL-IDLE-CONTINUE-01) — but neither companion moves a phase for you; the commands
-remain yours to run.
+Work outside the FSM must be reconciled and genuinely attested before it counts
+as loop progress. Prompt-time arming and GOAL-IDLE-CONTINUE-01 can name the needed
+command; neither moves a phase for the agent.
 
 ## Completion gate (GOAL-COMPLETE-GATE-01, shipped)
 
-`update_goal {status:"complete"}` is gated by a deterministic PreToolUse hook,
-not just discipline text. The hook DENIES the call when:
+The shipped guard in
+[goal-gate.ts](../../../components/pabcd-state/src/goal-gate.ts)
+owns the completion predicate, including cycle closure, resolved child evidence,
+source integrity and complete bound-plan validation. Never weaken criteria or
+shrink a plan to pass (LOOP-CONTINUE-01).
 
-- a PABCD cycle is in flight (`orchestrationActive`, phase not IDLE/I) — close
-  the cycle through D (or `cxc orchestrate reset`) first; or
-- the session-bound goalplan fails the E8 gate (`cxc loop validate`): undone
-  work phases, unmet criteria, `met` marks without `capturedEvidence`, or an
-  empty unregistered plan.
-
-The plugin's completion gate does not deny blocked status; this does not override
-the host tool's blocked-status conditions or authorize an early stop. The gate is
-fail-open on IO errors and does not fire without state or a bound goalplan.
-Do not shrink the goalplan to pass the gate (LOOP-CONTINUE-01).
+On denial, inspect the reason: restore verified unreadable state or a missing/
+malformed bound plan; re-verify unresolved child work with
+`cxc evidence resolve --session <id> --agent <agent-id> --receipt <path>`;
+validate the same source-bound plan with `cxc loop validate --session <id>`.
+Clear an unrecordable-evidence marker only after re-verification. Close an active
+cycle through real D evidence; reset is a separately authorized control action.
+The guard leaves blocked status available, subject to the host's own conditions.
+Unexpected guard errors fail open; absent delivery or an allowed call proves
+neither completion nor fresh verification.
 
 Before waiting on dispatched work or long external processes, read
 [Waiting on work](waiting.md), the mode-neutral owner of wait and retirement rules.
@@ -97,5 +76,6 @@ command and remaining work. Termination remains bounded by:
 |-----------|----------|
 | No active goal, or phase I | Release |
 | Active goal + in-flight cycle | Bounded block (continue phase) |
-| Active goal + IDLE with remaining work | Block with arming command |
+| Active goal + IDLE with an executable remaining phase | Block with arming command |
+| IDLE with a missing plan or all remaining work awaiting user decisions | Release; goal remains active and completion is still gated |
 | Context pressure or stagnation cap exhausted | Release (not a success signal) |
