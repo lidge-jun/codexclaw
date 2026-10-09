@@ -308,9 +308,10 @@ test("010: an unresolved tombstone DENIES goal completion (the verdict is not wa
   assert.match(context.additionalContext, /GOAL-COMPLETE-GATE-01/);
   assert.match(context.additionalContext, /1 unverified subagents/);
   assert.match(context.additionalContext, /a1/);
-  assert.match(context.additionalContext, /cxc evidence resolve --session s1/);
+  // The invocation renders as `cxc` or `node "<root>/bin/cxc.mjs"` depending on PATH.
+  assert.match(context.additionalContext, /evidence resolve --session s1/);
   assert.match(context.additionalContext, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
-  assert.ok(Buffer.byteLength(context.additionalContext) <= 250);
+  assert.ok(Buffer.byteLength(context.additionalContext.replace(/node "[^"]*cxc\.mjs"/g, "cxc")) <= 250);
 });
 
 test("010: status blocked stays allowed — the honest escape hatch survives", () => {
