@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-data"
-  short_description: "Data pipelines, ETL/ELT design, data quality validation, SQL optimization, and analysis patterns."
+  short_description: "Analytics, data pipelines, ETL/ELT and data quality."
 policy:
   allow_implicit_invocation: false

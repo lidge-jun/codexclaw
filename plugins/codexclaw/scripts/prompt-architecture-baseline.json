@@ -1,47 +1,7 @@
 {
-  "descriptions": {
-    "ast-grep": 497,
-    "dev-backend": 391,
-    "dev-code-reviewer": 396,
-    "dev-debugging": 569,
-    "dev-devops": 971,
-    "dev-frontend": 527,
-    "dev-scaffolding": 446,
-    "dev-testing": 434,
-    "dev-uiux-design": 450,
-    "dev-visualizer": 497,
-    "interview": 327,
-    "kwrite": 448,
-    "lunasearch": 380,
-    "qa": 552,
-    "recall": 424,
-    "remote": 443,
-    "search": 424,
-    "worktree-guardian": 407
-  },
-  "shortDescriptions": {
-    "dev-devops": 103,
-    "dev-uiux-design": 102,
-    "qa": 107
-  },
-  "routers": {
-    "dev-architecture": 23364,
-    "dev-backend": 25344,
-    "dev-code-reviewer": 21945,
-    "dev-data": 21213,
-    "dev-debugging": 22706,
-    "dev-devops": 26795,
-    "dev-frontend": 36373,
-    "dev-scaffolding": 19691,
-    "dev-security": 20663,
-    "dev-testing": 30306,
-    "dev-uiux-design": 28214,
-    "dev-visualizer": 16262,
-    "interview": 17660,
-    "qa": 12180,
-    "recall": 16630,
-    "search": 14584
-  },
+  "descriptions": {},
+  "shortDescriptions": {},
+  "routers": {},
   "idDefinitions": {
     "READER-DOC-01": [
       "skills/dev-visualizer/reference/reader-documents.md",
@@ -62,26 +22,6 @@
     "READER-DOC-05": [
       "skills/dev-visualizer/reference/reader-documents.md",
       "skills/dev/references/reader-documents.md"
-    ],
-    "DEVOPS-BASELINE-DEFECT-01": [
-      "skills/dev-devops/references/ci-cd-deploy.md",
-      "skills/dev-testing/references/ci-pipeline.md"
-    ],
-    "FE-ASSET-BG-01": [
-      "skills/dev-frontend/SKILL.md",
-      "skills/dev-frontend/references/core/asset-requirements.md"
-    ],
-    "UX-CONCEPT-GEN-01": [
-      "skills/dev-frontend/references/core/asset-requirements.md",
-      "skills/dev-uiux-design/SKILL.md"
-    ],
-    "FE-MOTION-HONESTY-01": [
-      "skills/dev-frontend/references/core/motion.md",
-      "skills/dev-uiux-design/SKILL.md"
-    ],
-    "SOT-SYNC-01": [
-      "skills/dev-scaffolding/SKILL.md",
-      "skills/pabcd/references/phase-check.md"
     ]
   }
 }

@@ -27,11 +27,12 @@ export const BUDGET = { description: 320, shortDescription: 100, router: { dev: 
 const CLASSES = "STRICT|DEFAULT|HEURISTIC|ESCALATE|STYLE_SAMPLE";
 const ID_RE = /\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d{2})\b/g;
 
-// Frozen when the gate was introduced (2026-10-09). Shrinking these sets is fine;
-// growing them is a reviewable policy change.
+// Skills allowed to carry an exact-size baseline record. Introduced 2026-10-09 with the
+// sixteen over-budget routers and eighteen descriptions; emptied the same day once every
+// skill met its budget. Adding a name here is a reviewable policy change.
 export const ELIGIBLE = {
-  descriptions: new Set(["ast-grep", "dev-architecture", "dev-backend", "dev-code-reviewer", "dev-data", "dev-debugging", "dev-devops", "dev-frontend", "dev-scaffolding", "dev-testing", "dev-uiux-design", "dev-visualizer", "interview", "kwrite", "lunasearch", "qa", "recall", "remote", "search", "worktree-guardian"]),
-  routers: new Set(["dev-architecture", "dev-backend", "dev-code-reviewer", "dev-data", "dev-debugging", "dev-devops", "dev-frontend", "dev-scaffolding", "dev-security", "dev-testing", "dev-uiux-design", "dev-visualizer", "interview", "qa", "recall", "search"]),
+  descriptions: new Set(),
+  routers: new Set(),
 };
 
 function walk(dir, out = []) {
@@ -128,7 +129,7 @@ function ratchet(kind, key, actual, budget, baseline, eligible, violations, unit
   if (actual !== recorded) violations.push(kind + " " + key + ": " + actual + " " + unit + " but the baseline records " + recorded + (actual < recorded ? " (lower the record" + (actual <= budget ? " or delete it" : "") + ")" : " (growth needs a reviewed baseline change)"));
 }
 
-export function checkPromptArchitecture({ pluginRoot = DEFAULT_PLUGIN_ROOT, baseline = loadBaseline(pluginRoot), report = false } = {}) {
+export function checkPromptArchitecture({ pluginRoot = DEFAULT_PLUGIN_ROOT, baseline = loadBaseline(pluginRoot), report = false, eligible = ELIGIBLE } = {}) {
   const skillsDir = join(pluginRoot, "skills");
   const violations = [];
   const advice = [];
@@ -139,15 +140,15 @@ export function checkPromptArchitecture({ pluginRoot = DEFAULT_PLUGIN_ROOT, base
     const text = readFileSync(skillMd, "utf8");
     const desc = frontmatterDescription(text);
     if (desc === null) violations.push("description " + name + ": missing frontmatter description");
-    else ratchet("description", name, [...desc].length, BUDGET.description, baseline.descriptions, ELIGIBLE.descriptions, violations, "chars");
+    else ratchet("description", name, [...desc].length, BUDGET.description, baseline.descriptions, eligible.descriptions, violations, "chars");
     const yaml = join(skillsDir, name, "agents", "openai.yaml");
     if (existsSync(yaml)) {
       const sd = shortDescription(readFileSync(yaml, "utf8"));
-      if (sd !== null) ratchet("short_description", name, [...sd].length, BUDGET.shortDescription, baseline.shortDescriptions, ELIGIBLE.descriptions, violations, "chars");
+      if (sd !== null) ratchet("short_description", name, [...sd].length, BUDGET.shortDescription, baseline.shortDescriptions, eligible.descriptions, violations, "chars");
     }
     const bytes = Buffer.byteLength(text);
     sizes[name] = bytes;
-    ratchet("router", name, bytes, BUDGET.router[name] ?? BUDGET.router.default, baseline.routers, ELIGIBLE.routers, violations, "bytes");
+    ratchet("router", name, bytes, BUDGET.router[name] ?? BUDGET.router.default, baseline.routers, eligible.routers, violations, "bytes");
   }
 
   const files = walk(skillsDir);

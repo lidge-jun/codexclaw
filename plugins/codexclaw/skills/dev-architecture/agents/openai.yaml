@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-architecture"
-  short_description: "Module boundaries, circular deps, coupling taxonomy, and boundary-only defensive programming."
+  short_description: "Module boundaries, dependencies and validation placement."
 policy:
   allow_implicit_invocation: false

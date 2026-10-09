@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-testing"
-  short_description: "Testing and QA router: strategy, harness choice, CI gates, TDD, and coverage."
+  short_description: "Test strategy, regressions and release verification."
 policy:
   allow_implicit_invocation: false

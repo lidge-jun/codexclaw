@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-scaffolding"
-  short_description: "Project and module scaffolding with repo-first convention reuse and structural audits."
+  short_description: "Project and module setup, structural audits and documentation."
 policy:
   allow_implicit_invocation: false

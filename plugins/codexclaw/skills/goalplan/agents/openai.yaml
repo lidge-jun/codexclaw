@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-goalplan"
-  short_description: "DEPRECATED - merged into cxc-loop. Use $cxc-loop for durable goalplans."
+  short_description: "Deprecated alias for cxc-loop."
 policy:
   allow_implicit_invocation: false

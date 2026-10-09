@@ -1,6 +1,6 @@
 ---
 name: cxc-pabcd
-description: "Use for class-scaled Plan-Audit-Build-Check-Done work. Explicit explanation, interview, plan-only, and read-only limits win; loading the skill does not activate a loop. Triggers: PABCD, plan this, 기획, 단계별로, 요구사항 정리."
+description: "Use for Plan-Audit-Build-Check-Done work. Triggers: PABCD, plan this, 기획, 단계별로, 요구사항 정리."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Codex-native PABCD loop (Interview/Plan/Audit/Build/Check/Done) with class-scaled depth."

@@ -1,6 +1,6 @@
 ---
 name: cxc-dev
-description: "MUST USE for coding, PR creation/review/merge, dependent branches, scaffolding, and QA. Classify C0-C5, preserve safety and fresh proof, and load the matching surface owner. Triggers: develop, fix, refactor, test, review, docs, browse, QA, stacked PR, 개발, 수정, 검토, 스택 PR."
+description: "Use for coding, PR delivery, scaffolding and QA. Triggers: develop, fix, refactor, test, review, docs, browse, stacked PR, 개발, 수정, 검토, 스택 PR."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."

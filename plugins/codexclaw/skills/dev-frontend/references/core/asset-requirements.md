@@ -499,7 +499,9 @@ Source: taste-skill imagegen-frontend-web, adapted for codexclaw UX-CONCEPT-GEN-
 - Non-minimalist sites must include at least one full-bleed/duotone/atmospheric
   background AND at least one mini-minimalist section.
 
-### Application to UX-CONCEPT-GEN-01
+### Application to concept exploration
+
+Before the concept pass, read [Visual Concept Exploration](../../../dev-uiux-design/SKILL.md#25-visual-concept-exploration-ux-concept-gen-01-default) (UX-CONCEPT-GEN-01).
 
 In the 5-render concept pass, each render MUST vary the composition anchor.
 Repetitive same-layout renders are wasted candidates. The element ledger

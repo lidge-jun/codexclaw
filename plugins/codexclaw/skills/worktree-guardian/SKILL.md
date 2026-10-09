@@ -1,6 +1,6 @@
 ---
 name: cxc-worktree-guardian
-description: "MUST USE when working inside or renaming Codex-app managed worktrees — hash-named dirs under ~/.codex/worktrees, detached-HEAD checkouts, thread-bound workspaces. Prevents delete-and-recreate: adopt in place with git switch -c / branch -m; git worktree move only for other inactive worktrees. Triggers: worktree, 워크트리, 워크트리 이름, rename worktree, 새 워크트리, 브랜치랑 워크트리, detached HEAD worktree, ~/.codex/worktrees."
+description: "Use for Codex-app worktrees. Triggers: worktree, rename worktree, detached HEAD, ~/.codex/worktrees, 워크트리, 워크트리 이름, 새 워크트리, 브랜치랑 워크트리."
 metadata:
   short-description: "Managed-worktree identity safety: never delete/recreate; adopt in place."
 ---

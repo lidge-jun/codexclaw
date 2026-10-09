@@ -1,6 +1,6 @@
 ---
 name: cxc-loop
-description: "Use for scoped PABCD completion loops. Bare cxc-loop means HOTL; explicit explanation, interview, plan-only, read-only, or HITL limits win. Triggers: cxc-loop, continue until done, HOTL, repeated PABCD, 루프 돌려, 끝까지 해줘, docs-first."
+description: "Use for PABCD completion loops. Triggers: cxc-loop, continue until done, HOTL, repeated PABCD, 루프 돌려, 끝까지 해줘, docs-first."
 metadata:
   short-description: "Agent-led scoped completion with durable plans and evidence."
 ---

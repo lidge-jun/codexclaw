@@ -43,7 +43,7 @@ User makes **binary decisions**: Alive or Dead.
 **NO blending** — blending is averaging. Averaging is convergence.
 
 Precedence: this Alive/Dead process governs POST-CODE iteration rounds. The
-pre-code concept stage is owned by `dev-uiux-design` UX-CONCEPT-GEN-01, whose
+pre-code concept stage is owned by `../../../dev-uiux-design/SKILL.md` UX-CONCEPT-GEN-01, whose
 mockup SYNTHESIS rule applies there and does not conflict with this ban.
 
 ### Round 3: Mutate

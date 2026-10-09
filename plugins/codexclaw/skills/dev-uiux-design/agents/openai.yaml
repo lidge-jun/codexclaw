@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-uiux-design"
-  short_description: "Design judgment for vague briefs, UX states, typography, layout patterns, logos, and brand vocabulary."
+  short_description: "UI/UX direction, states, typography and brand identity."
 policy:
   allow_implicit_invocation: true
