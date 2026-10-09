@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-repo-map"
-  short_description: "One-shot tree-sitter symbol map with PageRank for unfamiliar codebase exploration."
+  short_description: "Repository structure, symbol and architecture overviews."
 policy:
   allow_implicit_invocation: false

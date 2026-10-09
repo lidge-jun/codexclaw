@@ -5,7 +5,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 const MAX_META_LINE_BYTES = 64 * 1024;
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const ALLOW = '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}';
-const MODEL_ADVICE = "This Codex Desktop agent-created thread may show approval prompts even though the user Codex config requests full access. Request escalation explicitly for network or git operations when needed. If the user enabled permissions.agentCreatedThreadAutoAllow, codexclaw answers pending approvals, including one-time network requests, without prompting; it never changes this thread's sandbox.";
+const MODEL_ADVICE = "[codexclaw] Agent-created thread may need approvals despite full-access config; obey actual sandbox/tools.";
 const USER_ADVICE = "This agent-created thread started in the default approval mode despite your full-access Codex config, so approval prompts may appear. You can switch this thread to Full Access in the composer, or set permissions.agentCreatedThreadAutoAllow to true in ~/.codexclaw/config.json so codexclaw answers these approvals for you, including one-time network requests.";
 
 type JsonObject = Record<string, unknown>;

@@ -1,6 +1,6 @@
 ---
 name: cxc-loop
-description: "Use for scoped PABCD completion loops. Bare cxc-loop means HOTL; explicit explanation, interview, plan-only, read-only, or HITL limits win. Triggers: cxc-loop, continue until done, HOTL, repeated PABCD, 루프 돌려, 끝까지 해줘, docs-first."
+description: "Use for PABCD completion loops. Triggers: cxc-loop, continue until done, HOTL, repeated PABCD, 루프 돌려, 끝까지 해줘, docs-first."
 metadata:
   short-description: "Agent-led scoped completion with durable plans and evidence."
 ---
@@ -9,150 +9,44 @@ metadata:
 
 ## Intent before activation
 
-Apply the current request's authority before choosing a mode:
+Bare operative cxc-loop means scoped HOTL; explicit HITL keeps human P/A/B pauses. Loading, explanation and review activate nothing. Explicit limits win. HOTL adds persistence, never permissions; report missing authority.
 
-- An explanation, review, or quoted mention of cxc-loop is not an execution request.
-  Do not create a goal, mutate the FSM, or start implementation merely to explain it.
-- Explicit interview-only, plan-only, read-only, no-writes, no-commits, no-goal,
-  no-FSM, no-tests, and no-delegation limits take precedence when actually stated.
-  Do only the authorized work. A plan-only
-  request is not permission for A/B/C/D; an interview is not permission to leave I.
-- An operative bare cxc-loop request means HOTL completion of all plans within the
-  agreed objective. An explicit HITL request instead preserves human P/A/B pauses.
-  Ordinary development requests do not become HOTL because this skill was loaded.
-- HOTL changes persistence, not permissions. It does not authorize unrelated work,
-  push, merge, release, deployment, installation, destructive actions, or new access.
-  If missing intent or authority prevents progress, report it; do not silently
-  enlarge the scope. Do not enter Interview while a host goal is active.
+A leaf follows its packet, owns no goal/FSM and needs a grant to spawn. Dispatched tasks own their goal/FSM within their packet's grant. Before dispatch, read [Dispatch surfaces](../pabcd/references/dispatch-surfaces.md) (DISPATCH-SURFACE-01).
 
-A **leaf** — a spawned subagent — never opens a host goal, runs `cxc orchestrate`, or
-spawns; it follows its packet and reports. A dispatched **task** is not a leaf: it owns
-its own goal and PABCD state, and it runs a loop when its packet grants the objective,
-the criteria and the completion condition. Absent that grant it does the stated work and
-reports rather than inventing a goal. Neither the coordinator nor a lane advances the
-other's FSM. See [Lane dispatch](references/lane-dispatch.md) for the packet and the
-measured host envelope. Follow the live host tool contracts, including goal creation and
-blocked-status conditions. A plugin hook accepting a call is not proof that the call is
-authorized.
+Use [cxc-dev](../dev/SKILL.md) for safety, proof, complete selected reads, peer contact, async questions and installed-skill discovery. Select owners by task/class/risk/phase; preserve explicit-only and leaf-safe restrictions and resolve missing mandatory references before work.
 
-Keep this goal's work local; do not send unsolicited progress or completion notices
-to other tasks. Peer contact is limited to explicit user requests or necessary confirmed
-blocking CI/merge collision coordination, subject to host permissions and wake
-checks. An incoming peer question is not a new loop request or permission to resume an old
-goal. Follow [peer collaboration](../dev/references/peer-collaboration.md) for
-question-only wakes and independent task authority; apply this loop only to work
-the user actually authorized.
+## Read before the action
 
-For useful mid-work questions, follow [Async user questions](../dev/references/async-questions.md)
-when the tool is exposed and the host permits it. Leave optional questions without
-expecting replies, keep working and incorporate answers if they arrive. An unanswered
-optional question does not block completion. Interview retains its existing goal
-restrictions; async is not a workaround for a denied question or missing approval.
-
-## Select the smallest sufficient reading path
-
-The agent selects owners from the task, work class, risk, and current phase.
-Read each selected SKILL.md completely; then read only references whose conditions
-apply. Resolve relative links from this skill's directory, not the working directory.
-Keep read batches within the active tool's output limits.
-If output is truncated, recover the missing content before the governed
-action; command exit0 is not a complete read. Reuse content still present in context; after context
-loss reload the applicable owner, not the whole skill family.
-If a selected file's output is truncated, re-read that file separately. Do not
-guess missing ranges from an elision marker. If it cannot fit one result, use
-numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
-Do not recursively load every linked file. A missing mandatory reference is a
-preflight failure: resolve it or report the limitation before the governed action.
-
-| Condition | Read before the governed action |
+| Action | Owner |
 |---|---|
-| Development or governed review | [cxc-dev](../dev/SKILL.md), then its matching surface routers |
-| Tool composition, response projection, or in-context JS computation | [Native execution](../dev/references/native-execution.md); prefer exposed Code Mode, not a forced runtime |
-| Real PABCD work or a PABCD plan | [cxc-pabcd](../pabcd/SKILL.md), then only the current phase references it selects |
-| Start/resume HOTL or diagnose its continuation/completion | [Runtime lifecycle](references/runtime-lifecycle.md) |
-| Create, register, amend, or inspect durable goalplan schema/CLI | [Durable goalplan](references/durable-goalplan.md) |
-| Two or more work-phases, including scope discovered later | [Implementation units](../pabcd/references/implementation-units.md) |
-| Repeated failure, reviewer FAIL, or unclear loop archetype | [Loop engineering](../pabcd/references/loop-engineering.md) |
-| Score optimization, plateau, or mechanism comparison | [Optimization rules](../pabcd/references/optimization.md) and loop engineering |
-| Deliberate divergence/candidate comparison | [Divergence tiers](references/divergence-tiers.md) |
-| Choosing between a thread and a subagent, or planning parallel lanes | [Dispatch surfaces](../pabcd/references/dispatch-surfaces.md) |
-| Dispatching tasks that will run their own loop, or watching more than a few lanes | [Lane dispatch](references/lane-dispatch.md) |
-| Dispatch is authorized and needed | [Delegation](../pabcd/references/delegation.md) |
-| Waiting on dispatched work or long external processes, HITL or HOTL | [Waiting on work](references/waiting.md) |
-
-The installed skill listing and owner routers are the discovery path. cxc skill
-search searches external catalogs; it is not the native installed-skill loader.
-Keep explicit-only skills and leaf-safe delivery restrictions intact.
+| PABCD work or planning | [cxc-pabcd](../pabcd/SKILL.md) |
+| HOTL entry, resumption or completion diagnosis | [Runtime lifecycle](references/runtime-lifecycle.md) |
+| Goalplan schema, CLI or amendment | [Durable goalplan](references/durable-goalplan.md) |
+| Multi-cycle roadmap | [Implementation units](../pabcd/references/implementation-units.md) |
+| Repeated failure, reviewer FAIL or archetype selection | [Loop engineering](../pabcd/references/loop-engineering.md) |
+| Score optimization, plateau or mechanism comparison | [Optimization](../pabcd/references/optimization.md) + loop engineering above |
+| Candidate divergence | [Divergence tiers](references/divergence-tiers.md) |
+| Task dispatch or lane observation | [Lane dispatch](references/lane-dispatch.md) |
+| Authorized subagent dispatch | [Delegation](../pabcd/references/delegation.md) |
+| Waiting on work or external processes | [Waiting](references/waiting.md) |
+| Composition, response projection or in-context computation | [Native execution](../dev/references/native-execution.md) |
 
 ## Execution invariants
 
-- DISPATCH-SURFACE-01 (STRICT): name the surface before fanning work out, because
-  two mechanisms answer to "dispatch" and they are not substitutes. A **subagent**
-  (`spawn_agent`) is a leaf that runs in **this session's own working directory**,
-  with no session state, no goal and no FSM; its edits land in your checkout as
-  your uncommitted changes. A **thread** (`create_thread`) is a separate Codex
-  task with its own goal and PABCD state, and with `environment: worktree` its own
-  checkout — `environment: local` shares the project checkout instead. Work that
-  needs its own branch, checkout, or merge/CI lane is thread work: N parallel lanes
-  means N worktree threads, and the workers inside each lane are that lane's
-  subagents, not threads of their own. Spawning N subagents for N branches puts
-  N writers on one HEAD. Concurrent subagents need non-overlapping write scopes
-  and must never run branch-level git operations at the same time. A request for
-  parallel branch or worktree lanes **is** the user request that creating those
-  threads needs — the lanes are the mechanism the work requires, so do not
-  downgrade them onto the shared tree to avoid creating tasks. If the shape is
-  unclear, ask once naming what you would create, then continue.
-  Details and the measured evidence: [Dispatch surfaces](../pabcd/references/dispatch-surfaces.md).
-- ORCH-MANDATE-01 (STRICT): a claimed active loop needs real persisted FSM evidence,
-  not narrated phase names. Read actual session state before entry or re-entry.
-  SESSION-IDENTITY-01 uses your current SessionStart binding, corroborated with
-  `cxc session current` when native CODEX_THREAD_ID is available. For a missing,
-  inherited or conflicting line, use `cxc session current` then explicit
-  `cxc session bind` in the verified native cwd. Never set that environment ID,
-  replay hook JSON or borrow a parent's/history ID. Binding does not verify hooks.
-  If PATH resolves an older development CLI, invoke this installed plugin's
-  `node "<pluginRoot>/bin/cxc.mjs"` for these commands; preserve the development checkout.
-  Phase-control details belong to cxc-pabcd.
-- HOTL needs both an ACTIVE host goal and an in-flight PABCD cycle; HITL needs no
-  host goal. If a required capability or binding is absent, report the preflight
-  failure rather than claiming Stop-continuation is armed.
-- One work-phase is one P→A→B→C→D cycle. Do the work and provide each edge's real
-  artifact; state advancement is not proof of work. D closes that cycle to IDLE.
-  Hooks may guard calls or termination; they neither choose nor advance phases.
-- LOOP-CONTINUE-01: read the bound goalplan and ledger after D or context loss.
-  Do not shrink criteria to exit. If in-scope work remains under the active goal,
-  re-enter P. A genuinely new in-scope unit is a P-phase amendment to the same
-  goal (LOOP-UNIT-CHAIN-01), not an excuse to stop or permission for unrelated work.
-- LOOP-CONTINUITY-01: the next P quotes the previous D conclusion and direction;
-  changing that direction requires a reason. Resume from durable evidence, not
-  transcript momentum. Completion follows cxc-dev's fresh-proof gate.
-- LOOP-GIT-01 points to cxc-dev §5: checkpoint authorized implementation locally;
-  external writes still require explicit permission. For a declared PR stack,
-  read cxc-dev references/stacked-prs.md. Planning-only work does not authorize
-  implementation or publication; local documentation checkpoints follow cxc-dev
-  scope and git rules.
+- ORCH-MANDATE-01 (STRICT): read persisted state before claiming loop entry/re-entry; binding and edges follow [Phase control](../pabcd/references/phase-control.md) (SESSION-IDENTITY-01).
+- HOTL needs an ACTIVE host goal and in-flight cycle; HITL needs no goal. Missing capability/binding is a preflight failure, never armed continuation.
+- Follow cxc-pabcd's one-work-phase/one-cycle invariant; hooks neither choose nor advance phases.
+- LOOP-CONTINUE-01 (DEFAULT): after D or context loss, read the bound goalplan and ledger; preserve criteria and re-enter P while in-scope work remains under the active goal.
+- LOOP-UNIT-CHAIN-01 (DEFAULT): add genuinely new in-scope units through a P amendment to the same goal.
+- LOOP-CONTINUITY-01 (DEFAULT): next P quotes the previous D conclusion and direction, explains any change, and resumes from durable evidence.
+- LOOP-GIT-01 (DEFAULT): before checkpoints or publication, apply cxc-dev's git rules; declared stacks also read [Stacked PRs](../dev/references/stacked-prs.md).
 
 ## Docs-first multi-cycle entry
 
-LOOP-DOCS-FIRST-01 is DEFAULT for multi-cycle loops and STRICT for HOTL.
-Register the goalplan skeleton and make the first work-phase a docs-only roadmap
-PABCD cycle. Its D locks the roadmap; implementation begins in the next cycle.
-Each later work-phase consumes one pre-written decade doc and revalidates it at P.
-If multi-cycle scope is discovered later, the next P first pays the roadmap debt.
-No production patches, deploys, or implementation-complete claims in that cycle.
-A genuine single-cycle task skips this extra cycle; cxc-dev's C0/C1 fast-path remains.
+LOOP-DOCS-FIRST-01 (DEFAULT): this entry is STRICT for HOTL. Two or more work-phases start with a goalplan skeleton and docs-only roadmap cycle. D locks the roadmap; implementation starts next cycle. Later P consumes/revalidates one prewritten decade doc. Scope discovered later pays this debt at next P. No production patches, deploys or implementation-complete claims in the roadmap cycle. Single-cycle work skips it; cxc-dev owns C0/C1 exceptions.
 
-LOOP-READS-PABCD-01 (STRICT): before multi-cycle execution read the implementation
-units reference. cxc-loop owns WHEN; cxc-pabcd owns DIFFLEVEL-ROADMAP-01,
-PHASE-SPLIT-01, LEXICO-SPLIT-01, and UNIT-RESIDENCE-01. cxc-dev owns the C0/C1
-fast-path exception. Neither a skeleton nor empty decade docs satisfy the roadmap.
+LOOP-READS-PABCD-01 (STRICT): before multi-cycle execution read implementation units above for roadmap contents/numbering; skeletons or empty decade docs do not satisfy it.
 
 ## Completion and recovery
 
-Report the real outcome: DONE, NOOP, BLOCKED, UNSAFE, NEEDS_HUMAN, or
-BUDGET_EXHAUSTED. These are report outcomes, not new FSM phases or host goal
-statuses. DONE requires fresh proof of all recorded criteria. Resource exhaustion
-requires an actual stated bound; compaction, a wait timeout, or Stop releasing is
-not success or budget exhaustion. Preserve evidence and continue when appropriate.
-Do not weaken the goalplan to pass GOAL-COMPLETE-GATE-01. For rejection, stagnation,
-or lost arming, read runtime lifecycle; for repeated failures read loop engineering.
+Report DONE, NOOP, BLOCKED, UNSAFE, NEEDS_HUMAN or BUDGET_EXHAUSTED as outcomes, not FSM phases or host goal statuses. DONE requires cxc-dev's fresh proof and the runtime-lifecycle completion gate (GOAL-COMPLETE-GATE-01); never weaken criteria. Exhaustion requires an actual stated bound. Compaction, wait timeout and Stop release prove neither success nor exhaustion; preserve evidence and recover through the applicable owner.

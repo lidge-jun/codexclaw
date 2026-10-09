@@ -63,22 +63,8 @@ export const MIND_ROLE_PROMPTS                       = {
  * Detailed, schema-dependent dispatch mechanics live in the authorized-only
  * Interview reference. The hook remains a pointer, not a native tool adapter.
  */
-export const MIND_DISPATCH_DIRECTIVE = [
-  "[codexclaw: INTERVIEW — Mind dispatch]",
-  "You (the main session) OWN this interview loop: select Minds, dispatch contradiction workers,",
-  "triage contradictions, ask the user if needed, edit the plan, update state, and re-question.",
-  "The hook only injects directives — it does not coordinate worker returns or plan edits.",
-  "Dispatch Minds ONLY from the top-level main session; if you are yourself a subagent, Mind",
-  "dispatch is unavailable (no nested orchestration) — fall back to inline reasoning, do not nest.",
-  "Each Mind is a read-only lens: it returns contradictions ONLY (never asks/edits/calls/writes).",
-  `Choose Minds by lowest-scoring dimensions; concurrent cap ${MIND_CONCURRENCY_CAP}.`,
-  "MIND-SPAWN-SHAPE-01: only when Mind dispatch is authorized, fully read cxc-interview's",
-  "references/mind-dispatch.md before dispatch. Use the live tool schema; never invent unsupported arguments.",
-  "Keep read-only explorer intent, mind_<mindname> labels, NON-full-history tasks and explicit user settings.",
-  "Minds are stateless: pack the lens prompt PLUS a compact interview snapshot (dimension scores,",
-  "knowns, open assumptions, draft plan path) into each task message.",
-  "State + plan artifacts live under .codexclaw/ (session tracker + .codexclaw/plan/).",
-].join("\n");
+export const MIND_DISPATCH_DIRECTIVE =
+  "[codexclaw: INTERVIEW — Mind dispatch] Authorized main only. Owner: $codexclaw:cxc-interview mind-dispatch.md (MIND-SPAWN-SHAPE-01).";
 
 
 

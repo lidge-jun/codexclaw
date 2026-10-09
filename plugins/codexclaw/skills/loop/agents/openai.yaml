@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-loop"
-  short_description: "Scoped HOTL completion with explicit scope limits."
+  short_description: "PABCD completion loops."
 policy:
   allow_implicit_invocation: true

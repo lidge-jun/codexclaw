@@ -13,7 +13,6 @@ import {
   MAX_STOP_BLOCKS_TOTAL,
   phaseDirective,
   interviewDirective,
-  QUESTION_SHAPE_DIRECTIVE,
   withFooter,
   buildStopBlock,
   readStopWorkContext,
@@ -132,55 +131,37 @@ test("L17 wiring: interviewDirective carries the Mind-dispatch contract", () => 
   const d = interviewDirective();
   assert.match(d, /INTERVIEW/);
   assert.match(d, /Mind dispatch/i);
-  assert.match(d, /contradiction/i);
+  assert.match(d, /mind-dispatch\.md/);
 });
 
-// 260802 WP4 — the I directive is what actually reaches the model, so the
-// grounding rules are asserted on the EMITTED text, not on a standalone
-// constant. QUESTION_SHAPE_DIRECTIVE is the cautionary case: it has always
-// carried the right words and has never been injected anywhere.
+// The Interview owner carries grounding, rendering and question procedures.
+// These runtime tests pin the owner and stable rule IDs, then prove delivery.
 test("WP4: the emitted interview directive names the state-grounding loop", () => {
   const d = interviewDirective();
-  // Without this citation no agent has any reason to run the deriver, so the
-  // tracker stays empty and every question is generated from a blank slate.
-  assert.match(d, /cxc scan record[^\n]*--derive/, "must cite the deriver command");
-  assert.match(d, /--map/, "must show how questions are attributed to a dimension");
-  assert.match(d, /known\[\]/, "must name where answers land");
-  assert.match(d, /unknown\[\]/, "must name where gaps land");
-  assert.match(d, /\.codexclaw\/sessions/, "must say where to read the state back");
+  assert.match(d, /\$codexclaw:cxc-interview SKILL\.md/);
   assert.match(d, /INTERVIEW-GROUND-01/);
 });
 
 test("WP4: the emitted interview directive requires a pre-question status render", () => {
   const d = interviewDirective();
   assert.match(d, /INTERVIEW-RENDER-01/);
-  assert.match(d, /weakest/i, "the render must name the weakest dimension");
-  assert.match(d, /before the question/i);
+  assert.match(d, /\$codexclaw:cxc-interview SKILL\.md/);
 });
 
 test("WP4: batching is governed by independence, not a count", () => {
   const d = interviewDirective();
   assert.match(d, /INTERVIEW-INDEPENDENT-01/);
-  assert.match(d, /INDEPENDENT/);
-  assert.match(d, /independence governs, not a count/i);
+  assert.match(d, /\$codexclaw:cxc-interview SKILL\.md/);
 });
 
 test("WP4: the directive still fits the injection budget", () => {
   // Injected context is capped and shared with the Mind-dispatch block and the
   // phase footer; gjc-scale prose would simply be truncated away.
   const d = interviewDirective();
-  assert.ok(d.length < 8000, `interview directive grew to ${d.length} chars`);
+  assert.ok(Buffer.byteLength(d) <= 300, `interview directive grew to ${Buffer.byteLength(d)} bytes`);
 });
 
-// The three tests above call interviewDirective() directly, so they prove the
-// directive's CONTENTS but not its DELIVERY. A reviewer demonstrated the gap by
-// mutation: swapping interviewDirective() for phaseDirective("I") at the
-// injection sites severed the grounding block from the hook output and the whole
-// suite stayed green, because the generic /INTERVIEW/ assertion still matched.
-// These assert the grounding rules on actual hook STDOUT, so the wiring cannot be
-// cut silently -- the exact failure QUESTION_SHAPE_DIRECTIVE has been living for
-// months.
-
+// Exercise the owner pointer through real hook output, including the Mind owner.
 function groundingContext(out: string): string {
   assert.notEqual(out, "", "hook emitted nothing");
   return JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
@@ -192,7 +173,7 @@ test("WP4 delivery: the passive I-phase injection carries the grounding rules", 
     writeState(cwd, { ...defaultState("gr1"), phase: "I", orchestrationActive: true, lastInjectedPhase: "P" });
     const ctx = groundingContext(handleUserPromptSubmit(ups("continue", cwd, "gr1", "t-gr1")));
     assert.match(ctx, /INTERVIEW-GROUND-01/, "grounding rule must reach the model");
-    assert.match(ctx, /cxc scan record[^\n]*--derive/, "the deriver command must reach the model");
+    assert.match(ctx, /\$codexclaw:cxc-interview SKILL\.md/, "the grounding owner must reach the model");
     assert.match(ctx, /INTERVIEW-RENDER-01/);
     assert.match(ctx, /INTERVIEW-INDEPENDENT-01/);
     assert.match(ctx, /Mind dispatch/i, "the Mind contract must still ride along");
@@ -207,7 +188,6 @@ test("WP4 delivery: the explicit I trigger carries the grounding rules", () => {
     writeState(cwd, { ...defaultState("gr2"), phase: "IDLE" });
     const ctx = groundingContext(handleUserPromptSubmit(ups("Use cxc-pabcd to start Interview phase", cwd, "gr2", "t-gr2")));
     assert.match(ctx, /INTERVIEW-GROUND-01/);
-    assert.match(ctx, /--map/);
     assert.equal(readState(cwd, "gr2").phase, "IDLE");
     assert.equal(readState(cwd, "gr2").orchestrationActive, false);
     assert.equal(readState(cwd, "gr2").lastInjectedPhase, null);
@@ -241,8 +221,8 @@ test("wp3: passive phase pointers carry limits while mode3 and dedup remain unch
         orchestrationActive: true, lastInjectedPhase: "I" });
       const first = handleUserPromptSubmit(ups("Read-only; no-tests; no-delegation; no-FSM.", cwd, session, "p1"));
       const ctx = groundingContext(first);
-      assert.match(ctx, /Apply this pointer and its owners within exact user limits and permissions/);
-      assert.match(ctx, /No-delegation means no dispatch/);
+      assert.match(ctx, /\$codexclaw:cxc-pabcd/);
+      assert.match(ctx, /Owner: \$codexclaw:cxc-/);
       assert.doesNotMatch(ctx, /forbids tests\/build\/typecheck|forbid agent goal\/state commands/);
       assert.ok(ctx.includes(`IPABCD: ${phase} (`));
       assert.equal(readState(cwd, session).phase, phase);
@@ -260,13 +240,13 @@ test("wp3: I preserves Mind delivery and explicitly scopes it under no-delegatio
     withGoalsDb([], () => {
       const ctx = groundingContext(handleUserPromptSubmit(ups(
         "Use cxc-pabcd to start Interview phase only; no delegation, no tests, no implementation.", cwd, "wp3-i", "i1")));
-      assert.match(ctx, /No-delegation means no dispatch/);
-      assert.match(ctx, /This also scopes the Mind instructions below/);
+      assert.match(ctx, /Owner: \$codexclaw:cxc-/);
+      assert.match(ctx, /mind-dispatch\.md/);
       assert.match(ctx, /Mind dispatch/);
       assert.match(ctx, /INTERVIEW-GROUND-01/);
       assert.match(ctx, /INTERVIEW-RENDER-01/);
       assert.match(ctx, /INTERVIEW-INDEPENDENT-01/);
-      assert.match(ctx, /Report unmet actions, not false readiness/);
+      assert.match(ctx, /\$codexclaw:cxc-interview SKILL\.md/);
       assert.equal(readState(cwd, "wp3-i").phase, "IDLE");
       assert.equal(readState(cwd, "wp3-i").orchestrationActive, false);
       assert.equal(readState(cwd, "wp3-i").lastInjectedPhase, null);
@@ -283,12 +263,13 @@ test("wp3: unarmed active or blocked goal still receives inspect-before-create g
         const ctx = groundingContext(handleUserPromptSubmit(ups(
           "cxc-loop: resume the matching unfinished goal; do not create another goal or reinitialize its plan.",
           cwd, "wp3-resume", "r1")));
-        assert.match(ctx, /Inspect the host goal with get_goal first/);
-        assert.match(ctx, /Resume a matching unfinished goal; do not duplicate it/);
-        assert.match(ctx, /Only when no unfinished goal exists and new HOTL is authorized, create_goal/);
-        assert.match(ctx, /different unfinished goal or unsupported resume, report the conflict/);
-        assert.match(ctx, /On resume inspect\/reuse the bound goalplan; do not reinitialize it/);
-        assert.ok(ctx.indexOf("get_goal first") < ctx.indexOf("create_goal"));
+        assert.match(ctx, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
+        assert.match(ctx, /\$codexclaw:cxc-pabcd phase-control\.md/);
+        assert.match(ctx, /FSM IDLE/);
+        assert.match(ctx, /Session wp3-resume/);
+        assert.match(ctx, /SESSION-IDENTITY-01/);
+        assert.ok(ctx.includes(`goal-active ${status === "active" ? "active" : "inactive"}`));
+        assert.ok(Buffer.byteLength(ctx) <= 600);
         assert.equal(readState(cwd, "wp3-resume").phase, "IDLE");
         assert.equal(readState(cwd, "wp3-resume").orchestrationActive, false);
         assert.equal(readState(cwd, "wp3-resume").loopArmSeen, true);
@@ -393,15 +374,6 @@ test("R-11: explicit trigger still injects even if a marker is present", () => {
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
-});
-
-test("L10.1: question directive mandates background + recommendation-first options + impact + request_user_input", () => {
-  assert.match(QUESTION_SHAPE_DIRECTIVE, /request_user_input only/i);
-  assert.match(QUESTION_SHAPE_DIRECTIVE, /background/i);
-  assert.match(QUESTION_SHAPE_DIRECTIVE, /recommendation FIRST/i);
-  assert.match(QUESTION_SHAPE_DIRECTIVE, /impact\/tradeoff/i);
-  assert.match(QUESTION_SHAPE_DIRECTIVE, /2-3 concrete options/i);
-  assert.match(QUESTION_SHAPE_DIRECTIVE, /subagents never generate/i);
 });
 
 // ── L6/060: active Stop-continuation loop with the stagnation guard ──

@@ -1,6 +1,6 @@
 ---
 name: cxc-ast-grep
-description: "Use ast-grep (sg) for AST-aware code search and rewrite across 25 languages. Trigger for structural code matching or deterministic codemods: find every function/call/class/import shaped like X, rewrite console.log to logger.info, strip `as any`, migrate require() to import, find empty catch blocks or missing await, and scan/apply YAML rules. Prefer this over rg/grep when the target is syntax shape rather than text; use rg for string contents, comments, filenames, or regex-style byte searches."
+description: "Use for AST search and codemods. Triggers: ast-grep, sg, function/call/class/import, empty catch, missing await, YAML rules."
 metadata:
   short-description: "AST-aware structural search + deterministic codemods (ast-grep/sg) across 25 languages."
 ---

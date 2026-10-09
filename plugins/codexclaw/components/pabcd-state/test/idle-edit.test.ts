@@ -30,11 +30,11 @@ test("IDLE-EDIT-ADVISORY-01: IDLE + loopArmSeen -> allow envelope with additiona
     assert.equal(parsed.hookSpecificOutput.hookEventName, "PreToolUse");
     assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow");
     assert.match(parsed.hookSpecificOutput.additionalContext, /IDLE-EDIT/);
-    assert.match(parsed.hookSpecificOutput.additionalContext, /cxc orchestrate status --session s1/);
-    assert.match(parsed.hookSpecificOutput.additionalContext, /UNIT-RESIDENCE-01/);
-    assert.match(parsed.hookSpecificOutput.additionalContext, /C0.*no automatic devlog/);
-    assert.match(parsed.hookSpecificOutput.additionalContext, /C1.*only.*existing owning unit/);
-    assert.match(parsed.hookSpecificOutput.additionalContext, /Do not create a unit/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /Session s1/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-dev SKILL\.md/);
+    assert.doesNotMatch(parsed.hookSpecificOutput.additionalContext, /advance edges|Do not create a unit/);
+    assert.ok(Buffer.byteLength(parsed.hookSpecificOutput.additionalContext) <= 200);
     // counter incremented
     assert.equal(readState(cwd, "s1").idleEditNudges, 1);
   } finally { rmSync(cwd, { recursive: true, force: true }); }

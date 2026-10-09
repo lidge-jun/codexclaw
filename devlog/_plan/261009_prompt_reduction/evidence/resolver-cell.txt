@@ -1,0 +1,7 @@
+const n = ALL_TOOLS.map(t => t.name), has = r => n.some(x => r.test(x));
+const s = n.filter(x => /spawn_agent$/.test(x));
+if (s.length !== 1) throw new Error("expected one spawn_agent helper, found " + s.length);
+const v1 = has(/(send_input|close_agent|resume_agent)$/), v2 = has(/(followup_task|interrupt_agent|list_agents)$/);
+if (v1 === v2) throw new Error("collab family unresolved: v1=" + v1 + " v2=" + v2);
+const a = {message:"Report your model and say OK; do not edit files.",model:"command-code/deepseek-deepseek-v4.1-flash-fast",reasoning_effort:"low"};
+text(await tools[s[0]](v1 ? a : {...a, task_name:"model_probe", fork_turns:"none"}));

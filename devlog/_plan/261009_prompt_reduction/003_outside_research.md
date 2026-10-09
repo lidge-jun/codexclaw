@@ -1,0 +1,12 @@
+# Outside research: what other agent prompt systems do
+
+Six Aside exec runs (gpt via Aside provider credentials, read-only, public sources) studied Anthropic skills and obra/superpowers; Cursor, Cline and Continue rules; OpenHands, Aider and goose; the Claude Code ecosystem (docs, ECC, awesome-claude-code); OpenAI AGENTS.md and Codex skills; spec-kit, BMAD-METHOD, opencode and oh-my-openagent. The raw reports (≈245 KB with URLs) stay outside the checkout at `~/.aside/u/0/artifacts/codexclaw-prompt-research/`; research/40_outside_research.md is the cited synthesis.
+
+The projects converge on four layers: a small always-on rule set, catalog descriptions that only decide selection, a loaded skill body with the common rules and routes, and on-demand references; hard behavior goes into hooks or code. The ones that stayed maintainable add a structural check (skill validators in Anthropic's skill-creator, superpowers' structure test, BMAD's skill validator, ECC's validate-skills) and keep incident history out of the loaded rules. None enforces a universal word limit in code; budgets are local choices.
+
+Adopted in this unit (numbering from research/40 `4): 1 one owner per rule (001 ownership); 2 one budget and duplication check (check-prompt-architecture.mjs); 3 local budgets with exceptions, set from measured baselines (001 budgets, baseline file); 4 descriptions state when to use, procedures stay out (wp4); 5 common rules in SKILL.md, detail in direct references, no tiny splits (001 L3/L4, 020, 030); 6 admission and removal check: history stays out of loaded rules (001 "History stays out"); 7 shorten prose that restates a verified guard without calling judgment enforced (020 runtime-backed pointers).
+
+Deferred: 8 selective UPS state pointers beyond what wp2 does; 9 once-only path rules and transcript dedupe; 10 routing evals on served models before removing load-bearing guidance (so wp4 moves text verbatim to references instead of deleting it); 11 a rule registry/compiler with expiry dates.
+
+Rejected: 12 removing all hooks because superpowers removed its bootstrap (codexclaw's guards have duties of their own); 13 a whole-corpus size ceiling or count-based deletion (rarely loaded references cost nothing per turn); 14 copying another host's caps (Claude's, omo's 4 KB, Codex's 8 KB branch) without reproducing them; 15 phrase snapshots or regex "semantic dedupe" as correctness proof.
+

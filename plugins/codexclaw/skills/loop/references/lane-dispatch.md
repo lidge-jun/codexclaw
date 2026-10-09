@@ -5,23 +5,37 @@ one wait can hold. [Dispatch surfaces](../../pabcd/references/dispatch-surfaces.
 the choice between a thread and a subagent; this file owns what a lane is handed and what
 it is allowed to do with it.
 
-The numbers below were read from the Codex desktop bundle and the `codex-rs` sources on
-2026-09-20 and are recorded as data in `test/fixtures/host-thread-bounds.json`. Re-derive
-them with `scripts/check-host-bounds.mjs` rather than trusting this prose.
+## Host envelope
+
+Use the live tool schema if it differs. Recorded bounds and evidence locators
+live in `test/fixtures/host-thread-bounds.json`; re-derive available artifacts with
+`scripts/check-host-bounds.mjs`. Missing artifacts are NOT RUN, not proof of a bound.
+
+| Purpose | Schema or recorded bound |
+|---|---|
+| create | `create_thread({ prompt, target, model?, thinking? })`; `target.environment` is local or worktree; a worktree takes `startingState` of working-tree or branch with `branchName` and `onMissing` |
+| wait | `wait_threads({ targets: [{ threadId, hostId?, afterCursor? }], timeoutMs? })`; 1-8 targets; `timeoutMs` 0-120000, default 120000 |
+| read | `read_thread({ threadId, hostId?, cursor?, turnLimit?, includeOutputs?, maxOutputCharsPerItem? })`; `turnLimit` 1-10; `maxOutputCharsPerItem` 0-20000 |
+| list | `list_threads({ limit? })`; `limit` 1-50, applied to non-pinned results |
+| handoff status | `get_handoff_status({ operationId, afterRevision?, waitMs? })`; `waitMs` 0-60000 |
+| follow up | `send_message_to_thread({ threadId, prompt, ... })` |
+| fork | `fork_thread({ threadId?, environment? })` |
+| move | `handoff_thread({ threadId, destinationHostId?, followUpPrompt? })` |
+| managed worktree retention | `keepCount` default 15 |
+| subagent capacity | `agents.max_threads` / `maxThreads` default 6 on V1; V2 `features.multi_agent_v2.max_concurrent_threads_per_session` minus the session itself |
+| capacity error | `agent thread limit reached` |
 
 ## LANE-LOOP-AUTH-01 (STRICT) — a lane may loop; a leaf never may
 
-A subagent has no session state, no host goal and no FSM: it must not call `create_goal`
-or `cxc orchestrate`. A dispatched task does own both, because codexclaw keys them to the
-task. Ownership is not authority, though. A lane runs a PABCD loop only when its packet
-grants an objective, criteria and a completion condition; with no such grant it does the
-stated work and reports. The coordinator never advances a lane's FSM and a lane never
-advances the coordinator's — messaging a task is not commanding it.
+Follow [surface ownership](../../pabcd/references/dispatch-surfaces.md).
+A task runs a PABCD loop only when its packet grants an objective, criteria and
+completion condition; otherwise it performs the stated work and reports. A leaf
+never owns a goal or FSM.
 
 ## LANE-PACKET-01 (DEFAULT) — the prompt is the whole channel
 
-A lane cannot read the coordinator's goalplan, ledger or context. Whatever is not in the
-`create_thread` prompt does not exist for it. The packet therefore carries:
+A lane must receive its assignment explicitly rather than infer it from the
+coordinator's files or inherited history. Its creation prompt or fork follow-up carries:
 
 | Field | Why it is required |
 |---|---|
@@ -95,56 +109,48 @@ is `[@Title](thread://<threadId>?hostId=<encoded hostId>)`; the thread id accept
 `[A-Za-z0-9_-]` and the host id is percent-encoded and must decode to `[A-Za-z0-9._:-]`.
 Several tasks can be referenced in one turn: duplicates collapse by `(hostId, threadId)`
 and the turn carries the resolved list as JSON under `## Referenced chats with Codex:`.
-No cap was found on that path when it was read — collection, resolution and injection all
-pass the whole array — which is a measured absence rather than a guarantee. A reference is
-a pointer, not content: read the task before relying on it.
+A reference is a pointer, not content: read the task before relying on it.
+Do not infer an undocumented mention cap.
 
 Creation is asynchronous. A ready task returns `threadId` and `hostId`; a task whose
 worktree is still being set up returns a provisional `clientThreadId`, which no tool
-accepts. The binding to the canonical id exists internally, but no model-visible resolver
-was found when the bundle was searched, so treat it as unavailable rather than hidden.
-Record it as `creation.provisionalId` in a pending packet. A listing can supply candidates,
-but title, cwd or elapsed time alone cannot establish the mapping. Confirm canonical
-identity through host evidence and read-only inspection; otherwise leave the packet
-pending. An absent listing, failure or long delay never authorizes recreating the lane.
+accepts. Record the provisional handle as `creation.provisionalId` in a pending packet.
+Use only a resolver exposed by the live host; do not invent one. A listing can
+supply candidates, but title, cwd and elapsed time cannot establish the mapping.
+Confirm through host evidence and a read-only task read; otherwise leave it pending.
+An absent listing or delay never authorizes recreating a lane. The unassigned
+queued-fork exception belongs to
+[dispatch surfaces](../../pabcd/references/dispatch-surfaces.md#dispatch-fork-lane-01--a-fork-as-the-thread-route-when-created-threads-lose-permission).
+
+If a canonical ID is lost, constrain recovery to the same host, worktree and branch.
+Inspect candidate session metadata for cwd, creation time and parent identity,
+then read the recorded session ID; never guess from a filename. Shared cwd cannot
+separate a lane from its subagents. Confirm the candidate with a read-only task
+read before steering it, and leave ambiguity unresolved.
 
 ## Watching lanes, and the wave that is actually capped
 
-`wait_threads` takes **1-8 targets** with `timeoutMs` **0-120000** (default 120000). It
-wakes on the first target that completes or needs attention; commentary never wakes it and
-a timeout returns compact progress for every target, which is a normal outcome rather than
-a failure. More than eight lanes means deliberate batching: watch the batch whose result
-changes your next decision, carry each target's `afterCursor`, and do not read an
-unwatched lane as idle.
+`wait_threads` uses the host envelope above and wakes on completion or required
+attention; commentary does not wake it. A timeout returns compact progress for
+each target and is a normal outcome. For more lanes than one wait accepts, choose
+the batch whose result changes the next decision, carry each `afterCursor`, and
+never infer an unwatched lane is idle.
 
-Fan-out **across branches** belongs to lanes, not to subagents; concurrency *inside* one
-lane's tree is still subagent work. No host-wide cap on concurrently running tasks was
-found in the searched paths, and per-thread turns queue instead. Subagents are the capped
-resource:
-spawning past the limit fails outright with `agent thread limit reached`, and the limit is
-six per session by default (`agents.max_threads`; on V2,
-`features.multi_agent_v2.max_concurrent_threads_per_session` minus one for the session
-itself). So "unlimited parallel subagents" is not a shape the host offers — run waves,
-state the wave size, and close finished agents, because a completed agent holds its slot
-until it is closed.
+Use waves within the session's subagent capacity and state the wave size.
+Before releasing V1 slots, follow
+[consume-once lifecycle](../../pabcd/references/delegation.md#v1-consume-once-lifecycle)
+(DISPATCH-CONSUME-ONCE-01); V2 has no close operation. No fixture establishes a
+host-wide task concurrency cap; report an unknown cap rather than assume one.
 
 ## Nothing wakes the coordinator
 
-A finished lane notifies its own task. No cross-task wake was found. A coordinator that
-dispatches lanes and ends its turn has arranged nothing: keep the work inside the turn,
-or arm a wake that targets the coordinator itself and verify it is active
-(DISPATCH-WAKE-01 in [waiting](waiting.md)). Only one active heartbeat may attach to a
-thread, so a second monitor is not a second safety net.
-
-Managed worktrees are retained to the latest 15 by default and archive cleanup can delete
-or transfer one, so a lane's checkout is not permanent storage. Land or push work; do not
-leave the only copy in a worktree nobody owns.
+Before yielding with lanes active, follow [the wake contract](waiting.md#wake-before-yielding)
+(DISPATCH-WAKE-01). Only one active heartbeat attaches to a thread.
+Managed-worktree retention is in the host envelope: archive cleanup may delete
+or transfer a checkout. Preserve work through an authorized landing or push;
+never rely on an unowned worktree as the only copy.
 
 ## Known limitation
 
-`check-lane-packet.mjs` decides packets; it does not police this document. The
-authorization in [cxc-loop](../SKILL.md) is prose, and no test fails when prose is
-deleted — an independent reviewer raised exactly that, and closing it properly means
-enforcing the packet at the orchestration boundary, which is a runtime change this
-contract does not make. Treat the validator as the enforceable half and the skill text as
-the readable half.
+The packet validator checks record coherence; it neither intercepts dispatch nor
+enforces prose authorization at the orchestration boundary.

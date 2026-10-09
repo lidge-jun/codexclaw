@@ -100,135 +100,36 @@ export function countSourceFiles(root: string): number {
   return count;
 }
 
-/** The strong, one-line affordance injected as SessionStart additionalContext. */
+/** On-demand map pointer; the caller owns the source-file size gate. */
 export function renderMapAffordance(fileCount: number): string {
   const size = fileCount >= COUNT_CAP ? `${COUNT_CAP}+` : String(fileCount);
-  return resolveCxcCommands([
-    `[codexclaw] This workspace has ${size} source files. A ranked structure map is`,
-    "available on demand: run `cxc map <dir>` (tree-sitter symbols + PageRank) to see",
-    "which files own which symbols BEFORE deep rg dives into unfamiliar territory.",
-    "It is a stateless one-shot tool — use it when you need the shape of code you do",
-    "not yet know. Keep rg for byte/text search, and use ast-grep (skill:",
-    "$cxc-ast-grep) for syntax-shape search and deterministic codemods.",
-  ].join(" "));
+  return resolveCxcCommands(
+    `[codexclaw] ${size} source files: ranked symbol map via \`cxc map <dir>\`. Owner: $codexclaw:cxc-repo-map.`,
+  );
 }
 
-/**
- * One-line skill-search affordance (same pointer-not-payload policy as the map
- * affordance): external skill catalogs exist and are searchable on demand. Always
- * on — unlike the map, its usefulness does not depend on repo size, and the cost
- * is one sentence per session.
- */
-export function renderSkillSearchAffordance(): string {
-  return resolveCxcCommands([
-    "[codexclaw] External skill catalogs are searchable on demand.",
-    "Priority: jaw (cli-jaw-skills, 1st-class, default) > clawhub (2nd) > hermes (3rd, sparse).",
-    "When a task needs a capability you do not have loaded,",
-    "browse `dev/references/skill-catalog.md` for the full jaw catalog first,",
-    "or run `cxc skill search <query>` then `cxc skill show <id>` to load it",
-    "(adapter preamble applies; cxc-dev discipline wins on conflict).",
-  ].join(" "));
-}
-
-/**
- * Universal Korean-prose polishing affordance (pointer-not-payload, always on
- * like the skill-search line): when the session writes Korean prose, the
- * baseline discipline is stated in one sentence and the full protocol lives in
- * the $cxc-kwrite skill. Deliberately genre-free — platform-specific writing
- * is out of scope here.
- */
-export function renderKwriteAffordance(): string {
-  return [
-    "[codexclaw] When writing Korean prose for the user (docs, answers,",
-    "announcements), keep it human: no translationese (~에 대해/~를 통해/~함으로써),",
-    "no AI idioms (시사하는 바가 크다/결론적으로/기대된다 endings), no 첫째/둘째",
-    "enumeration, one consistent register throughout. For explicit 윤문/polish",
-    "requests or long-form Korean output, load the $cxc-kwrite skill for the",
-    "full revision protocol.",
-  ].join(" ");
-}
-
-/**
- * Session-id binding line (G3, 260707 fork-FSM fix). Mutating `cxc orchestrate`
- * verbs require an explicit --session; this line tells the agent ITS OWN id at
- * SessionStart, so a /fork-ed session (which replays the parent's orchestrate
- * context but receives a NEW id here) targets its own FSM instead of the
- * most-recently-touched session file.
- */
+/** Current identity; phase-control.md owns binding and recovery procedures. */
 export function renderSessionBinding(sessionId: string): string {
   return resolveCxcCommands([
-    `[codexclaw] This session's id is \`${sessionId}\`. Every mutating`,
-    "`cxc orchestrate` command (I/P/A/B/C/D/reset) MUST pass",
-    `\`--session ${sessionId}\` — the implicit latest-session fallback is`,
-    "disabled for writes, which prevents ACCIDENTAL implicit-fallback",
-    "collisions between concurrent/forked sessions.",
-    "IDENTITY RULE: use the MOST RECENT SessionStart binding line, never a parent/history id.",
-    "With native CODEX_THREAD_ID, verify via `cxc session current` before mutation.",
-    "Missing/inherited/conflicting binding: use `cxc session current`, then `cxc session bind` in its verified cwd.",
-    "Never set the environment id. Binding does not verify hooks or arm Stop-continuation.",
+    `[codexclaw] Session \`${sessionId}\`. Mutating \`cxc orchestrate\`/\`cxc loop\` calls pass`,
+    `\`--session ${sessionId}\`; verify \`cxc session current\`. Never use parent/history ids.`,
+    "Owner: $codexclaw:cxc-pabcd phase-control.md.",
   ].join(" "));
 }
 
-/**
- * Always-on loop-contract line (ORCH-ARM-VISIBILITY-01, 260714). The arming
- * mandate used to live ONLY behind the UserPromptSubmit regex
- * (detectLoopArmRequest) — one lexical miss ("PABCD 여러 번 돌려") delivered zero
- * bytes and the agent patched without the FSM. This line puts the contract's
- * existence in the always-visible SessionStart layer; the per-prompt directive
- * remains the detailed surface.
- */
+/** Always-visible owner pointer; user limits determine loop applicability. */
 export function renderLoopAffordance(): string {
-  return resolveCxcCommands([
-    "[codexclaw] Loop contract: for actual loop work load $codexclaw:cxc-loop + $codexclaw:cxc-pabcd.",
-    "Bare cxc-loop means scoped HOTL; a mention alone grants no authority.",
-    "Exact user limits and separately allowed actions scope this pointer and its owners. No-delegation means no dispatch.",
-    "Read-only inspection remains allowed under no-goal/no-FSM; for actual loop work inspect `cxc orchestrate status --session <your id>` first.",
-    "No-tests does not forbid an explicitly allowed build. One work-phase = one full PABCD cycle.",
-    "No extra external permissions; do not bypass guards or invent evidence.",
-  ].join(" "));
+  return "[codexclaw] Loop contract: load $codexclaw:cxc-loop and $codexclaw:cxc-pabcd for loop work. User limits win; a mention grants no authority.";
 }
 
-/** Global discovery only; the agent verifies membership and CI on demand. */
-export function renderStackedPrAffordance(): string {
-  return [
-    "[codexclaw] For PR work or dependent branches, read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07/08).",
-    "Use ordinary PRs/manual chains by default.",
-    "Do not suggest or create GitHub native stacks unless the user clearly and strongly requests them for this task.",
-    "Inspect existing membership and CI separately; a parent base or Can Stack banner is not opt-in.",
-    "Parallel branch/PR lanes: one Codex task each, not subagents (same checkout); the lane request authorizes them.",
-    "Per-PR CI is expected. This is guidance, not authorization to register, restack, cancel CI, or merge.",
-  ].join(" ");
-}
-
-/**
- * Always-on background-terminal affordance (BG-TERMINAL-AFFORDANCE-01, 260715).
- * Long-running or collision-risky commands (dev servers, builds, 5min+ probes)
- * should use managed background execution instead of blocking the turn inline.
- * Emitted at SessionStart and the first root UserPromptSubmit after compact.
- */
+/** Terminal transport pointer, shared by startup and compact recovery. */
 export function renderBackgroundTerminalAffordance(): string {
-  return [
-    "[codexclaw] Long-running or collision-risky commands (dev servers, builds, test",
-    "suites, 5min+ probes) SHOULD use managed background execution: `exec_command`",
-    "with short `yield_time_ms` → get `session_id` → end turn or continue other work",
-    "→ poll later with `write_stdin` (empty chars = poll, no typing). Do NOT block the",
-    "turn inline for commands that might outlive compaction or conflict with parallel",
-    "work. CLI: `/ps` lists active background terminals; `/stop` terminates all in the",
-    "current session. A session_id is NOT an OS PID — it is a Codex-managed execution",
-    "handle.",
-  ].join(" ");
+  return "[codexclaw] Long commands: exec_command with short yield_time_ms; poll session_id with write_stdin. Owner: $codexclaw:cxc-dev native-execution.md.";
 }
 
 /** Question transport guidance only; does not expose tools or change permissions. */
 function renderQuestionAffordance(): string {
-  return [
-    "[codexclaw] User questions: main agents may leave useful questions during work, including active goals.",
-    "Outside Interview, prefer exposed and host-allowed `request_user_input_async`; do not expect replies or wait.",
-    "Continue authorized work with reasonable assumptions, incorporate later replies, and ask distinct useful questions without reminders.",
-    "Interview uses `request_user_input` only; see $codexclaw:cxc-interview.",
-    "Absent tools stay absent; silence grants no approval. Subagents send question candidates to main.",
-    "Details: $codexclaw:cxc-dev references/async-questions.md.",
-  ].join(" ");
+  return "[codexclaw] User questions: request_user_input_async when exposed; do not wait; silence is not approval. Owner: $codexclaw:cxc-dev async-questions.md.";
 }
 
 /** Resolve only a valid root event; child sessions may reuse the parent's id. */
@@ -278,7 +179,6 @@ export function runUserPromptAffordance(stdin: string): string {
   const lines: string[] = [];
   lines.push(renderBackgroundTerminalAffordance());
   lines.push(renderLoopAffordance());
-  lines.push(renderStackedPrAffordance());
   lines.push(renderQuestionAffordance());
   const envelope = {
     hookSpecificOutput: {
@@ -292,7 +192,7 @@ export function runUserPromptAffordance(stdin: string): string {
 /**
  * SessionStart handler. Reads the hook JSON payload from stdin (for `cwd`), counts
  * source files, and returns ONE SessionStart envelope combining the affordance
- * lines: the map pointer (size-gated) plus the skill-search pointer (always on).
+ * lines: the size-gated map plus binding, loop, terminal and question pointers.
  * Never throws.
  */
 export function runMapAffordanceSessionStart(stdin: string, fallbackCwd: string): string {
@@ -314,15 +214,12 @@ export function runMapAffordanceSessionStart(stdin: string, fallbackCwd: string)
   try {
     count = countSourceFiles(cwd);
   } catch {
-    count = 0; // walk blew up somehow -> skip the map line, keep the skill line
+    count = 0; // walk blew up somehow -> skip the map line, keep the other pointers
   }
   const lines: string[] = [];
   if (sessionId) lines.push(renderSessionBinding(sessionId));
   if (count >= MAP_AFFORDANCE_MIN_FILES) lines.push(renderMapAffordance(count));
-  lines.push(renderSkillSearchAffordance());
-  lines.push(renderKwriteAffordance());
   lines.push(renderLoopAffordance());
-  lines.push(renderStackedPrAffordance());
   lines.push(renderBackgroundTerminalAffordance());
   lines.push(renderQuestionAffordance());
   // Fresh-install coverage for STATIC surfaces (SKILL.md files are deliberately
@@ -331,7 +228,7 @@ export function runMapAffordanceSessionStart(stdin: string, fallbackCwd: string)
   const cxc = cxcInvocation(import.meta.url);
   if (cxc !== "cxc") {
     lines.push(
-      `[codexclaw] \`cxc\` is not on PATH here; wherever docs say \`cxc\`, run: ${cxc}`,
+      `[codexclaw] cxc invocation: ${cxc}`,
     );
   }
   const envelope = {

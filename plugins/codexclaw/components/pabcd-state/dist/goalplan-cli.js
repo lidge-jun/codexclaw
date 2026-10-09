@@ -292,6 +292,12 @@ function renderPlan(plan          , lock                          )         {
   return renderPlanLines(plan, lock);
 }
 
+/** Mutations acknowledge persisted facts; show remains the full-plan retrieval path. */
+function renderMutationReceipt(plan          , verb        , id        , session         )         {
+  const retrieval = session ? `--session ${session}` : `--slug "${plan.slug}"`;
+  return `loop ${verb}: ${plan.slug} ${id} applied (phases=${plan.workPhases.length} remaining=${remainingWorkPhases(plan).length}, criteria=${plan.criteria.length} unmet=${unmetCriteria(plan).length}); full plan: cxc loop show ${retrieval}`;
+}
+
 /**
  * Turn a failed read into one sentence that names the actual failure.
  *
@@ -439,8 +445,10 @@ function runAddOp(args                 )                    {
     ops: [op],
   });
   switch (result.kind) {
-    case "applied":
-      return { output: renderPlan(result.plan), code: 0 };
+    case "applied": {
+      const id = args.verb === "add-work-phase" ? String(op.id) : result.plan.criteria.at(-1) .id;
+      return { output: renderMutationReceipt(result.plan, args.verb, id, session), code: 0 };
+    }
     case "duplicate":
       return { output: `loop ${args.verb}: already applied at ${result.entry.appliedAt} - nothing to do`, code: 0 };
     case "locked":
@@ -640,7 +648,7 @@ function runLifecycle(args                 )                    {
     if (result.kind === "rejected") return { kind: "refused", reason: result.reason };
     if (result.kind === "unchanged") return { kind: "unchanged", reason: result.reason };
     writeGoalplan(args.cwd, result.plan);
-    return { kind: "committed" };
+    return { kind: "committed", plan: result.plan };
   });
 
   if (locked.kind === "locked" || locked.kind === "unreadable") {
@@ -673,7 +681,7 @@ function runLifecycle(args                 )                    {
       warning = `\nwarning: goalplan state was committed, but ledger append failed: ${(err         )?.message ?? String(err)}`;
     }
   }
-  return { output: `loop ${args.verb}: ${slug} ${id} applied${warning}`, code: 0 };
+  return { output: `${renderMutationReceipt(inner.plan, args.verb, id, session)}${warning}`, code: 0 };
 }
 
 function renderPlanLines(plan          , lock                          )         {
@@ -796,7 +804,7 @@ export function runGoalplanCli(args                 )                    {
       const state = readState(args.cwd, args.session);
       writeState(args.cwd, { ...state, slug });
     }
-    return { output: renderPlan(readGoalplan(args.cwd, slug) ?? plan), code: 0 };
+    return { output: renderMutationReceipt(readGoalplan(args.cwd, slug) ?? plan, "init", args.session ?? "unbound", args.session), code: 0 };
   }
 
   if (args.verb === "ready") {

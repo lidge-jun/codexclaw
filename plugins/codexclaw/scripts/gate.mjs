@@ -24,6 +24,7 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { check as inventoryCheck } from "./inventory.mjs";
+import { checkPromptArchitecture as promptArchitectureCheck } from "./check-prompt-architecture.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(HERE, "..", "..", "..");
@@ -310,12 +311,23 @@ export function checkInventory(repoRoot = REPO_ROOT) {
   return { ok: violations.length === 0, violations };
 }
 
+/** Prompt layering gate (structure/70_prompt_architecture.md), prefixed for the gate report. */
+export function checkPromptArchitecture(repoRoot = REPO_ROOT) {
+  try {
+    const result = promptArchitectureCheck({ pluginRoot: join(repoRoot, "plugins", "codexclaw") });
+    return { ok: result.ok, violations: result.violations.map((v) => "prompt-architecture: " + v) };
+  } catch (err) {
+    return { ok: false, violations: ["prompt-architecture check failed: " + (err?.message ?? String(err))] };
+  }
+}
+
 export function runGate(repoRoot = REPO_ROOT) {
   const checks = {
     statusSync: checkStatusSync(repoRoot),
     forbiddenClaims: checkForbiddenClaims(repoRoot),
     counts: checkCounts(repoRoot),
     inventory: checkInventory(repoRoot),
+    promptArchitecture: checkPromptArchitecture(repoRoot),
     // WP1/100: report-only. Its findings go to `warnings`, never `violations`, so a dead
     // verifier claim is surfaced without walling off work (see checkVerifierClaims).
     verifierClaims: checkVerifierClaims(repoRoot),
@@ -325,6 +337,7 @@ export function runGate(repoRoot = REPO_ROOT) {
     ...checks.forbiddenClaims.violations,
     ...checks.counts.violations,
     ...checks.inventory.violations,
+    ...checks.promptArchitecture.violations,
   ];
   const warnings = [...checks.verifierClaims.warnings];
   return { ok: violations.length === 0, checks, violations, warnings };

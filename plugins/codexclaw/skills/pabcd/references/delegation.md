@@ -1,177 +1,154 @@
 ## Delegation Model (subagents)
 
-This file assumes the surface is already chosen and describes the **subagent**
-packet. [Dispatch surfaces](dispatch-surfaces.md) owns the choice between a
-subagent and a separate Codex task, and the fact that a subagent runs in this
-session's native working directory rather than a copy of it. A bounded worker
-can operate in a separately created managed worktree only when its packet
-supplies that absolute path and it uses it as every shell command's workdir.
+Choose the surface first in [dispatch surfaces](dispatch-surfaces.md). This file
+owns subagent packets, role transport, family schemas and managed fallback.
+Before assigning isolation or goal/FSM ownership, follow that surface owner
+(DISPATCH-ISOLATION-01, LEAF-TOPOLOGY-01).
 
-The main session owns the plan, host goal, and every PABCD transition.
-At P, consult a read-only architect; at A, dispatch an independent reviewer.
-Use a supported read-only transport for both and a supported write role for bounded
-implementation (DISPATCH-AGENT-TYPE-01 and the live schema below).
-The executor role resolves to its registered native `executor` type once `cxc subagents register executor` has run; unregistered installs keep the built-in `worker`.
-When PABCD policy is enabled, the registered executor is evidence-gated on every SubagentStop; the built-in worker fallback is evidence-gated only while the parent has an active PABCD B/C cycle. When PABCD policy is disabled, both gates are silent. Outside that cycle the worker releases without a receipt.
-Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
-Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
-`TASK`, `SCOPE`, `MUST DO`, `MUST NOT`, `PROOF`, `RETURN FORMAT`, and decision boundary.
-Write scopes must be disjoint, with explicit read bounds and peer-edit protections.
-Pass the concrete plan and scope; never let a subagent reconstruct the plan.
-Subagents return evidence and unresolved judgments; the main session decides and
-integrates. Dispatch only specifiable work whose coordination cost is justified
-(DISPATCH-ECONOMY-01).
+### Packet contract
 
-**DISPATCH-VERIFIER-01 (DEFAULT).** When a packet names verifier commands, the
-receipt reports one result per command; extra checks belong in the commands-run
-list, not in the verifier results. A typed receipt satisfies its packet only when
-every required command has a matching result with exit 0 and, when the packet
-requires commands, no result names a command it did not require. Under a
-shared-read packet, only a verifier declared read-only (`expectedWrites: []`)
-runs in the shared tree; one that declares writes, asks for isolation or declares
-nothing runs in an isolated copy or goes back to main first. A declaration is the
-author's claim, not proof: codexclaw never executes it.
+**DISPATCH-TASK-01 (DEFAULT).** Every packet contains `TASK`, `SCOPE`, `MUST DO`,
+`MUST NOT`, `PROOF`, `RETURN FORMAT` and a decision/stop boundary. Supply the
+concrete plan, read bounds, write scope and peer-edit protections; the child must
+not reconstruct the plan. For a managed-worktree worker, name the absolute path
+as every shell workdir and use absolute edit paths.
 
-### Optional worker progress checkpoint (#265)
+**DISPATCH-ECONOMY-01 (DEFAULT).** Delegate specifiable work only when its
+coordination cost is justified. Children return evidence and unresolved judgments;
+main decides and integrates.
 
-For a long bounded write packet, the coordinator may grant a specific `PROGRESS.md`
-path inside the worker's assigned worktree. The worker may update it after a
-coherent edit or check with three fields: `Done`, `Remaining`, and `Partial files`
-(absolute paths plus what is incomplete). Example:
+**DISPATCH-AGENT-TYPE-01 (DEFAULT).** Use supported read-only roles for consultation
+and review, and a supported write role for implementation. Formal P and A duties
+belong to [Plan](phase-plan.md) and [Audit](phase-audit.md).
 
-```text
-Done: parsed hook input and added the first regression test
-Remaining: add manifest entries; run focused tests
-Partial files: /absolute/worktree/path/src/agent-thread-permissions.ts — parser branch incomplete
-```
+A registered executor uses native `executor`; otherwise use built-in `worker`
+if permitted. With PABCD enabled, executor receipts are gated on every
+SubagentStop; worker receipts are gated only during the parent's active B/C cycle.
+Disabled PABCD leaves both gates silent; worker outside that cycle releases
+without a receipt.
 
-The checkpoint is a handoff hint, not completion proof or a new source of
-authority. On interruption, the coordinator checks that the first worker has
-stopped, reads `PROGRESS.md` and the named files, then gives the replacement
-worker the same bounded packet, worktree path, and remaining work. The
-replacement verifies the actual file state before editing. Without a granted
-path, the worker does not create `PROGRESS.md`.
+**DISPATCH-VERIFIER-01 (DEFAULT).** Return one verifier result per required
+command, each matching its command with exit 0; no result may name an unrequired
+command when the packet specifies commands. Put extra checks in commands-run.
+In a shared-read packet, only an explicitly read-only verifier
+(`expectedWrites: []`) runs in the shared tree. Declared writes, isolation or
+missing declarations require an isolated copy or referral to main. Effect
+declarations are claims; codexclaw neither executes the verifier nor proves isolation.
 
-**DISPATCH-PROMOTE-01 (DEFAULT).** After checking a child's evidence, main records a
-short synthesis of what it accepted: the reusable result, the failure cause or
-procedure worth keeping, its provenance, and any claim still unresolved. This is not
-ceremony. A child session is excluded from the host's memory extraction candidates, so
-anything learned only inside a lane is learned only once — but main's own assistant
-messages and inter-agent communication are retained, which makes main's synthesis the
-available promotion route. Child completion is not verification; write what you
-verified, not what the child claimed. Durable memory writes keep using the existing
-explicit-request gate; do not add an automatic writer.
-Repository-only provenance for lifecycle, economy, isolation, skill transport and
-topology: `structure/20_pabcd_dispatch_doctrine.md` §3. This is not an installed
-prerequisite; do not assume the path exists inside the plugin payload. An explicitly
-required task source still must be loaded or reported missing before its governed action.
+### Optional worker progress checkpoint
+
+Main may grant a specific `PROGRESS.md` path inside a long-running worker's
+assigned worktree. Record `Done`, `Remaining` and `Partial files` (absolute
+paths and unfinished parts) after a coherent edit or check. Without that grant,
+create no checkpoint.
+
+This is a handoff hint, not proof or authority. On interruption, main verifies
+termination, reads the checkpoint and partial files, then gives the replacement
+the same bounded packet, worktree and remaining work. The replacement checks
+actual file state before editing.
+
+**DISPATCH-PROMOTE-01 (DEFAULT).** After verifying child evidence, main records
+the accepted reusable result, failure cause or procedure, provenance and unresolved
+claims. Record verified findings rather than child claims. Durable memory writes
+still require an explicit request; do not add an automatic writer. Load an
+explicitly required task source or report it missing before the governed action.
 
 ### Discovery packet
 
-Whether to dispatch stays with `dev`'s Discovery delegation. Once dispatched, the
-child packet still includes every DISPATCH-TASK-01 field:
+Dev owns the discovery decision. Specialize the packet above as follows:
 
-- **TASK:** one independently answerable question.
-- **SCOPE:** the child's bounded read area, plus main's separate work.
-- **MUST DO:** find or trace the answer; stop when it is answered.
-- **MUST NOT:** writes, or work that overlaps main.
-- **PROOF:** source anchors (`path:line` quotations, figures, URLs).
-- **RETURN FORMAT:** direct answer, key source anchors and unresolved points; omit
-  extra candidate lists, exploration narrative and full file dumps.
-- **DECISION BOUNDARY / STOP:** return unresolved judgments and any scope growth to main.
+| Field | Discovery content |
+|---|---|
+| TASK | One independently answerable question |
+| SCOPE | Bounded child read area and main's separate work |
+| MUST DO | Trace the answer and stop when answered |
+| MUST NOT | Writes or overlap with main |
+| PROOF | Exact `path:line` quotations, figures and source URLs |
+| RETURN FORMAT | Direct answer, key anchors and uncertainties; no full dumps, candidate lists or exploration narrative |
+| DECISION BOUNDARY / STOP | Return unresolved judgments and scope growth to main |
 
-Managed routing, isolation, lifecycle, and fallback in this file are unchanged.
-For a configured fallback, report creation and completion with the wire fields
-below (substitute the actual native IDs). `created` is an outcome, not an action;
-creation is not completion. Omit `observedModel` unless runtime evidence proves it.
-
-```json
-{"action":"report","outcome":"created","sessionId":"<main-id>","dispatchId":"<task-id>","attemptId":"<attempt-id>","agentId":"<child-id>"}
-```
-
-After native completion, use a separate invocation:
-
-```json
-{"action":"report","outcome":"complete","sessionId":"<main-id>","dispatchId":"<task-id>","attemptId":"<attempt-id>","agentId":"<child-id>"}
-```
+For managed discovery, use [configured first fallback](#configured-first-fallback)
+reports: `created` records creation, not completion. Validate native completion
+before a separate `complete` report; omit `observedModel` without runtime proof.
 
 ### Live tool schema and role transport
 
-Apply `dev`'s Discovery delegation guidance before broad source/log reads.
-Explicit native explorer tasks retain explorer despite review-related words in
-the task. Legacy hosts that transport reviewers as explorer must use a deliberate
-`CXC-ROLE: reviewer` header; keyword inference remains for unspecified roles.
-V1 callers may use `message` or `items`, following the live schema. Preserve item
-attachments and do not supply both fields to work around model routing.
+Use the loaded schema rather than a version label. Explicit native explorer tasks
+remain explorer despite review words. On legacy reviewer-as-explorer transports,
+use a deliberate `CXC-ROLE: reviewer` header; keyword inference applies only to
+unspecified roles. V1 accepts `message` or `items`: preserve attachments and do
+not send both as a routing workaround.
 
-Use the loaded native tool schema, not a version label, to choose arguments.
-`explorer`/`executor` express the intended role; `agent_type` and `task_name` are
-not universal fields. Use them only when exposed. Otherwise put the logical
-role, task/lens name and exact read/write scope in the task message, without
-inventing arguments or claiming a native permission profile was selected.
-Prompt labels are not enforcement and cannot bypass an actual worker receipt
-requirement or other runtime guard. If the requested protection cannot be
-represented, report that gap rather than silently weakening it.
+Use `agent_type` and `task_name` only when exposed. Otherwise put the logical
+role, task/lens and exact read/write bounds in the message. Prompt labels cannot
+select native permission profiles or bypass receipts/guards. Report any required
+protection the transport cannot represent.
 
-For implementation dispatch, prefer `executor` when exposed by the live schema.
-Existing installations without it may use built-in `worker`; both names route to
-logical executor settings and the same receipt gate. The payload resolver selects
-worker when `$CODEX_HOME/agents/executor.toml` is missing. If registration exists
-but the current session has not loaded it, use the live schema rather than assuming
-that disk presence proves availability. Registering `executor` is optional: run
-`cxc subagents register executor`, then restart Codex before selecting that native
-role. The command updates unchanged managed prompts and preserves user edits,
-model choices and permissions. Never substitute a role explicitly forbidden by
-the user or host.
+Prefer native `executor` when exposed; built-in `worker` is the permitted
+unregistered fallback. The resolver selects worker when
+`$CODEX_HOME/agents/executor.toml` is absent. Disk registration does not prove the
+current session loaded a role. Optional authorized setup is
+`cxc subagents register executor`, then restart Codex; it updates unchanged
+managed prompts while preserving user edits, models and permissions. Never
+substitute a role forbidden by the user or host.
 
-Map each logical task to the handle actually returned by the tool: for example,
-a V1 agent_id or a V2 canonical task_name. Use the actual handle and supported
-follow-up/wait/retirement schema, never a display label or guessed ID. Apply only
-supported fork/model/effort/tier fields and honor explicit user constraints;
-documented inheritance still needs observed settings when exact identity matters.
-Do not mutate shared or persistent role configuration without authorization.
-Reading this transport owner does not turn a non-audit task into a PABCD A gate.
+Use the actual returned handle and live follow-up/wait/retirement schema, not
+display labels or guessed IDs. Apply only supported fork/model/effort/tier fields
+within user constraints. Observe actual settings before claiming exact identity;
+do not mutate shared or persistent role configuration without authorization.
+Reading this owner does not turn ordinary work into an A audit.
 
-**Lifecycle contract.** Discover the actual spawn capability through the host's
-catalog/search when available, then use its live schema as described above.
-If no discovery/spawn capability exists, report the gap. Fan out independent lanes before waiting, and
-reuse the same reviewer throughout the A loop.
-
-Before waiting on dispatched work, read the mode-neutral
-[Waiting on work](../../loop/references/waiting.md) rules in either HITL or HOTL.
-This route does not authorize an otherwise forbidden dispatch, wait, or mode transition.
-A wait timeout is an observation outcome, not a verdict: classify progress,
-suspected stagnation, confirmed failure and unavailable observation per that
-reference before any retirement. A suspected-stall checkpoint uses
-non-interrupting delivery where the family supports it — V1 `send_input`
-without `interrupt`, V2 `send_message` — and a queued message is context the
-child may not have read yet, never proof of a stall.
+Discover spawn capability through the host catalog/search where available; report
+a missing capability. Fan out independent packets before waiting. Reuse the same
+reviewer throughout one A loop. Before waits or retirement, read
+[waiting](../../loop/references/waiting.md). Suspected-stall checkpoints are
+non-interrupting: V1 `send_input` without `interrupt`, V2 `send_message`.
+A queued checkpoint may be unread and proves no stall.
 
 ### Detect the family first (DISPATCH-SCHEMA-DETECT-01, STRICT)
 
-Two collab families exist and their follow-up and wait contracts differ. Name the
-exposed one from the live tool catalog before the first dispatch, and record which
-you found — a later reader cannot re-derive it.
-
-`spawn_agent` is registered by **both** families and discriminates nothing. Use
-the tools that exist in only one:
+Identify and record the exposed family from companion tools before dispatch.
+`spawn_agent` alone cannot distinguish families.
 
 | Signal | Family |
 |---|---|
 | `send_input`, `close_agent`, `resume_agent` | V1 |
 | `followup_task`, `send_message`, `interrupt_agent`, `list_agents` | V2 |
-| `wait_agent` | neither — V1 always has it, V2 optionally |
+| `wait_agent` | Neither; V1 has it, V2 optionally |
 
-V1's namespace is `multi_agent_v1`. V2's is configurable and defaults to
-`collaboration`; `multi_agent_v2` is a feature-flag name and never appears as a
-namespace. Names reach you either flat (`followup_task`) or with the namespace
-concatenated, usually without punctuation (`collaborationfollowup_task`), so
-match the bare name and the `collaboration` prefix with an empty, `.` or `_`
-separator.
+V1 uses `multi_agent_v1`; V2 defaults to configurable `collaboration`.
+`multi_agent_v2` is a feature flag, never a namespace. Match bare names or the
+`collaboration` prefix with empty, dot or underscore separators. If unresolved,
+report the capability gap; do not substitute a thread for a subagent.
 
-If neither family is exposed, report the capability gap. Do not substitute the
-thread surface: a separate Codex task is not a bigger subagent. See
-[Dispatch surfaces](dispatch-surfaces.md).
+### SessionStart dispatch card
+
+The SessionStart card states the family (V1 override or unresolved), the dated
+`alias=id` line (`?` means absent from the local catalog), and a pointer here.
+Run the cell once before the first spawn, replace the probe message with the task,
+and apply managed fallback first. With the V1 override, use
+`tools.multi_agent_v1__spawn_agent`; wait, close, `send_input` and resume use the
+same `multi_agent_v1__` prefix. Catalog membership does not prove runtime routing.
+
+Aliases (map 2026-09-24; local catalog membership only):
+
+| Alias | ID |
+|---|---|
+| deepseek | `command-code/deepseek-deepseek-v4.1-flash` |
+| swe2 | `devin/swe-2` |
+| kimi | `kimi/kimi-for-coding-highspeed` |
+| sol | `gpt-6-sol` |
+| luna | `gpt-6-luna` |
+
+```js
+const n = ALL_TOOLS.map(t => t.name), has = r => n.some(x => r.test(x));
+const s = n.filter(x => /spawn_agent$/.test(x));
+if (s.length !== 1) throw new Error("expected one spawn_agent helper, found " + s.length);
+const v1 = has(/(send_input|close_agent|resume_agent)$/), v2 = has(/(followup_task|interrupt_agent|list_agents)$/);
+if (v1 === v2) throw new Error("collab family unresolved: v1=" + v1 + " v2=" + v2);
+const a = {message:"Report your model and say OK; do not edit files.",model:"command-code/deepseek-deepseek-v4.1-flash",reasoning_effort:"low"};
+text(await tools[s[0]](v1 ? a : {...a, task_name:"model_probe", fork_turns:"none"}));
+```
 
 ### V1 — `multi_agent_v1`
 
@@ -185,21 +162,14 @@ thread surface: a separate Codex task is not a bigger subagent. See
 | restore | `resume_agent({ id })` |
 | history | `fork_context: true` copies the parent's history; default is prompt-only |
 
-In native Code Mode on a V1 host (observed in this host's catalog), the spawn callable is `tools.multi_agent_v1__spawn_agent`; `wait_agent`, `close_agent`, `send_input`, and `resume_agent` use the same `multi_agent_v1__` prefix. The SessionStart dispatch card prints that exact call only under the `CODEXCLAW_SPAWN_V1=1` override, and always lists dated model aliases. Its resolver identifies the family from companion tools (`send_input`/`close_agent` for V1, `followup_task`/`interrupt_agent` for V2) and spawns V2 with `fork_turns: "none"` so model overrides are accepted. If the card says family unresolved, run its one-cell helper resolver and spawn in that same cell; do not treat the generic V2 default as detection. Follow the managed fallback protocol before native spawn when a role has a first fallback.
+A spawn needs `message` or `items` even if the schema marks neither required.
+Address `agent_id`, never `nickname`. Before Code Mode spawn, follow
+[the dispatch card](#sessionstart-dispatch-card).
 
-The schema marks no argument required, but the runtime still rejects a spawn
-carrying neither `message` nor `items`. `nickname` is a display label: never
-address an agent by it. A completed agent holds a concurrency slot until closed.
-
-**DELEGATE-MODEL-LIST-01 (STRICT).** The model-override list in the host tool
-description is a hint, not an allowlist, and is known to be incomplete. When the
-user names a worker model, pass it through as given. Only a real spawn rejection
-is evidence of unavailability; absence from the description is not. If a
-requested model genuinely fails to spawn, say so to the user — do not substitute
-a different model and silently re-plan the ratio. Measured on 2026-09-14:
-`spawn_agent({ model: "devin/swe-2" })` returned `{ agent_id, nickname }` and
-the child ran to a final message on the parent's branch, while the advertised
-list still omitted it; re-confirmed the same day in a second session.
+**DELEGATE-MODEL-LIST-01 (STRICT).** The advertised model list is a hint, not an
+allowlist. Pass a user-named model through unchanged; only an actual spawn
+rejection proves unavailability. Report that rejection rather than silently
+substitute a model or re-plan the requested ratio.
 
 ### V2 — the task-shaped family
 
@@ -214,153 +184,98 @@ list still omitted it; re-confirmed the same day in a second session.
 | listing | `list_agents` |
 | history | `fork_turns: "none" \| "all" \| "<n>"`, not a boolean; a full-history fork inherits the parent model and rejects overrides |
 
-The wait difference is the one that bites, in two ways. On V1 the first complete report
-may arrive through the host notification OR through `wait_agent`; the same code on V2
-returns a status summary and no text, which looks like a silent failure rather than a
-schema mismatch — on V2 the final answer arrives as a separate message. And V1's
-`wait_agent` waits on named `targets` while V2's waits on the whole mailbox, so a
-V1-shaped call carrying `targets` is not a valid V2 call at all.
+### V1 consume-once lifecycle
 
-**DISPATCH-CONSUME-ONCE-01 (DEFAULT).** On V1, consume a child's report once per child
-task per turn, from whichever surface delivered it first. Three surfaces can carry the
-same completed text and none of them can be told to stay quiet: the spawn-time watcher
-injects the completed status independently, `wait_agent` returns terminal statuses that
-may include the final message, and `close_agent` returns the status it captured before
-closing. There is no content-suppression argument on the wait.
+**DISPATCH-CONSUME-ONCE-01 (DEFAULT).** Consume a report once per child task per
+turn from whichever surface delivers it first: notification, wait or close.
+An in-flight wait may repeat already-read content; issue no extra wait solely to
+fetch it again. Still close completed V1 children to release their slots; V2 has
+no close operation.
 
-So: a wait already in flight can still hand you a duplicate of something you have
-already read — do not issue an extra wait solely to fetch a report you have. Do not skip
-`close_agent` to avoid the third copy either; a completed child holds a concurrency slot
-until closed, and running out of slots costs more than a repeated paragraph. Where the
-execution surface lets you project a result, emit only the status and error metadata for
-something already consumed. Deduplicating by agent id alone is wrong when an agent is
-reused for a second task, and the last copy you see may be the only one carrying an
-error, so never discard unread content.
+When projection is available, return status/error metadata for already-consumed
+content. Deduplication by agent ID alone fails when an agent is reused for another
+task. Never discard unread content or new errors. Wait has no content-suppression
+argument.
 
 ### The thread surface is a different schema
 
-When the work is thread work (see [Dispatch surfaces](dispatch-surfaces.md)),
-none of the above applies. Observed live in Codex Desktop, so confirm the callable
-names in your own session:
+Before thread work, read [lane dispatch](../../loop/references/lane-dispatch.md)
+for the single host envelope, and [dispatch surfaces](dispatch-surfaces.md)
+for isolation and permission routing (DISPATCH-FORK-LANE-01).
 
-| Purpose | Tool |
-|---|---|
-| create | `create_thread({ prompt, target, model?, thinking? })`, where `target.environment` is `local` or `worktree`, and a worktree takes `startingState` of `working-tree` or `branch{branchName, onMissing}` |
-| wait | `wait_threads({ targets: [{ threadId, hostId?, afterCursor? }], timeoutMs? })` — 1-8 targets, `timeoutMs` 0-120000 (default 120000) |
-| read | `read_thread({ threadId, hostId?, cursor?, turnLimit?, includeOutputs?, maxOutputCharsPerItem? })` — `turnLimit` 1-10, `maxOutputCharsPerItem` 0-20000 |
-| list | `list_threads({ limit? })` — `limit` 1-50, applied to non-pinned results only |
-| handoff status | `get_handoff_status({ operationId, afterRevision?, waitMs? })` — `waitMs` 0-60000 |
-| follow up | `send_message_to_thread({ threadId, prompt, ... })` |
-| fork | `fork_thread({ threadId?, environment? })` |
-| move | `handoff_thread({ threadId, destinationHostId?, followUpPrompt? })` |
+### Delegation safeguards
 
-`worktree` is what gives a lane its own checkout. Creating a thread is
-user-visible; messaging one is not commanding it.
-A `create_thread` child may start with reduced approval permission even when
-the coordinator is full-access; this also occurs for projectless targets. Check
-the child's actual permission mode before assigning unattended writes. A
-bounded checkout worker can instead use `create_worktree` plus a subagent with
-the returned absolute path as every shell workdir. This does not give the
-subagent its own task, goal or PABCD state.
+**REVIEW-DECORRELATE-01 (DEFAULT).** Prefer independent context. Use a different
+model family only within host policy and user authorization; otherwise inherit
+and disclose that family independence was not established. Review packets carry
+the original brief, constraints, rubric and source anchors, excluding main's or
+a prior reviewer's conclusion. Repair rounds may include prior findings.
 
-**Delegation safeguards:**
+**SPECIALIST-CRUX-01 (DEFAULT).** Have a specialist re-derive a narrow crux outside
+the builder's domain. Preserve exact `path:line` quotations, figures and URLs
+for main's spot-check.
 
-- **DISPATCH-ISOLATION-01:** subagents inherit the parent's native cwd; they
-  do not get a copied checkout. Give concurrent workers disjoint read/write
-  scopes. For a bounded worker in a managed worktree, assign one absolute
-  worktree path and require the shell workdir on every command; use absolute
-  file paths for edits. Different workers get different worktrees. Never run
-  concurrent branch-level operations (`checkout`, `switch`, `branch`, `stash`,
-  `reset`, `rebase`, `merge`, `pull`) in one checkout; a file scope cannot
-  separate one HEAD. Work that needs its own goal or PABCD cycle stays a
-  separate thread task.
-- **REVIEW-DECORRELATE-01:** prefer an independent context; use a different model family
-  only when host policy and user authorization permit the override. Otherwise inherit
-  and record that family-level independence was not established.
-- **SPECIALIST-CRUX-01:** when a narrow crux lies outside the builder's domain,
-  dispatch a specialist to re-derive it from first principles.
-- Returns preserve VERBATIM ANCHORS: exact `path:line` quotations, exact figures,
-  and source URLs, so the main session can spot-check the evidence.
+### Failure classes
+
+Report transport, capacity, timeout and child failure separately. Stop equivalent
+retries after transport failure, including encrypted work main cannot read;
+change neither settings nor permissions to work around it. A timeout proves
+neither rate limiting nor encryption. Retirement belongs to
+[waiting](../../loop/references/waiting.md#retirement-and-handoff); managed recovery
+belongs to [configured first fallback](#configured-first-fallback).
 
 ### Architect context and routing
 
-Architect is a configurable logical role, with `dev` and `dev-architecture` as its
-base skills. It proposes design and checks reflection; it cannot write, own the goal
-or FSM, spawn children, or replace the main's judgment or independent reviewer.
+Architect is a configurable read-only logical role with `dev` and
+`dev-architecture` attached. It cannot own goal/FSM, write, spawn children,
+replace main's decisions or replace independent review. Select from live schema:
 
-Select architect transport from the live spawn schema:
+| Available transport | Action |
+|---|---|
+| Native `agent_type: "architect"` | Use it; native type owns routing even without a marker |
+| No `agent_type` field | Lead supported `message` or text-`items` with `CXC-ROLE: architect` before `TASK:`; attach both skills and read-only/no-child/no-goal/FSM boundaries |
+| `agent_type` exists but architect is absent | Report unmet setup; only with installation authority register architect, start a fresh session and verify it |
 
-- If `agent_type: "architect"` is exposed, use it. Native type owns architect
-  routing even without a message marker.
-- If the schema has no `agent_type` field, as on V1, use the supported `message`
-  or text-`items` channel with a leading `CXC-ROLE: architect` before `TASK:`.
-  Attach `dev` and `dev-architecture` and include the read-only, no-child and
-  no-goal/FSM constraints in the task packet. This is supported logical architect
-  dispatch, not an exception requiring user approval, registration or restart.
-- If the schema supports `agent_type` but does not expose architect, report the
-  unmet native setup requirement. With installation authorization, run
-  `cxc subagents register architect`, start a fresh session and verify the role.
-  Never register as a hidden dispatch side effect or substitute explorer/reviewer.
+The no-role-field route is supported dispatch, not an exception needing approval,
+registration or restart. Never register secretly or substitute explorer/reviewer
+for a required architect. Logical read-only scope is an instruction, not a native
+sandbox. If native protection is required but unavailable, report the gap.
 
-Logical read-only scope is an instruction, not a native sandbox permission profile.
-If the user or host requires native isolation that this transport cannot provide,
-report that concrete gap; do not claim equivalent protection. Include the structured
-packet and existing skill attachments on either supported route. Real consultation,
-same-architect reflection and independent audit remain required; a prompt label
-alone does not complete them.
+Consultation, same-architect reflection and independent review follow
+[formal P](phase-plan.md#architect-consultation-for-formal-p).
+Do not discard real consultation evidence or claim a blocker solely because the
+schema lacks a role field. Preserve existing approvals across continuations.
+Missing output, failed calls or unavailable required protection remain gaps.
 
-Before reporting a blocker, distinguish missing transport fields from missing work
-or protection. A supported no-`agent_type` dispatch with the actual proposal,
-same-agent reflection and independent review satisfies those consultation steps.
-Do not discard that evidence, ask for a native-role exception, or mark a loop
-blocked solely because the tool has no role field. Transport adaptation within
-the already authorized task is not a new permission request; preserve applicable
-user approvals across continuations. Missing consultation output, failed calls,
-or an explicitly required protection that cannot be provided remain real gaps.
+The same header supports read-only reviewer/explorer routing. Explicit native
+write/reviewer roles win; a marker cannot select a write role. Keep `CXC-ROLE:`
+out of role prompt overrides to avoid shifting role on repeated hook passes.
+Use supported payload instructions and skill attachments.
 
-The same header supports read-only `reviewer` and `explorer` routing. Explicit native
-write/reviewer roles take precedence; a message marker cannot select a write role.
-Keep `CXC-ROLE:` lines out of role prompt overrides: injected override text can shift
-logical role on a repeated raw hook pass. This is routing hygiene, not a permission
-boundary. Pass the role instructions and skill attachments in the supported payload.
+Retain configured model/effort, default inheritance and caller overrides; no
+provider is a universal architect default. Hook routing needs readable message
+or text-item metadata. Ciphertext does not prove model injection; without readable
+metadata, inference may choose another role. Native architect type retains its
+routing. Prompt labels or payload adaptation do not prove runtime settings.
+Honor full-history fork restrictions and report unobserved routing as unverified.
 
-Use the configured architect model/effort, retaining default inheritance and explicit
-caller overrides; no provider is a universal architect default. For hook-based routing,
-use readable message or text-item transport. Ciphertext does not prove
-configured-model injection. Without readable role metadata, keyword/default inference
-can select another logical role, including explorer on legacy transports. An explicit native architect type retains
-architect routing. Payload adaptation alone does not prove runtime settings
-injection. Honor full-history fork restrictions. If exact routing
-cannot be observed, report it as unverified; do not infer it from the prompt label.
+Use the returned handle for proposal, reflection and decision revisions within
+one plan. Start fresh for a new plan; promise no reuse cost savings. Empty timed
+waits do not prove failed calls.
 
-Map this plan to the actual returned handle. Reuse it for proposal, reflection and
-named decision revisions within ONE plan; a separate new plan starts a fresh context.
-Do not promise cost savings from reuse. Use the host's supported follow-up and wait
-operations; an empty timed wait alone is not evidence of a failed call.
-
-On an actual failed call, preserve the failure evidence. With
-[configured first fallback](#configured-first-fallback), the returned action governs
-recovery: `ready` requires a new claim, only `main-direct` permits reclaim, and
-`reconcile`/`stop` permit neither reclaim nor replacement. The unmanaged retry rule
-below does not authorize extra calls on this path.
-
-Without managed dispatch, apply the existing retirement rule: at most one retry
-on the same handle, then a fresh context carrying the failure and plan. If a second
-distinct context also fails, main reclaims the planning work. Confirm prior work
-has stopped and inspect partial results before retry, replacement or reclaim.
-
-In either path, a missing architect consultation remains unmet. Report the gap
-and stop dependent completion; main self-check does not replace it. Do not silently
-switch models, register roles, or bypass host restrictions. Explicit user limits
-still govern dispatch and completion scope.
+Preserve actual call-failure evidence. Managed recovery follows
+[configured first fallback](#configured-first-fallback); unmanaged recovery follows
+[retirement and handoff](../../loop/references/waiting.md#retirement-and-handoff)
+(DISPATCH-RETIRE-01). Main self-check cannot replace missing consultation: report
+it and stop dependent completion. Do not silently change models, register roles
+or bypass host/user restrictions.
 
 ## Speculative dispatch (DISPATCH-SPECULATE-01, HEURISTIC)
 
-Dispatching phase-N+1 work while phase N is building is default-OFF. Only
-phase-invariant external research that reads no repository state may overlap phases.
-Mark its results `candidate — unverified`, then revalidate them against the landed tree
-at the next P; discard them when the phase map changes. See DISPATCH-ECONOMY-01 in
-`structure/20_pabcd_dispatch_doctrine.md` §3 (repository-only provenance, not an installed prerequisite).
+Phase-N+1 dispatch during phase N is default-off. Only phase-invariant external
+research reading no repository state may overlap. Mark it `candidate — unverified`,
+revalidate against the landed tree at the next P and discard it when the phase map
+changes (DISPATCH-ECONOMY-01).
 
 ## Configured first fallback
 

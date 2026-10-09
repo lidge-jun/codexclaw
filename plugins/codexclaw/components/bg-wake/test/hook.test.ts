@@ -97,6 +97,12 @@ test("UserPromptSubmit injects and never decides", () => {
   const parsed = JSON.parse(out);
   assert.equal(parsed.hookSpecificOutput.hookEventName, "UserPromptSubmit");
   assert.match(parsed.hookSpecificOutput.additionalContext, /build1/);
+  const text = parsed.hookSpecificOutput.additionalContext;
+  const rows = text.split("\n").slice(1, -1);
+  assert.deepEqual(rows, ["- build1 (complete, exit 0, 4m12s) — npm run build"]);
+  assert.match(text, /\[codexclaw bg\]/);
+  assert.match(text, /cxc bg get <id> --tail 40/);
+  assert.ok(Buffer.byteLength(text) - Buffer.byteLength(rows.join("\n")) <= 120);
   assert.equal("decision" in parsed, false, "a decision here would reject the user's prompt");
 });
 
@@ -105,6 +111,13 @@ test("SessionStart adopts a previous session's undelivered completion", () => {
   done(cwd, "old", "GONE");
   const out = handleSessionStart({ session_id: "S2", cwd }, cwd, NO_ENV);
   assert.match(out, /hookSpecificOutput/);
+  const text = JSON.parse(out).hookSpecificOutput.additionalContext;
+  const rows = text.split("\n").slice(1, -1);
+  assert.deepEqual(rows, ["- old (complete, exit 0, 4m12s) — npm run build"]);
+  assert.match(text, /undelivered/);
+  assert.match(text, /cxc bg list/);
+  assert.match(text, /cxc bg get <id> --tail 40/);
+  assert.ok(Buffer.byteLength(text) - Buffer.byteLength(rows.join("\n")) <= 120);
   assert.equal(readRecord(cwd, "old")?.adoptedBy, "S2");
   // Adoption is not delivery: the next Stop is what actually hands it over.
   assert.equal(readRecord(cwd, "old")?.deliveredAt, null);
@@ -130,8 +143,23 @@ test("a wake carries at most five completions", () => {
   const cwd = workspace();
   for (let i = 0; i < 8; i += 1) done(cwd, "t" + i, "S1", { endedAt: "2026-09-09T00:0" + i + ":00.000Z" });
   const parsed = JSON.parse(handleStop({ session_id: "S1", cwd }, cwd, NO_ENV));
-  assert.match(parsed.reason, /5건/);
+  assert.match(parsed.reason, /Complete: 5/);
+  assert.equal(parsed.reason.split("\n").slice(1, -1).length, 5);
   const remaining = ["t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"].filter((id) => readRecord(cwd, id)?.deliveredAt === null);
   assert.equal(remaining.length, 3);
 });
 
+test("SessionStart adoption shows at most five unchanged rows", () => {
+  const cwd = workspace();
+  for (let i = 0; i < 8; i += 1) done(cwd, "old" + i, "GONE");
+  const parsed = JSON.parse(handleSessionStart({ session_id: "NEW", cwd }, cwd, NO_ENV));
+  const text = parsed.hookSpecificOutput.additionalContext;
+  const rows = text.split("\n").slice(1, -1);
+  assert.equal(rows.length, 5);
+  for (const row of rows) assert.match(row, /^- old\d \(complete, exit 0, 4m12s\) — npm run build$/);
+  assert.ok(Buffer.byteLength(text) - Buffer.byteLength(rows.join("\n")) <= 120);
+  for (let i = 0; i < 8; i += 1) {
+    assert.equal(readRecord(cwd, "old" + i)?.adoptedBy, "NEW");
+    assert.equal(readRecord(cwd, "old" + i)?.deliveredAt, null);
+  }
+});

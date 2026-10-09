@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-qa"
-  short_description: "Manual surface-driving QA gate: faithful channels, evidence matrix, adversarial classes, teardown receipts."
+  short_description: "Manual QA for web UI, TUI, CLI, API and desktop GUI."
 policy:
   allow_implicit_invocation: false

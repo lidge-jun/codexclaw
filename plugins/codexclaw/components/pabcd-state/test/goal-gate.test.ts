@@ -51,6 +51,8 @@ test("applyGoalBudgetGuard: create_goal with token_budget -> deny", () => {
   assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
   assert.ok(typeof parsed.hookSpecificOutput.permissionDecisionReason === "string");
   assert.ok(parsed.hookSpecificOutput.permissionDecisionReason.includes("token_budget"));
+  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /create_goal objective only/);
+  assert.ok(Buffer.byteLength(parsed.hookSpecificOutput.permissionDecisionReason) <= 100);
 });
 
 test("applyGoalBudgetGuard: create_goal with any extra key -> deny", () => {
@@ -150,9 +152,10 @@ test("applyGoalModeInterviewGuard: active goal -> deny request_user_input", () =
   assert.equal(hso.hookEventName, "PreToolUse");
   assert.equal(hso.permissionDecision, "deny");
   assert.match(hso.additionalContext, /goal-active=active/);
-  assert.match(hso.permissionDecisionReason, /blocking Interview.*request_user_input/);
-  assert.match(hso.permissionDecisionReason, /exposed.*host-allowed.*request_user_input_async/);
-  assert.match(hso.permissionDecisionReason, /without expecting a reply/);
+  assert.match(hso.permissionDecisionReason, /Interview.*request_user_input/);
+  assert.match(hso.permissionDecisionReason, /\$codexclaw:cxc-dev async-questions\.md/);
+  assert.match(hso.permissionDecisionReason, /silence is not approval/);
+  assert.ok(Buffer.byteLength(hso.additionalContext) <= 200);
 });
 
 test("applyGoalModeInterviewGuard: unreadable goal DB -> deny (fail closed)", () => {
@@ -311,7 +314,9 @@ test("GOAL-COMPLETE-GATE-01: complete mid-cycle -> deny (close through D first)"
     assert.equal(parsed.permissionDecision, "deny");
     assert.match(parsed.permissionDecisionReason, /GOAL-COMPLETE-GATE-01/);
     assert.match(parsed.permissionDecisionReason, /phase B/);
-    assert.match(parsed.permissionDecisionReason, /--session gc1/);
+    assert.match(parsed.permissionDecisionReason, /session gc1/);
+    assert.match(parsed.permissionDecisionReason, /\$codexclaw:cxc-pabcd phase-control\.md/);
+    assert.ok(Buffer.byteLength(parsed.permissionDecisionReason) <= 200);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -324,9 +329,12 @@ test("GOAL-COMPLETE-GATE-01: bound goalplan failing E8 -> deny with the validate
     const out = applyGoalCompleteGuard(ptuAt(cwd, "gc2", "update_goal", { status: "complete" }));
     assert.notEqual(out, "");
     const reason = JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason as string;
-    assert.match(reason, /fails the E8 quality\/integrity gate/);
+    assert.match(reason, /fails E8/);
     assert.match(reason, /unmet criterion/);
     assert.match(reason, /cxc loop validate/);
+    assert.match(reason, /\$codexclaw:cxc-loop durable-goalplan\.md/);
+    assert.ok(reason.includes(".codexclaw/goalplans/ship-it/goalplan.json"));
+    assert.ok(Buffer.byteLength(reason) <= 400);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -353,9 +361,9 @@ test("GOAL-COMPLETE-GATE-01: dependency integrity failure is exposed in update_g
     const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
 
     assert.equal(parsed.permissionDecision, "deny");
-    assert.match(parsed.permissionDecisionReason, /fails the E8 quality\/integrity gate/);
+    assert.match(parsed.permissionDecisionReason, /fails E8/);
     assert.match(parsed.permissionDecisionReason, /work phase dependency cycle: a -> b -> a/);
-    assert.match(parsed.permissionDecisionReason, /Repair invalid dependency, outcome, and criteria references first/);
+    assert.match(parsed.permissionDecisionReason, /\$codexclaw:cxc-loop durable-goalplan\.md/);
     assert.equal(
       applyGoalCompleteGuard(ptuAt(cwd, "gc-integrity", "update_goal", { status: "blocked" })),
       "",
@@ -385,7 +393,7 @@ test("GOAL-COMPLETE-GATE-01: slug bound but goalplan file missing -> deny", () =
     const out = applyGoalCompleteGuard(ptuAt(cwd, "gc-missing", "update_goal", { status: "complete" }));
     const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
     assert.equal(parsed.permissionDecision, "deny");
-    assert.match(parsed.permissionDecisionReason, /could not be read/);
+    assert.match(parsed.permissionDecisionReason, /unreadable/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -400,7 +408,7 @@ test("GOAL-COMPLETE-GATE-01: slug bound but goalplan file is malformed JSON -> d
     const out = applyGoalCompleteGuard(ptuAt(cwd, "gc-malformed", "update_goal", { status: "complete" }));
     const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
     assert.equal(parsed.permissionDecision, "deny");
-    assert.match(parsed.permissionDecisionReason, /could not be read/);
+    assert.match(parsed.permissionDecisionReason, /unreadable/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

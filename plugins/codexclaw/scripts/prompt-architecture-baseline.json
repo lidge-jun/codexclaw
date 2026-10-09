@@ -1,0 +1,27 @@
+{
+  "descriptions": {},
+  "shortDescriptions": {},
+  "routers": {},
+  "idDefinitions": {
+    "READER-DOC-01": [
+      "skills/dev-visualizer/reference/reader-documents.md",
+      "skills/dev/references/reader-documents.md"
+    ],
+    "READER-DOC-02": [
+      "skills/dev-visualizer/reference/reader-documents.md",
+      "skills/dev/references/reader-documents.md"
+    ],
+    "READER-DOC-03": [
+      "skills/dev-visualizer/reference/reader-documents.md",
+      "skills/dev/references/reader-documents.md"
+    ],
+    "READER-DOC-04": [
+      "skills/dev-visualizer/reference/reader-documents.md",
+      "skills/dev/references/reader-documents.md"
+    ],
+    "READER-DOC-05": [
+      "skills/dev-visualizer/reference/reader-documents.md",
+      "skills/dev/references/reader-documents.md"
+    ]
+  }
+}

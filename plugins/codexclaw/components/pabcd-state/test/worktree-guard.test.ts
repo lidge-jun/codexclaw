@@ -11,6 +11,7 @@ import { delimiter, join, sep } from "node:path";
 import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 import {
   buildSessionStartContext,
+  buildRenameGuidance,
   candidateWorktreeRoots,
   canonicalize,
   detectManagedWorktree,
@@ -224,7 +225,12 @@ test("SessionStart: managed cwd emits WORKTREE-GUARD-01 naming the checkout root
     assert.equal(env.hookEventName, "SessionStart");
     assert.match(env.additionalContext, /WORKTREE-GUARD-01/);
     assert.ok(env.additionalContext.includes(rig.checkoutRoot));
-    assert.match(env.additionalContext, /ADOPT IN PLACE/);
+    assert.match(env.additionalContext, /Adopt in place/);
+    assert.match(env.additionalContext, /never delete\/recreate\/move the active checkout/);
+    assert.match(env.additionalContext, /\$codexclaw:cxc-worktree-guardian SKILL\.md/);
+    assert.ok(env.additionalContext.includes("slot 7627"));
+    assert.ok(Buffer.byteLength(env.additionalContext) <= 400);
+    assert.doesNotMatch(env.additionalContext, /agents cannot rename|git switch -c|latest N/);
   } finally {
     if (prev === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = prev;
@@ -265,6 +271,11 @@ test("UserPromptSubmit: managed + rename intent injects once per session (dedupe
   try {
     const first = handleWorktreeGuard(payload());
     assert.match(first, /WORKTREE-GUARD-02/);
+    const context = JSON.parse(first).hookSpecificOutput.additionalContext as string;
+    assert.ok(context.includes(rig.slotRoot));
+    assert.match(context, /\$codexclaw:cxc-worktree-guardian SKILL\.md/);
+    assert.ok(Buffer.byteLength(context) <= 250);
+    assert.doesNotMatch(context, /git switch -c|THREAD TITLE|git worktree repair/);
     const marker = join(rig.checkoutRoot, ".codexclaw", "worktree-guard", `${session}.json`);
     assert.equal(existsSync(marker), true);
     const second = handleWorktreeGuard(payload());

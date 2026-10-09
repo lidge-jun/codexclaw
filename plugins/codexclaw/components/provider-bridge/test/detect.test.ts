@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectOcx, parseOcxStatus, renderStatusLine } from "../src/detect.ts";
+import { runBridge, runSessionStartHook } from "../src/cli.ts";
 import { commandInvocation, resolveWindowsCommand } from "../src/win-exec.ts";
 
 const STATUS_JSON = JSON.stringify({
@@ -13,6 +14,63 @@ const STATUS_JSON = JSON.stringify({
   proxy: { running: true, pid: 123 },
   listen: { port: 10100 },
   defaultProvider: "openai",
+});
+
+test("SessionStart is silent for native and readable provider status", (t) => {
+  let stdout = "";
+  t.mock.method(process.stdout, "write", (chunk: string | Uint8Array) => {
+    stdout += String(chunk);
+    return true;
+  });
+  assert.equal(runSessionStartHook({ which: () => null }), 0);
+  assert.equal(stdout, "");
+  for (const running of [true, false]) {
+    const deps = { which: () => "/x/ocx", runStatus: () => ({
+      status: 0, stdout: JSON.stringify({ proxy: { running } }),
+    }) };
+    assert.equal(runSessionStartHook(deps), 0);
+    assert.equal(stdout, "");
+  }
+});
+
+test("SessionStart errors emit a short doctor pointer and always exit zero", (t) => {
+  let stdout = "";
+  t.mock.method(process.stdout, "write", (chunk: string | Uint8Array) => {
+    stdout += String(chunk);
+    return true;
+  });
+  for (const runStatus of [
+    undefined,
+    () => ({ status: 2, stdout: "" }),
+    () => ({ status: null, stdout: "" }),
+    () => ({ status: 0, stdout: "garbage" }),
+    () => { throw new Error("spawn EACCES"); },
+  ]) {
+    stdout = "";
+    assert.equal(runSessionStartHook({ which: () => "/x/ocx", runStatus }), 0);
+    const parsed = JSON.parse(stdout);
+    assert.equal(parsed.hookSpecificOutput.hookEventName, "SessionStart");
+    assert.equal("decision" in parsed, false);
+    const context = parsed.hookSpecificOutput.additionalContext;
+    assert.match(context, /\[codexclaw provider\]/);
+    assert.match(context, /ocx.*error/);
+    assert.match(context, /cxc doctor/);
+    assert.doesNotMatch(context, /"mode":"native"|"mode":"provider"/);
+    assert.ok(Buffer.byteLength(context) <= 100);
+  }
+});
+
+test("detect retains the machine-readable provider status for CLI consumers", (t) => {
+  let stdout = "";
+  t.mock.method(process.stdout, "write", (chunk: string | Uint8Array) => {
+    stdout += String(chunk);
+    return true;
+  });
+  assert.equal(runBridge({ which: () => "/x/ocx", runStatus: () => ({ status: 0, stdout: STATUS_JSON }) }), 0);
+  assert.deepEqual(JSON.parse(stdout), {
+    provider: "ocx", mode: "provider", ocxPath: "/x/ocx", running: true,
+    defaultProvider: "openai", port: 10100,
+  });
 });
 
 test("AC2: ocx absent -> native mode (exit-0 path)", () => {
