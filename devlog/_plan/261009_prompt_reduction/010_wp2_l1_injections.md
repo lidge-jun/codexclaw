@@ -81,3 +81,8 @@ Tests: `test/fallback-dispatch-cli.test.ts:90,97,101`, `dispatch-card.test.ts:17
 - Loop-arm directive is the named ≤ 600 B exception in 001; every other notice ≤ 400 chars.
 
 - R2 (round 2). measure-l1 runs the hook commands as subprocesses on this macOS host (POSIX delivery proof). The Windows loop-arm text is measured by calling the exported `handleUserPromptSubmit` with `platform: "win32"`, and the report labels it renderer proof, not subprocess delivery. Windows subprocess delivery is covered by the hosted CI Windows shards running the pabcd-state hook tests on the PR head.
+
+## wp2 P revalidation (2026-10-09)
+
+Continuity (LOOP-CONTINUITY-01), quoting the wp1 D summary: "the roadmap is locked ... Next: wp2 per 010, re-verified against the tree at P." Re-verification: `git diff 6520b7b8 HEAD -- plugins` is empty (the only commits since the audited snapshot are this unit's docs), so every anchor audited in research/02-05 still holds. The architect consultation and reflection for this doc are the wp1 records (002, research/01 and 03 ALIGNED); no design decision changed, so no new consultation. Branch: `codex/prompt-reduction` (PR A). Lane workers: four gpt-6.1-sol subagents with the amended scopes; main writes `evidence/measure-l1.mjs`, rebuilds dist once, and runs the gates.
+
