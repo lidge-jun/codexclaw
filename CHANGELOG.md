@@ -8,6 +8,8 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Changed
 
+- Always-on prompt text is much shorter. Each SessionStart, UserPromptSubmit and PreToolUse message now carries the current fact, one cue and a pointer to the skill that owns the rule; guard decisions, markers, dedupe keys and caps are unchanged. Measured through the real hook commands: SessionStart 6,640 → 2,437 B in a plain repo (8,192 → 2,833 B in a managed worktree; the remaining 1,162 B dispatch card moves next), a loop request 3,926 → 400 B, the first prompt after compaction 2,408 → 439 B, recall intent 367 → 125 B. Healthy provider-bridge status is now silent.
+- `cxc loop` mutations (`init`, `add-work-phase`, `add-criterion`, task and criterion updates) print a one-line receipt instead of the whole plan (about 2.6 KB → 200 B with a long objective); `cxc loop show` and `validate` still print the full plan. Scripts that parsed the old output should call `show`.
 - DISPATCH-FORK-LANE-01: when `create_thread` children start with reduced permission, the dispatch docs now describe a same-directory `fork_thread` as the thread route for an independent lane. The fork kept full access on the maintainer's host, but it shares the coordinator's checkout, so the lane creates its own worktree, pins it with `cxc session source`, and passes it as every workdir. The docs also record a `fork_thread` worktree fork that created its worktree but never registered a task, and why routing that lane another way cannot duplicate work, unlike a queued `create_thread`.
 
 ## [0.2.41] - 2026-10-06
