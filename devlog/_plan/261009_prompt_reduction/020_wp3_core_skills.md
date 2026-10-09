@@ -67,3 +67,12 @@ Additions from wp6 research (research/50 `3, ADOPT-NOW), assigned to the refs la
 
 PR B branches from `codex/prompt-reduction` (PR #288, not yet merged) as `codex/prompt-reduction-core` and is retargeted to `dev` after #288 merges.
 
+
+## wp3 D summary (2026-10-09)
+
+Conclusion: the core is three routers again. `dev` 32,812 → 12,288 B, `loop` 11,159 → 4,467 B, `pabcd` 12,335 → 5,393 B (56,306 → 22,148 B); ten core references −21.8%; SessionStart 1,655 B (plain) / 2,051 B (managed) with every UPS scenario ≤ 439 B, all under the 001 budgets (`evidence/l1-after-wp3.txt`). The standard is published (`structure/70_prompt_architecture.md`) and enforced by `check-prompt-architecture.mjs` inside `gate.mjs` with an exact-size baseline (18 descriptions, 3 short descriptions, 16 routers, 10 legacy duplicate IDs). Full suite 3,771 tests, 0 failures. Independent review: 197-row obligation ledger with 0 LOST after round 2; gate review PASS at round 3.
+
+What did not go well: the first build lost three obligations (skill-relative link base, native vs external discovery, installed-CLI recovery) because lane ledgers called them "duplicates" of owners that did not actually contain them; only an independent ledger read caught it. The first scanner trusted favorable spellings (no inline-code headings, no emphasized classes, single-line YAML) and passed four false greens. A lane silently refreshed the model alias map, a behavior change outside a text reduction. The receipt refused once because a reviewer wrote into the tree mid-run. The hypothesis that died: that lane self-reported ledgers are enough to prove preservation. Evidence the direction is wrong: agents failing to find a rule that used to be inline, for example resolving references against the user's cwd, or loading an external skill when an installed one exists.
+
+Next: deliver PR B, then wp4 per 030.
+
