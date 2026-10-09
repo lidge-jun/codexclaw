@@ -43,3 +43,11 @@ Hosts (`~/.ssh/config`): lidge, macmini-cf, clisu-oracle (cli-jaw-server is the 
 
 No new design decision: no architect consultation (the 0.2.40 release precedent). Stop conditions: a red check on an exact head, a release dry run that is not READY, an asset mismatch, or a host whose checkout is dirty/off-dev (reported and skipped).
 
+
+## Amendments after wp5 A (research/17_audit_wp5.md, NEAR-PASS)
+
+- R1 (SHA pin before install). The host procedure is a single ssh script (`evidence/deploy-host.sh`, written at B, run with `bash -l -s` over ssh): `git fetch origin`; refuse if the checkout is dirty or not on `dev`; refuse unless `git merge-base --is-ancestor HEAD <SHA>` and `git rev-parse origin/dev` contains `<SHA>`; `git merge --ff-only <SHA>` (the frozen full SHA, never moving `origin/dev`); `scripts/dev-install.sh --no-build`; `hooks retrust` through the installed cache's `bin/cxc.mjs`. `remote-dev-install.sh` is not used for 0.2.42 because it pulls moving `origin/dev` and rebuilds.
+- R2 (payload set equality). Verification compares the installed cache directory with `git archive <SHA> plugins/codexclaw` unpacked to a temp dir: both file sets and bytes, recording missing, changed and unexpected counts; allowlist for runtime artifacts only: `.DS_Store`, `.codexclaw/`, `__pycache__/`, `*.pyc`, `gui/dist/`, `node_modules/`. PASS needs 0/0/0.
+- R3 (rollback). Before install the script copies the current cache directory (`~/.codex/plugins/cache/codexclaw/codexclaw/<old version>`) and `~/.codex/config.toml` to `~/.codexclaw-rollback/0.2.42-<UTC>/` on that host. Restore: copy the saved cache directory back, restore `config.toml`, run `hooks retrust` from the restored cache, and run the same doctor and deny smoke. A host that fails verification is restored, then reported.
+- Nit. After the version bump: `check-versions.mjs 0.2.42`, plus `rg` for leftover `0.2.41` (excluding CHANGELOG, devlog and fixture paths), `npm ls --workspaces --depth=0` to check cli, GUI and lock entries; doctor output must contain hook-trust PASS with a nonzero count.
+
