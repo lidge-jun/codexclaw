@@ -1,4 +1,4 @@
-From 80ea77c7c92a316aea67e8fde3cbb196f228bc3d Mon Sep 17 00:00:00 2001
+From ed273106987005889ff7269ae955fb15e76191fd Mon Sep 17 00:00:00 2001
 From: bitkyc08-arch <bitkyc08@gmail.com>
 Date: Fri, 9 Oct 2026 15:12:55 +0900
 Subject: [PATCH 2/2] fix: report unreadable model catalogs without a traceback
@@ -13,15 +13,15 @@ return shape; check-models reads the catalog once, inside one error boundary,
 and exits 1 with "cannot read model catalog <path>: <reason>". The disabled-model
 check reuses the validated records instead of parsing the file a second time.
 ---
- tests/test_runtime.py     | 47 +++++++++++++++++++++++++++++++++++++++
- tools/pstack_opencodex.py | 28 +++++++++++++++++------
- 2 files changed, 68 insertions(+), 7 deletions(-)
+ tests/test_runtime.py     | 60 +++++++++++++++++++++++++++++++++++++++
+ tools/pstack_opencodex.py | 33 +++++++++++++++++----
+ 2 files changed, 88 insertions(+), 5 deletions(-)
 
 diff --git a/tests/test_runtime.py b/tests/test_runtime.py
-index 484a1b4..714a79e 100644
+index 484a1b4..ef6d822 100644
 --- a/tests/test_runtime.py
 +++ b/tests/test_runtime.py
-@@ -198,5 +198,52 @@ class RuntimeCLI(unittest.TestCase):
+@@ -198,5 +198,65 @@ class RuntimeCLI(unittest.TestCase):
          self.assertIn("catalog path must be absolute", result.stdout)
  
  
@@ -65,6 +65,19 @@ index 484a1b4..714a79e 100644
 +                after = self.catalog.read_bytes() if self.catalog.exists() else None
 +                self.assertEqual(before, after)
 +
++    def test_every_duplicate_slug_entry_is_still_checked(self):
++        disabled_first = [{"slug": "demo", "multi_agent_version": "disabled"}, {"slug": "demo", "multi_agent_version": "v1"}]
++        self.roles.write_text("how explainer: demo\n")
++        self.catalog.write_text(json.dumps({"models": disabled_first}))
++        result = self.run_models()
++        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
++        self.assertIn("disabled for collaboration", result.stdout)
++        bad_first = [{"slug": "demo", "supported_reasoning_levels": [{}]}, {"slug": "demo", "supported_reasoning_levels": [{"effort": "high"}]}]
++        self.catalog.write_text(json.dumps({"models": bad_first}))
++        result = self.run_models()
++        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
++        self.assertTrue(result.stderr.startswith("cannot read model catalog"), result.stderr)
++
 +    def test_a_valid_catalog_still_resolves_and_clamps(self):
 +        self.catalog.write_text(json.dumps({"models": list(models().values())}))
 +        result = self.run_models()
@@ -75,20 +88,34 @@ index 484a1b4..714a79e 100644
  if __name__ == "__main__":
      unittest.main()
 diff --git a/tools/pstack_opencodex.py b/tools/pstack_opencodex.py
-index d34dfef..f39ad33 100644
+index d34dfef..b18a49c 100644
 --- a/tools/pstack_opencodex.py
 +++ b/tools/pstack_opencodex.py
-@@ -148,20 +148,26 @@ def cmd_build(args: argparse.Namespace) -> None:
+@@ -148,20 +148,39 @@ def cmd_build(args: argparse.Namespace) -> None:
      print(f"built {len(skills)} skills into {dist} ({explicit} explicit-only)")
  
  
 -def load_catalog(path: Path) -> dict[str, list[str]]:
--    data = json.loads(path.read_text())
-+def catalog_efforts(records: dict[str, dict]) -> dict[str, list[str]]:
++def catalog_models(path: Path) -> list[dict]:
++    """Read and shape-check every model entry, keeping duplicates in file order."""
+     data = json.loads(path.read_text())
++    if not isinstance(data, dict):
++        raise ValueError("expected an object")
++    models = data.get("models", [])
++    if not isinstance(models, list):
++        raise ValueError("expected a models array")
++    for model in models:
++        if not isinstance(model, dict) or not isinstance(model.get("slug"), str):
++            raise ValueError("expected model objects with string slugs")
++    return models
++
++
++def catalog_efforts(models: list[dict]) -> dict[str, list[str]]:
 +    """Map each catalog slug to the reasoning efforts pstack understands."""
      catalog = {}
 -    for model in data.get("models", []):
-+    for slug, model in records.items():
++    for model in models:
++        slug = model["slug"]
          raw_levels = model.get("supported_reasoning_levels") or []
          if not isinstance(raw_levels, list):
              raise ValueError("supported_reasoning_levels must be an array")
@@ -101,42 +128,34 @@ index d34dfef..f39ad33 100644
  
  
 +def load_catalog(path: Path) -> dict[str, list[str]]:
-+    from pstack_runtime import catalog_records
-+
-+    return catalog_efforts(catalog_records(path))
++    return catalog_efforts(catalog_models(path))
 +
 +
  def split_effort(value: str) -> tuple[str, str | None]:
      tokens = value.split("-")
      if tokens[-1] == "fast":
-@@ -222,7 +228,16 @@ def upstream_roles() -> dict[str, list[str]]:
+@@ -222,7 +241,12 @@ def upstream_roles() -> dict[str, list[str]]:
  
  
  def cmd_check_models(args: argparse.Namespace) -> None:
 -    catalog = load_catalog(Path(args.catalog))
-+    from pstack_runtime import catalog_records
-+
 +    catalog_path = Path(args.catalog)
 +    try:
-+        if not catalog_path.is_file():
-+            raise ValueError("file does not exist")
-+        records = catalog_records(catalog_path)
++        records = catalog_models(catalog_path)
 +        catalog = catalog_efforts(records)
 +    except (OSError, ValueError) as error:
 +        raise SystemExit(f"cannot read model catalog {catalog_path}: {error}")
      defaults = upstream_roles()
      if args.defaults:
          roles, source = defaults, "upstream defaults"
-@@ -233,8 +248,7 @@ def cmd_check_models(args: argparse.Namespace) -> None:
+@@ -233,7 +257,6 @@ def cmd_check_models(args: argparse.Namespace) -> None:
          roles, source = parse_roles(path.read_text()), str(path)
      print(f"checking names and reasoning efforts in {source} against {args.catalog}")
      print("This does not verify collaboration transport or live provider availability; run check-runtime before delegation.")
 -    records = json.loads(Path(args.catalog).read_text()).get("models", [])
--    disabled = {model["slug"] for model in records if model.get("multi_agent_version") == "disabled"}
-+    disabled = {slug for slug, model in records.items() if model.get("multi_agent_version") == "disabled"}
+     disabled = {model["slug"] for model in records if model.get("multi_agent_version") == "disabled"}
      failures = 0
      for label, values in roles.items():
-         known = "" if label in defaults else "  [not an upstream role line]"
 -- 
 2.50.1
 

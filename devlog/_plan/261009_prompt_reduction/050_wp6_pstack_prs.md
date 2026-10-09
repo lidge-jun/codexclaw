@@ -65,3 +65,8 @@ Implemented in a clone of foxytanuki/pstack-opencodex (`/tmp/pso.EjTe/repo`, bas
 - PR B, branch `fix/check-models-catalog-errors` (`80ea77c`, on top of A): `catalog_efforts(records)` split out of `load_catalog`, which now validates through `pstack_runtime.catalog_records` and keeps its return shape; `check-models` reads the catalog once inside one `(OSError, ValueError)` boundary and exits 1 with `cannot read model catalog <path>: <reason>`; the disabled-model set reuses the validated records.
 - RED on `2dd2800` (this Mac): the real-index collision test fails with `[['UPSTREAM', 'upstream']]` (both helper fixtures pass); the eight catalog cases fail (tracebacks or wrong exit/prefix); the clamp compatibility case passes. GREEN: A 25/25, B 27/27; build (46 skills), both license `cmp`, `git diff --check` and `git diff --exit-code 2dd2800 -- upstream/` pass on both branches.
 
+
+## wp6 C round 1 (research/19_review_wp6.md, GO-WITH-FIXES)
+
+Finding 1 (duplicate slugs): routing validation through `catalog_records` (a slug-keyed dict) dropped earlier entries for a repeated slug, so a disabled first entry or a malformed first entry stopped failing. Fixed by `catalog_models(path)`, which shape-checks every entry in file order and keeps duplicates; `catalog_efforts` walks that list; `load_catalog` keeps its return shape and its original per-entry validation, so `check-runtime` behaves as on `2dd2800`. New regression `test_every_duplicate_slug_entry_is_still_checked` (both cases). PR B is now 28/28 locally; the patch in `evidence/pstack-opencodex/0002-…` is refreshed.
+
