@@ -1,24 +1,7 @@
 {
   "descriptions": {},
   "shortDescriptions": {},
-  "routers": {
-    "dev-architecture": 23180,
-    "dev-backend": 25105,
-    "dev-code-reviewer": 21666,
-    "dev-data": 21050,
-    "dev-debugging": 22270,
-    "dev-devops": 26050,
-    "dev-frontend": 35995,
-    "dev-scaffolding": 19397,
-    "dev-security": 20557,
-    "dev-testing": 30014,
-    "dev-uiux-design": 27912,
-    "dev-visualizer": 15915,
-    "interview": 17449,
-    "qa": 11774,
-    "recall": 16379,
-    "search": 14317
-  },
+  "routers": {},
   "idDefinitions": {
     "READER-DOC-01": [
       "skills/dev-visualizer/reference/reader-documents.md",
@@ -39,26 +22,6 @@
     "READER-DOC-05": [
       "skills/dev-visualizer/reference/reader-documents.md",
       "skills/dev/references/reader-documents.md"
-    ],
-    "DEVOPS-BASELINE-DEFECT-01": [
-      "skills/dev-devops/references/ci-cd-deploy.md",
-      "skills/dev-testing/references/ci-pipeline.md"
-    ],
-    "FE-ASSET-BG-01": [
-      "skills/dev-frontend/SKILL.md",
-      "skills/dev-frontend/references/core/asset-requirements.md"
-    ],
-    "UX-CONCEPT-GEN-01": [
-      "skills/dev-frontend/references/core/asset-requirements.md",
-      "skills/dev-uiux-design/SKILL.md"
-    ],
-    "FE-MOTION-HONESTY-01": [
-      "skills/dev-frontend/references/core/motion.md",
-      "skills/dev-uiux-design/SKILL.md"
-    ],
-    "SOT-SYNC-01": [
-      "skills/dev-scaffolding/SKILL.md",
-      "skills/pabcd/references/phase-check.md"
     ]
   }
 }

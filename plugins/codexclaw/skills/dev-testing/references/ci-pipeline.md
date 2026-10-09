@@ -160,21 +160,16 @@ skip still is.
 
 ### 5.4 "Environmental" is a claim, not an observation (`TEST-FLAKE-ATTRIBUTION-01`, DEFAULT)
 
-Before calling a failure environmental or pre-existing, prove it:
-
-1. the identical failure reproduces on the untouched baseline,
-2. no change in the current set touches that code, and
-3. the matching CI job is green at the same SHA.
-
-Without the triple it stays a candidate defect. This is the test-side mirror of
-`DEVOPS-BASELINE-DEFECT-01` (`dev-devops` `references/ci-cd-deploy.md` §6.2),
+Before calling a failure environmental or pre-existing, read
+[Baseline versus defect](../../dev-devops/references/ci-cd-deploy.md#62-baseline-versus-defect-devops-baseline-defect-01-strict)
+(DEVOPS-BASELINE-DEFECT-01). This test-side attribution rule applies the owner’s proof,
 and it is DEFAULT rather than STRICT for one reason only: step 3 sometimes needs
 CI access an agent does not have. In that case record the gap. **A recorded gap
 is not a waiver** — the failure remains a candidate defect, and the claim
 "environmental" remains unmade.
 
 **When both rules apply, the STRICT one governs.** A release or freeze decision
-is covered by `DEVOPS-BASELINE-DEFECT-01` (STRICT), so an agent cannot reach the
+is covered by the [strict release owner](../../dev-devops/references/ci-cd-deploy.md#62-baseline-versus-defect-devops-baseline-defect-01-strict), so an agent cannot reach the
 weaker class by loading only `dev-testing`.
 
 ### 5.5 Counting greens

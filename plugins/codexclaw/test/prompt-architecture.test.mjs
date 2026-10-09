@@ -69,7 +69,9 @@ test("frozen legacy definitions may not gain a file, and a stale freeze entry fa
 });
 
 test("router baseline: exact size only, eligible skills only", () => {
-  const eligible = [...ELIGIBLE.routers][0];
+  const eligible = "legacy-router";
+  const policy = { descriptions: new Set(), routers: new Set([eligible]) };
+  const run = (root) => checkPromptArchitecture({ pluginRoot: root, eligible: policy });
   const big = skill("Use for it.", "x".repeat(11000));
   const size = Buffer.byteLength(big);
   assert.deepEqual(run(fixture({ [eligible]: { "SKILL.md": big } }, { routers: { [eligible]: size } })).violations, []);
@@ -121,3 +123,8 @@ test("YAML continuation forms cannot hide description length", () => {
   assert.match(run(fixture({ alpha: { "SKILL.md": skill("Use for alpha."), "agents/openai.yaml": yaml } })).violations.join("\n"), /short_description alpha: 150 chars exceeds 100/);
 });
 
+
+test("no skill is eligible for a size exception any more", () => {
+  assert.equal(ELIGIBLE.descriptions.size, 0);
+  assert.equal(ELIGIBLE.routers.size, 0);
+});

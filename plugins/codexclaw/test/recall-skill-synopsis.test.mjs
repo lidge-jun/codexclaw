@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
-const skillMd = readFileSync(join(pluginRoot, "skills", "recall", "SKILL.md"), "utf8");
+const skillMd = readFileSync(join(pluginRoot, "skills", "recall", "references", "commands.md"), "utf8");
 const cliTs = readFileSync(join(pluginRoot, "components", "recall", "src", "cli.ts"), "utf8");
 
 function flagsIn(text) {
