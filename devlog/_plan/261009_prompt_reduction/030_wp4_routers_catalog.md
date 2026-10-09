@@ -43,3 +43,12 @@ Additions from wp3: (1) router lanes must also clear the frozen legacy duplicate
 
 Branch `codex/prompt-reduction-routers` stacked on #289 (retargeted to `dev` after #289 merges).
 
+
+## wp4 D summary (2026-10-09)
+
+Conclusion: every skill meets the 001 budgets. Descriptions 11,647 → 4,492 B (longest 228 chars); sixteen routers moved procedures verbatim into same-skill references; all SKILL.md files 447,610 → ~110 KB. The gate baseline holds only `READER-DOC-01..05` (dev-visualizer's test-required local copy); the eligible sets are empty, so no skill can claim a size exception without a code change. Survival: 372 removed headings, 362 found as headings in the same skill, 10 recorded as pointers/history; independent review PASS at round 2 with no lost guidance. Full suite 3,772 tests, 0 failures.
+
+What did not go well: one lane ledger named an owner (dev `3) that holds only the generic rule while the QA-specific text had moved to QA's own reference, so the proof was wrong even though nothing was lost; the router lanes left trailing whitespace and EOF blank lines in 24 files; a moved reference lacked its condition row. The hypothesis that died: that byte targets from research/30 (2-4 KB) were realistic for every router; the review-oriented routers (code-reviewer, debugging) settled near 5 KB. Evidence the direction is wrong: agents skipping a reference they needed because the router row did not name their situation, which would show as missing checklist steps in reviews or QA verdicts.
+
+Next: deliver PR C, then wp5 (release 0.2.42 and deploy), then wp6.
+
