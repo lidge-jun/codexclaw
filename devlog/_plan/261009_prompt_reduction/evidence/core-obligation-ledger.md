@@ -4,7 +4,9 @@ Anchor: `a3001789` → `79239e8a4f605f8f7c8bd9275ee23cebb0f65a7a`, branch `codex
 
 Inventory independently derived from complete old routers using `git show a3001789:plugins/codexclaw/skills/<name>/SKILL.md`, then checked against current owner text. Lane ledgers were checked afterward as claims to falsify. Compound rows explicitly list their clauses. Metadata, separators and illustrative wording add no duties. Old lines are base-revision lines.
 
-Result: **3 LOST routing/correctness obligations**, all in old loop: skill-relative link base (56), installed-owner discovery versus external catalog distinction (83-85), installed-CLI recovery from stale PATH (113-114). They block this preservation review. Lane claims that the first and third moved are contradicted by their proposed destinations.
+Round 1 result: **3 LOST routing/correctness obligations**, all in old loop: skill-relative link base (56), installed-owner discovery versus external catalog distinction (83-85), installed-CLI recovery from stale PATH (113-114). The first-round lane claims that the first and third moved were contradicted by their proposed destinations.
+
+Round 2 re-check at `ba8f5084d0081654e5c68fe2e7c5b27c64db4292`: all three now have explicit operative owners verified below; **0 remaining LOST rows**. This updates preservation evidence only; the architecture parser still has a YAML-budget gap recorded in `research/12_review_wp3_round2.md`.
 
 `V` means operative owner text verified; `LOST` means no repository instruction owner found after inspecting the claimed destination and searching skills. A pointer counts only when its target contains the rule. This proves preservation, not live model compliance. Type escape checks retain configured/closest-safe static verification and the universal proof gate; the word “strongest” is no longer repeated.
 
@@ -161,7 +163,7 @@ Every `KEY#heading` below expands to the exact repository path in this table plu
 | D106 | 466-470 | Narrow nearby justified type escapes, actual local checker; language mappings/gates | SA#escape-hatches; SA#jsts-source-file-default; SAG#per-toolchain-gate-commands; D#3-verification-before-completion-strict | V |
 | D107 | 476-479 | Active skills fully, applicable refs only, no unrelated preload; child own scoped context | D#reading-contract; DEL#packet-contract | V |
 | D108 | 481-486 | Shared credential/quota observer actual budget/worker headroom, coordinator aggregate | W#observer-budget | V |
-| D109 | 492-495 | DEV-SKILL-DISCOVERY-01 catalog then jaw-first search/all clawhub-hermes/needed show; builtins win/adapters preserve dev | D#conditional-routes; SC#source-priority | V |
+| D109 | 492-495 | DEV-SKILL-DISCOVERY-01 catalog then jaw-first search/all clawhub-hermes/needed show; builtins win/adapters preserve dev | D#conditional-routes; SC#source-priority; SC#cli-jaw-active-skills-installed-in-cli-jaw-runtime routes to the emitted adapter preamble, plugins/codexclaw/components/skill-search/src/preamble.ts:25-32 (dev wins on conflict; builtin authoritative) | V |
 
 ## Old loop/SKILL.md
 
@@ -178,7 +180,7 @@ Every `KEY#heading` below expands to the exact repository path in this table plu
 | L009 | 38-44 | Local work/no unsolicited notices; peer user/necessary collision plus permission/wake; incoming question no resume/goal; independent tasks | removed: duplicate of PE#decide-whether-to-contact-another-task; PE#wake-and-authority-boundaries | V |
 | L010 | 46-50 | Optional async exposed/allowed, continue/incorporate; unanswered no blocker/no denied-question or approval workaround | removed: duplicate of AQ#select-the-exposed-tool; AQ#send-continue-incorporate | V |
 | L011 | 54-55 | Owner selection task/class/risk/phase; full skill reads/conditional refs | L#intent-before-activation; D#reading-contract | V |
-| L012 | 56 | Resolve relative skill links from skill directory, not working cwd | No owner: D#reading-contract:53-55 lacks rule; skills-wide search no replacement | LOST |
+| L012 | 56 | Resolve relative skill links from skill directory, not working cwd | D#reading-contract, D:55 explicitly states the skill-directory base; restored and verified in round 2 | V |
 | L013 | 57-63 | Output limits; truncated exit-zero incomplete; separate/chunk reads through EOF no guessed gaps | D#reading-contract | V |
 | L014 | 59-60 | Reuse content in context; after loss reload applicable owner not family | D#reading-contract preserves selective loading; explicit reuse optimization omitted, HEURISTIC resource rationale | V |
 | L015 | 64-65 | No recursive preload; missing mandatory ref resolve/report preflight before action | L#intent-before-activation; D#reading-contract | V |
@@ -195,11 +197,11 @@ Every `KEY#heading` below expands to the exact repository path in this table plu
 | L026 | 79 | Loop-owning task/many lane observation lane-dispatch | L#read-before-the-action | V |
 | L027 | 80 | Authorized needed dispatch delegation | L#read-before-the-action; DS#dispatch-route-01-strict--routing-the-work | V |
 | L028 | 81 | Wait child/external HITL/HOTL waiting owner | L#read-before-the-action | V |
-| L029 | 83-85 | Installed listing/router native discovery; cxc skill search external catalogs, not native loader; explicit-only/leaf-safe restrictions | Restrictions survive L:16; native/external distinction absent in D:158 and SC:1-21 | LOST |
+| L029 | 83-85 | Installed listing/router native discovery; cxc skill search external catalogs, not native loader; explicit-only/leaf-safe restrictions | D#conditional-routes, D:158 explicitly separates installed host listing/routers from external search/show for gaps; restrictions retained L:16; restored and verified in round 2 | V |
 | L030 | 89-105 | DISPATCH-SURFACE-01 name surface; shared leaf/no goal/FSM vs task worktree/local; independent lifecycle task; disjoint/no concurrent branch ops; requested lanes imply tasks, ask once unclear | removed: duplicate of DS#dispatch-surface-01-strict--name-the-surface-before-dispatching; DS#dispatch-route-01-strict--routing-the-work; DS#dispatch-authority-01--asking-for-lane-work-is-asking-for-the-lanes | V |
 | L031 | 106-108 | ORCH-MANDATE-01 persisted actual state before entry/reentry, no narrative phase proof | L#execution-invariants | V |
 | L032 | 108-112 | SESSION-IDENTITY current binding/native corroboration/current-bind recovery in verified cwd; no env ID/replay/borrowed parent, binding no hook proof | PC#control-surfaces-shipped | V |
-| L033 | 113-114 | Stale development CLI on PATH -> installed plugin node bin/cxc.mjs; preserve development checkout | No owner: RL#entry-and-resume:6-23 and PC:100-117 omit installed-CLI provenance/recovery | LOST |
+| L033 | 113-114 | Stale development CLI on PATH -> installed plugin node bin/cxc.mjs; preserve development checkout | RL#entry-and-resume, RL:13-15 explicitly requires the installed node entry for stale PATH and preserving the development checkout; restored and verified in round 2 | V |
 | L034 | 116-118 | HOTL active goal+inflight, HITL no goal; missing capability/binding preflight not armed continuation | L#execution-invariants | V |
 | L035 | 119-121 | Full work-phase cycle/artifacts/D->IDLE; hooks guard never choose/advance | P#work-phase-loop-multi-pass-tasks; L#execution-invariants; PC#per-phase-artifact-obligation-orch-artifact-01 | V |
 | L036 | 122-125 | LOOP-CONTINUE goalplan/ledger after D/loss, preserve criteria/reenter P; UNIT-CHAIN in-scope P amendment same goal, no unrelated grant | L#execution-invariants | V |
@@ -297,4 +299,4 @@ Spaced ledger line positions span all ten references. Full sampled obligation te
 - Ref-ledger line 206 should distinguish a removed historical immediate-ID observation from the surviving canonical-address procedure.
 - No actual model dispatch, builds, hosted CI or full suites were run. Source-only gate probes and stubbed resolver calls are documented in the paired review.
 
-Inventory: 109 dev rows, 46 loop rows, 42 pabcd rows, 20 ref spot-checks. Three LOST rows: L012, L029, L033.
+Inventory: 109 dev rows, 46 loop rows, 42 pabcd rows, 20 ref spot-checks. Round 1 LOST rows L012, L029, L033 are verified resolved in round 2; zero remaining LOST rows.

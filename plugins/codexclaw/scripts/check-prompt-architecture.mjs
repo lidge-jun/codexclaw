@@ -49,23 +49,28 @@ function walk(dir, out = []) {
  * measured as written, so an unusual spelling is never silently shortened.
  */
 export function yamlScalar(text, key) {
+  // Every YAML scalar form (plain, quoted, folded, literal, with indentation digits,
+  // chomping or a trailing comment) continues on the lines indented deeper than its
+  // key. Measure the first-line value plus all of them, so no form can hide length.
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const keyRe = new RegExp("^\\s*" + key + ":(\\s|$)");
   const i = lines.findIndex((l) => keyRe.test(l));
   if (i < 0) return null;
   const indent = /^\s*/.exec(lines[i])[0].length;
-  const v = lines[i].replace(new RegExp("^\\s*" + key + ":"), "").trim();
-  if (/^[>|][+-]?\d*$/.test(v)) {
-    const body = [];
-    for (let j = i + 1; j < lines.length; j++) {
-      const l = lines[j];
-      if (l.trim() !== "" && /^\s*/.exec(l)[0].length <= indent) break;
-      body.push(l.trim());
-    }
-    return body.join(v.startsWith(">") ? " " : "\n").trim();
+  let head = lines[i].replace(new RegExp("^\\s*" + key + ":"), "").trim();
+  const block = /^[>|][0-9+-]*\s*(#.*)?$/.exec(head);
+  if (block) head = "";
+  const body = [];
+  for (let j = i + 1; j < lines.length; j++) {
+    const l = lines[j];
+    if (l.trim() !== "" && /^\s*/.exec(l)[0].length <= indent) break;
+    body.push(l.trim());
   }
-  if (v.startsWith('"')) { try { return JSON.parse(v); } catch { return v.slice(1, -1); } }
-  if (v.startsWith("'")) return v.slice(1, -1).replace(/''/g, "'");
+  while (body.length && body[body.length - 1] === "") body.pop();
+  if (block) return body.join(block[0].startsWith("|") ? "\n" : " ").trim();
+  const v = [head, ...body].filter((x) => x !== "").join(" ");
+  if (v.startsWith('"')) { try { return JSON.parse(v); } catch { return v.replace(/^"|"$/g, ""); } }
+  if (v.startsWith("'")) return v.replace(/^'|'$/g, "").replace(/''/g, "'");
   return v;
 }
 

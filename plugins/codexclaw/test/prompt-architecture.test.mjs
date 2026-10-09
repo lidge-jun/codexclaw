@@ -104,3 +104,20 @@ test("a heading with an inline-code rule ID is a valid link target", () => {
   assert.deepEqual(run(root).violations, []);
 });
 
+
+test("YAML continuation forms cannot hide description length", () => {
+  const long = (head, body) => "---\nname: x\ndescription: " + head + "\n" + body + "\n---\n# S\n";
+  const cases = [
+    long("> # summary", "  " + "a".repeat(401)),
+    long(">2-", "   " + "b".repeat(401)),
+    long('"' + "c".repeat(200), "  " + "c".repeat(200) + '"'),
+    long("d".repeat(200), "  " + "d".repeat(200)),
+  ];
+  for (const text of cases) {
+    const v = run(fixture({ alpha: { "SKILL.md": text } })).violations.join("\n");
+    assert.match(v, /description alpha: \d+ chars exceeds 320/, text.slice(0, 40));
+  }
+  const yaml = "interface:\n  short_description: | # label\n    " + "e".repeat(150) + "\n  display_name: a\n";
+  assert.match(run(fixture({ alpha: { "SKILL.md": skill("Use for alpha."), "agents/openai.yaml": yaml } })).violations.join("\n"), /short_description alpha: 150 chars exceeds 100/);
+});
+
