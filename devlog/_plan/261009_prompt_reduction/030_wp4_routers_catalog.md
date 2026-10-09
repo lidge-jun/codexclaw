@@ -34,3 +34,12 @@ Any router still above 10 KiB after the lane is listed in the gate's `EXCEPTIONS
 - Survival check. Each router lane writes `evidence/router-<lane>-moves.md`: removed heading → destination file#anchor, or "duplicate of <owner>" / "history". C runs a script comparing removed headings in `git diff` with that table and the destination files; a reviewer checks that each moved section has a router row naming when to read it.
 - Baseline. Routers still over 10 KiB keep an exact-size record; no skill outside the frozen eligible set may enter it.
 
+
+## wp4 P revalidation (2026-10-09)
+
+Continuity, quoting the wp3 D summary: "Next: deliver PR B, then wp4 per 030." Tree check: since the audited snapshot, files outside dev/loop/pabcd changed only where wp3 touched them (`dev/references/*` is dev's). The router sizes and description lengths are the "Before" figures in research/30 and the exact-size records in `prompt-architecture-baseline.json`; the gate now enforces every rule in this doc's accept criteria, so C uses it directly.
+
+Additions from wp3: (1) router lanes must also clear the frozen legacy duplicate IDs in their skills where a single owner is obvious (READER-DOC-01..05 stay duplicated: `visualizer-packaging.test.mjs` requires dev-visualizer's local copy; FE-ASSET-BG-01, UX-CONCEPT-GEN-01, FE-MOTION-HONESTY-01 → lane r3; DEVOPS-BASELINE-DEFECT-01, SOT-SYNC-01 → lane r2); (2) each lane removes its skills' entries from the baseline only by reporting new sizes; main edits the baseline after the lanes finish; (3) the lessons of wp3 C apply: lane ledgers are checked by an independent reviewer against the destination text, and "duplicate of X" counts only if X contains the rule.
+
+Branch `codex/prompt-reduction-routers` stacked on #289 (retargeted to `dev` after #289 merges).
+
