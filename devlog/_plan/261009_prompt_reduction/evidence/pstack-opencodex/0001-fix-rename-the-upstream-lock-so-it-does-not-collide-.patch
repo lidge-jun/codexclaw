@@ -1,0 +1,176 @@
+From 1ee7f612a11e1623e1f7f9c3f019d5948fa26bce Mon Sep 17 00:00:00 2001
+From: bitkyc08-arch <bitkyc08@gmail.com>
+Date: Fri, 9 Oct 2026 15:12:00 +0900
+Subject: [PATCH 1/2] fix: rename the upstream lock so it does not collide with
+ upstream/
+
+UPSTREAM and the upstream/ directory differ only by case, so a fresh clone on
+a case-insensitive filesystem (default macOS and Windows) cannot hold both:
+git reports UPSTREAM as deleted and build fails with IsADirectoryError.
+
+Rename the lock to UPSTREAM.lock (content unchanged) and update its readers.
+Add a test that fails when two tracked paths, including directory prefixes,
+differ only by case, and a macOS CI job that checks the checkout is complete.
+The macOS job also surfaced a temp-path comparison in test_runtime.py that
+failed on macOS before this change (/var is a symlink to /private/var); the
+test now resolves its temp root.
+---
+ .github/workflows/ci.yml  | 21 +++++++++++++++++++
+ CONTRIBUTING.md           |  2 +-
+ README.md                 |  2 +-
+ UPSTREAM => UPSTREAM.lock |  0
+ tests/test_repository.py  | 44 +++++++++++++++++++++++++++++++++++++++
+ tests/test_runtime.py     |  3 ++-
+ tools/pstack_opencodex.py |  4 ++--
+ 7 files changed, 71 insertions(+), 5 deletions(-)
+ rename UPSTREAM => UPSTREAM.lock (100%)
+ create mode 100644 tests/test_repository.py
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 77eb885..c6f485e 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -30,3 +30,24 @@ jobs:
+         run: |
+           git diff --check
+           git diff --exit-code -- upstream/
++  verify-macos:
++    # Case-insensitive filesystem: catches tracked paths that differ only by case.
++    runs-on: macos-15
++    steps:
++      - uses: actions/checkout@v7.0.1
++      - name: Check the checkout is complete
++        run: test -z "$(git status --porcelain)"
++      - uses: actions/setup-python@v7.0.0
++        with:
++          python-version: "3.13"
++      - name: Test runtime diagnostics
++        run: python3 -m unittest discover -s tests -v
++      - name: Build skills and verify license notices
++        run: |
++          python3 tools/pstack_opencodex.py build
++          cmp LICENSE dist/LICENSE
++          cmp upstream/LICENSE dist/LICENSE.pstack
++      - name: Check whitespace and upstream preservation
++        run: |
++          git diff --check
++          git diff --exit-code -- upstream/
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index bdb23a9..4a26e1f 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -4,7 +4,7 @@ Issues and pull requests are welcome. Include the command or workflow you used,
+ 
+ ## Make a change
+ 
+-- Keep `upstream/` identical to the source pinned in `UPSTREAM`. Use the sync command to update it.
++- Keep `upstream/` identical to the source pinned in `UPSTREAM.lock`. Use the sync command to update it.
+ - Put harness instructions and patches in `overlay/`, and Python tooling in `tools/`.
+ - Keep `dist/` out of Git. It is generated and contains local absolute paths.
+ - Use English for project documentation and Conventional Commits for commit messages.
+diff --git a/README.md b/README.md
+index d5fef57..79400ed 100644
+--- a/README.md
++++ b/README.md
+@@ -89,7 +89,7 @@ The harness maps Cursor cloud-agent steps to local workers. Available tools and
+ 
+ | Path | Purpose |
+ | --- | --- |
+-| `UPSTREAM` | Source repository, subtree, and pinned commit. |
++| `UPSTREAM.lock` | Source repository, subtree, and pinned commit. |
+ | `upstream/` | Unmodified copy of `cursor/plugins/pstack`. |
+ | `overlay/` | Harness instructions, patches, exclusions, and model example. |
+ | `tools/` | Build, install, synchronization, and diagnostic tools. |
+diff --git a/UPSTREAM b/UPSTREAM.lock
+similarity index 100%
+rename from UPSTREAM
+rename to UPSTREAM.lock
+diff --git a/tests/test_repository.py b/tests/test_repository.py
+new file mode 100644
+index 0000000..404c0c2
+--- /dev/null
++++ b/tests/test_repository.py
+@@ -0,0 +1,44 @@
++import shutil
++import subprocess
++import unittest
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++def case_collisions(paths):
++    """Return groups of distinct tracked spellings that only differ by case.
++
++    Every directory prefix counts as a path too, so a file named UPSTREAM and a
++    directory named upstream/ collide on case-insensitive filesystems (default
++    macOS and Windows), where one of them cannot be checked out.
++    """
++    spellings = {}
++    for path in paths:
++        parts = path.split("/")
++        for depth in range(1, len(parts) + 1):
++            name = "/".join(parts[:depth])
++            spellings.setdefault(name.casefold(), set()).add(name)
++    return sorted(sorted(group) for group in spellings.values() if len(group) > 1)
++
++
++class CaseCollisions(unittest.TestCase):
++    def test_helper_flags_a_file_that_collides_with_a_directory(self):
++        self.assertEqual(case_collisions(["UPSTREAM", "upstream/LICENSE"]), [["UPSTREAM", "upstream"]])
++
++    def test_helper_allows_shared_parents(self):
++        self.assertEqual(case_collisions(["upstream/a", "upstream/b", "tools/x.py"]), [])
++
++    def test_tracked_paths_check_out_on_case_insensitive_filesystems(self):
++        if shutil.which("git") is None:
++            self.skipTest("git is not available")
++        probe = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True)
++        if probe.returncode != 0:
++            self.skipTest("not a git work tree")
++        listed = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z"], capture_output=True, check=True)
++        paths = [p for p in listed.stdout.decode("utf-8").split("\0") if p]
++        self.assertEqual(case_collisions(paths), [])
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/test_runtime.py b/tests/test_runtime.py
+index 7901f99..484a1b4 100644
+--- a/tests/test_runtime.py
++++ b/tests/test_runtime.py
+@@ -91,7 +91,8 @@ class RuntimeCLI(unittest.TestCase):
+     def setUp(self):
+         self.temporary = tempfile.TemporaryDirectory(prefix="pstack-runtime-test-")
+         self.addCleanup(self.temporary.cleanup)
+-        self.root = Path(self.temporary.name)
++        # Resolve symlinked temp roots (macOS /var -> /private/var) so path comparisons match the CLI.
++        self.root = Path(self.temporary.name).resolve()
+         self.catalog = self.root / "selected.json"
+         self.roles = self.root / "models.md"
+         self.codex = self.root / "config.toml"
+diff --git a/tools/pstack_opencodex.py b/tools/pstack_opencodex.py
+index 0bd9a34..d34dfef 100644
+--- a/tools/pstack_opencodex.py
++++ b/tools/pstack_opencodex.py
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python3
+ """Keep pstack identical to Cursor's upstream and build a Codex-ready copy.
+ 
+-upstream/  verbatim copy of cursor/plugins/pstack at the ref in UPSTREAM
++upstream/  verbatim copy of cursor/plugins/pstack at the ref in UPSTREAM.lock
+ overlay/   the only files this repository owns (harness map, patches, examples)
+ dist/      generated by "build"; skills are installed as symlinks into dist/skills
+ """
+@@ -23,7 +23,7 @@ REPO = Path(__file__).resolve().parent.parent
+ UPSTREAM_DIR = REPO / "upstream"
+ OVERLAY_DIR = REPO / "overlay"
+ DIST_DIR = REPO / "dist"
+-LOCK_FILE = REPO / "UPSTREAM"
++LOCK_FILE = REPO / "UPSTREAM.lock"
+ CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+ DEFAULT_MODELS_FILE = CODEX_HOME / "pstack-models.md"
+ DEFAULT_CATALOG = CODEX_HOME / "models_cache.json"
+-- 
+2.50.1
+

@@ -56,3 +56,12 @@ Residual 1 (research/09): the delivery line "independent, either order" is repla
 
 Residual 2: tests are labeled by role. RED regression tests must fail on `2dd2800` and pass after the fix: the case-collision test against the real index (A); the eight catalog error-contract cases (B: missing file, malformed JSON, non-object document, non-array `models`, non-object entry, missing slug, non-string slug, malformed effort). Compatibility tests pass before and after: the collision helper's shared-parent fixture (A) and the successful `check-models` run with a clamped effort (B). C records the RED run on `2dd2800` and the GREEN run on each branch, plus `git diff --exit-code 2dd2800 HEAD -- upstream/`.
 
+
+## wp6 B record
+
+Implemented in a clone of foxytanuki/pstack-opencodex (`/tmp/pso.EjTe/repo`, base `2dd2800`); the exact patches are in `evidence/pstack-opencodex/` (`0001-…` = PR A, `0002-…` = PR B, stacked).
+
+- PR A, branch `fix/upstream-lock-case` (`1ee7f61`): `UPSTREAM` → `UPSTREAM.lock` (bytes unchanged, renamed through the index), readers updated (`LOCK_FILE`, module docstring, README layout row, CONTRIBUTING), NEW `tests/test_repository.py` (case-collision helper over tracked paths and their directory prefixes; real-index test), `.github/workflows/ci.yml` adds a `macos-15` job that first checks the checkout is complete. The macOS run exposed an existing failure on `2dd2800`: `test_explicit_catalog_override_wins_over_config` compares an unresolved temp path with the CLI's resolved one (`/var` → `/private/var`); the test now resolves its temp root (one line).
+- PR B, branch `fix/check-models-catalog-errors` (`80ea77c`, on top of A): `catalog_efforts(records)` split out of `load_catalog`, which now validates through `pstack_runtime.catalog_records` and keeps its return shape; `check-models` reads the catalog once inside one `(OSError, ValueError)` boundary and exits 1 with `cannot read model catalog <path>: <reason>`; the disabled-model set reuses the validated records.
+- RED on `2dd2800` (this Mac): the real-index collision test fails with `[['UPSTREAM', 'upstream']]` (both helper fixtures pass); the eight catalog cases fail (tracebacks or wrong exit/prefix); the clamp compatibility case passes. GREEN: A 25/25, B 27/27; build (46 skills), both license `cmp`, `git diff --check` and `git diff --exit-code 2dd2800 -- upstream/` pass on both branches.
+
