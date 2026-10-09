@@ -107,3 +107,12 @@ Aggregate through the real hook commands (`evidence/l1-before.txt` → `evidence
 
 The SessionStart totals still include the unchanged 1,162 B dispatch card, which moves in wp3 with its owner text (amendment Blocker 3). Without it they are 1,275 / 1,671 / 1,192 B. So the SessionStart ≤ 2,400 B check is enforced at wp3 C, not here; every UPS scenario already meets ≤ 1,200 B.
 
+
+## wp2 D summary (2026-10-09)
+
+Conclusion: L1 is down to fact + cue + owner pointer everywhere except the dispatch card, which moves with its owner in wp3. Every UserPromptSubmit scenario is within 1,200 B (largest 439 B); SessionStart is 2,437 B (plain) / 2,833 B (managed), 1,275 / 1,671 B without the card. Full suite 3,757 tests, 0 failures; gate, inventory, smoke and dist freshness pass; independent review NEAR-PASS with one Low finding (terminal `/ps` `/stop` owner) fixed in d4ed976f.
+
+What did not go well: one end-to-end test outside every lane's scope (`test/hook-e2e.test.mjs`) still pinned the old search wording and only the full suite found it; lane scopes were drawn by component and missed the root `test/` directory. The measure script's first compaction scenario mixed SessionStart and UPS into one total. Evidence the direction is wrong: agents that stop finding owners (for example asking how to poll background terminals, or skipping recall) in sessions after this ships.
+
+Next: deliver PR A, then wp6 (pstack PRs, small and independent) and wp3.
+
