@@ -51,3 +51,12 @@ No new design decision: no architect consultation (the 0.2.40 release precedent)
 - R3 (rollback). Before install the script copies the current cache directory (`~/.codex/plugins/cache/codexclaw/codexclaw/<old version>`) and `~/.codex/config.toml` to `~/.codexclaw-rollback/0.2.42-<UTC>/` on that host. Restore: copy the saved cache directory back, restore `config.toml`, run `hooks retrust` from the restored cache, and run the same doctor and deny smoke. A host that fails verification is restored, then reported.
 - Nit. After the version bump: `check-versions.mjs 0.2.42`, plus `rg` for leftover `0.2.41` (excluding CHANGELOG, devlog and fixture paths), `npm ls --workspaces --depth=0` to check cli, GUI and lock entries; doctor output must contain hook-trust PASS with a nonzero count.
 
+
+## wp5 D summary (2026-10-09)
+
+Conclusion: codexclaw 0.2.42 is released from `main` `17e23f5c` (v0.2.42, Latest, assets verified) and deployed from the same tree (`dev` `417ba6f8`) to the local Mac and six SSH hosts with trust PASS (32 hooks), a byte-identical payload and the SHELL-SUBST-01 deny smoke on each; five hosts were unreachable, as in 0.2.41. Record: 041_delivery.md.
+
+What did not go well: runner saturation stretched the release by about an hour (each push to `dev` queued CI, Packed install and WSL ahead of the PR); deployment therefore ran from the CI-verified `dev` SHA before the `main` promotion finished, a deliberate order change from this doc. macmini-cf needed a zsh login shell for node (the 0.2.41 record said so, the script defaulted to bash). mini kept a busy 0.2.41 cache directory. A `git stash pop` misfire applied an unrelated 2026-09-08 stash to the release branch; it was reverted to HEAD before any commit and the stash entry is intact. The hypothesis that died: that the compiled guard smoke runs through `hook pre-tool-use`; SHELL-SUBST-01 lives under `hook worktree-guard-pretool`. Evidence the direction is wrong: a host reporting hook-trust failures or the old 0.2.41 cache still loaded after a Codex restart.
+
+Next: wp6 (pstack-opencodex PRs) per 050.
+
