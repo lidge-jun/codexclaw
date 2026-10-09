@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-orchestrate"
-  short_description: "IPABCD phase control and status."
+  short_description: "Deprecated alias for cxc-pabcd."
 policy:
   allow_implicit_invocation: false

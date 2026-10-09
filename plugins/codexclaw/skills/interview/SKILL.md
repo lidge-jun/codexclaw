@@ -1,6 +1,6 @@
 ---
 name: cxc-interview
-description: "Use for Codexclaw Interview mode: persistent IPABCD I-phase requirements discovery, contradiction hunting, focused user questions, question/answer evidence recording, and readiness gating before Plan. Triggers: interview, 인터뷰, requirements clarification, ambiguity, contradiction scan, ask me questions, I phase, cxc-interview."
+description: "Use for requirements interviews. Triggers: interview, ambiguity, contradiction scan, ask me questions, I phase, 인터뷰."
 metadata:
   short-description: "Persistent I-phase clarification with contradiction tracking."
 ---

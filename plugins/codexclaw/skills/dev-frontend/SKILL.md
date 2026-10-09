@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-frontend
-description: "MUST USE for any frontend, web UI, or visual implementation work — building, styling, or redesigning pages/components, responsive layouts, motion, component architecture, and production-surface polish. Pairs with cxc-dev-uiux-design: load it first when design direction is vague; this skill implements the chosen direction. Triggers: 'frontend', 'UI', 'component', 'CSS', 'responsive', 'animation', 'React', 'Vue', 'Svelte', 'Tailwind', 'layout', 'styling', 'redesign', 'mockup', 'anti-slop', '프론트엔드', 'UI 작업', '반응형', '디자인 수정'."
+description: "Use for frontend code and UI fixes. Triggers: CSS, responsive, animation, React, Vue, Svelte, Tailwind, redesign, anti-slop, 프론트엔드, UI 작업, 반응형, 디자인 수정."
 metadata:
   last-verified: "2026-07-14"
   short-description: "Production-grade frontend implementation with responsive, accessible, anti-slop UI guidance."

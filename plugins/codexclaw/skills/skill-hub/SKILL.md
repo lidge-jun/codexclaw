@@ -1,6 +1,6 @@
 ---
 name: cxc-skill-hub
-description: "DEPRECATED: capability routing now lives in cxc-dev."
+description: "Deprecated alias. Use cxc-dev."
 metadata:
   deprecated: true
   redirect: cxc-dev

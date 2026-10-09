@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-frontend"
-  short_description: "Production-grade frontend implementation with responsive, accessible, anti-slop UI guidance."
+  short_description: "Frontend implementation, responsive layouts and UI fixes."
 policy:
   allow_implicit_invocation: true

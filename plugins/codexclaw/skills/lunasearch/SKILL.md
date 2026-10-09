@@ -1,6 +1,6 @@
 ---
 name: cxc-lunasearch
-description: "Codexclaw Luna search lane: cheap parallel public-web discovery via hardcoded gpt-5.6-luna explorer subagents, then hand verified synthesis back to the main model and cxc-search proof discipline. Depends on cxc-search for proof. Use when the user explicitly asks for Luna search, cheap/broad web discovery, parallel research, many source sweeps, 루나검색, 루나 서치, 병렬 웹검색, or 싸게 많이 찾아봐."
+description: "Use for cheap parallel web discovery (gpt-5.6-luna). Triggers: Luna search, parallel research, 루나검색, 루나 서치, 병렬 웹검색, 싸게 많이 찾아봐."
 ---
 
 # lunasearch — Cheap Parallel Discovery Lane (depends on cxc-search)

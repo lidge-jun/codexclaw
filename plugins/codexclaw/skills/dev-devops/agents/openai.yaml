@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-devops"
-  short_description: "Container, deploy, Kubernetes, IaC, SRE and native desktop acceptance guidance for production delivery."
+  short_description: "Infrastructure, CI/CD, releases, repo policy and native desktop acceptance."
 policy:
   allow_implicit_invocation: false

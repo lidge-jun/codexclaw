@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-debugging
-description: "MUST USE for any real runtime debugging in any language — crashes, silent failures, wrong output, build/test failures, flaky tests, performance regressions, integration bugs. A phases 0-4 root-cause method: architecture check → investigate → analyze → hypothesize → implement. Logic analysis of unknown systems (how apps/APIs/AI tools work) via references/logic-analysis.md. Triggers: 'debug this', 'why is X failing', 'this test is flaky', 'fix the crash', 'root cause', '왜 안 돼', '디버깅', '원인 분석', 'how does X work', 'figure out how', '로직 파악', '뜯어봐', 'reverse engineer'."
+description: "Use for debugging and system comprehension. Triggers: debug this, root cause, how does X work, reverse engineer, 왜 안 돼, 디버깅, 원인 분석, 로직 파악, 뜯어봐."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Phases 0-4 systematic root-cause debugging method (any language)."

@@ -1,6 +1,6 @@
 ---
 name: cxc-remote
-description: "MUST USE for messenger-bridge remote setup and channel onboarding — connecting Telegram or Discord to codexclaw, pairing a chat, validating bot tokens, registering agents, webhook mode, and remote-control troubleshooting. The agent performs setup end-to-end; the user only supplies tokens and taps pairing triggers. Triggers: remote, bridge setup, messenger, pairing, connect telegram, connect discord, 텔레그램 연결, 디스코드 연결, 메신저 연결, 봇 연결, 원격, 페어링."
+description: "Use for Telegram/Discord bridge setup. Triggers: remote, messenger, pairing, tokens, webhooks, 텔레그램 연결, 디스코드 연결, 메신저 연결, 봇 연결, 원격, 페어링."
 metadata:
   last-verified: "2026-07-07"
   short-description: "Agent-run messenger-bridge onboarding ladder: serve -> token -> agent -> pair -> smoke."

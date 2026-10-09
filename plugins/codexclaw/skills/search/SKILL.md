@@ -1,6 +1,6 @@
 ---
 name: cxc-search
-description: "MUST USE for external, current, real-time, or public-web lookups — latest releases/versions, news, prices, docs, status, X/Twitter, and deep research with a cited report. Routes Korean and English lookup verbs to a codex-native search ladder, never an accidental repository grep. Triggers: search, look up, latest, current, news, real-time, X, Twitter, deep research, deep-research, 검색, 검색해, 찾아봐, 찾아줘, 알아봐, 웹검색, 딥리서치, 심층 조사."
+description: "Use for web/current lookups. Triggers: search, look up, latest, news, prices, docs, status, X/Twitter, deep research, 검색, 검색해, 찾아봐, 찾아줘, 알아봐, 웹검색, 딥리서치, 심층 조사."
 metadata:
   last-verified: "2026-09-08"
   short-description: "Codex-native unified search: discover -> prove -> deep-research ladder with Aside lane and Korean intent guard."

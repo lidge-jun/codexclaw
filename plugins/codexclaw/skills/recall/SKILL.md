@@ -1,6 +1,6 @@
 ---
 name: cxc-recall
-description: "MUST USE for past-session recall — when a term from prior work is unfamiliar, context feels lost after a compact/restart, or the user references earlier work (그때, 지난번, 저번 세션, 예전에 했던, 기억나?, last time, previous session, what did we do). Searches past Codex conversations and the Codex memory store from the CLI before asking the user. Triggers: recall, 리콜, past session, chat search, memory search, 지난 세션, 이전 작업, 뭐였지, 어떻게 했었지."
+description: "Use for past-session context recovery. Triggers: recall, last time, previous session, chat search, memory search, 그때, 지난번, 저번 세션, 예전에 했던, 기억나?, 리콜, 지난 세션, 이전 작업, 뭐였지, 어떻게 했었지."
 metadata:
   short-description: "Read-only recall search over ~/.codex: past chats (FTS-indexed) + memory store."
 ---

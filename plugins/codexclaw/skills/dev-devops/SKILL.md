@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-devops
-description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, stacked-PR CI diagnosis, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, ML infrastructure, repository bootstrap, agent-PR intake policy, repository branch/worktree lifecycle hygiene, and native desktop acceptance. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'stacked PR CI', 'duplicate CI', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', 'stale branch', 'branch cleanup', 'delete merged branches', 'delete_branch_on_merge', 'worktree cleanup', 'repo bootstrap', 'branch protection', 'ruleset', 'PR limits', 'agent PR', 'agent PRs', 'AI PR policy', 'superseded PR', 'worktree gc', 'Tauri', 'AppKit', 'WidgetKit', 'menu bar app', 'notarization', 'TCC', '스택 PR CI', '배포', '인프라', '쿠버네티스', '브랜치 정리', '브랜치 삭제', '워크트리 정리', '저장소 세팅', '브랜치 보호', '에이전트 PR', 'PR 정책', '데스크톱 앱', '메뉴 막대'."
+description: "Use for infra, CI/CD, releases, repo policy, worktree cleanup and native desktop apps. Triggers: Dockerfile, K8s, IaC, SRE, Tauri, 스택 PR CI, 배포, 인프라, 쿠버네티스, 브랜치 정리, 브랜치 삭제, 워크트리 정리, 저장소 세팅, 브랜치 보호, 에이전트 PR, PR 정책, 데스크톱 앱, 메뉴 막대."
 metadata:
   last-verified: "2026-09-09"
   short-description: "Container, deploy, Kubernetes, IaC, SRE, and branch-lifecycle guidance for production delivery."

@@ -1,6 +1,6 @@
 ---
 name: cxc-orchestrate
-description: "DEPRECATED — merged into cxc-pabcd. Use $cxc-pabcd for phase control."
+description: "Deprecated alias. Use cxc-pabcd."
 metadata:
   deprecated: true
   redirect: cxc-pabcd

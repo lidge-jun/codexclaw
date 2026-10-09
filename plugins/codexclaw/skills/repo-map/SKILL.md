@@ -1,6 +1,6 @@
 ---
 name: cxc-repo-map
-description: "Use RepoMap for codebase overview, structure maps, symbol overview, and architecture map exploration. Triggers: repo map, codebase overview, structure map, 와꾸, project structure, unfamiliar codebase exploration, symbol overview, architecture map."
+description: "Use for repo structure and symbol maps. Triggers: repo map, codebase overview, architecture map, 와꾸."
 metadata:
   short-description: "One-shot tree-sitter symbol map with PageRank for unfamiliar codebase exploration."
 ---

@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-code-reviewer
-description: "MUST USE for code review and review-readiness — review process, quality thresholds, antipattern detection, review verdicts, and giving/receiving feedback. Activates by change-surface for PR review, diff review, pre-merge checks, refactor audits, and high-risk changes. Triggers: 'review this', 'code review', 'PR review', 'check my diff', 'before merge', 'antipattern', '리뷰', '코드 리뷰', '머지 전에 확인'."
+description: "Use for code/PR/diff review and refactor audits. Triggers: review this, before merge, antipattern, 리뷰, 코드 리뷰, 머지 전에 확인."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Code review router: findings, severity, verdicts, and review workflow."

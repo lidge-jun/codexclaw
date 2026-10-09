@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-visualizer
-description: "Create well-composed visual documents, HTML reports, SVG diagrams, charts, interactive explainers and PDF deliverables. Use for visualize, visual explanations, architecture diagrams, comparison reports, infographics, document creation, 시각화, 그려줘, 문서 만들어줘, 보고서, PDF 생성. Preserve explicit formats and templates; text-only requests and ordinary code changes do not need a visual. A simple inline or static artifact ships without a render round trip; rendered proof is for computed and exported output."
+description: "Use for visual explanations and documents. Triggers: diagrams, charts, interactive models, HTML reports, infographics, 시각화, 그려줘, 문서 만들어줘, 보고서, PDF 생성."
 metadata:
   last-verified: "2026-09-20"
   short-description: "Visual documents, SVG/HTML explainers and PDF delivery, verified in proportion."

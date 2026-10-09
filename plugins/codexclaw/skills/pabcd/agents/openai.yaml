@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-pabcd"
-  short_description: "PABCD phases, evidence, and explicit scope boundaries."
+  short_description: "Plan, Audit, Build, Check and Done phases."
 policy:
   allow_implicit_invocation: true

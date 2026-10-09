@@ -1,6 +1,6 @@
 ---
 name: cxc-goalplan
-description: "DEPRECATED — merged into cxc-loop. Use $cxc-loop for durable goalplans."
+description: "Deprecated alias. Use cxc-loop."
 metadata:
   deprecated: true
   redirect: cxc-loop

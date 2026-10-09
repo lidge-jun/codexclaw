@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-code-reviewer"
-  short_description: "Code review router: findings, severity, verdicts, and review workflow."
+  short_description: "Code, PR and diff reviews."
 policy:
   allow_implicit_invocation: false
