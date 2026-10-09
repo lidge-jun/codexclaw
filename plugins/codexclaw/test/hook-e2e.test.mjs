@@ -804,8 +804,11 @@ test("agbrowse: user-prompt-submit hook e2e - natural language agbrowse request 
     const ctx = out.hookSpecificOutput.additionalContext;
     assert.match(ctx, /\[codexclaw: SEARCH/);
     assert.match(ctx, /cxc-search/);
-    assert.match(ctx, /agbrowse fetch/);
-    assert.match(ctx, /Never use plain `agbrowse search/);
+    // The search rules themselves live in cxc-search SKILL.md and cxc-dev
+    // browser-routing.md; the injection only has to point there.
+    assert.match(ctx, /\$codexclaw:cxc-search SKILL\.md/);
+    assert.match(ctx, /browser-routing\.md/);
+    assert.ok(Buffer.byteLength(ctx) <= 250, "search block stays a pointer");
     const stateFile = join(tmp, ".codexclaw", "sessions", "s-ag.json");
     assert.ok(existsSync(stateFile), "turn dedup state should be persisted");
     const persisted = JSON.parse(readFileSync(stateFile, "utf8"));
