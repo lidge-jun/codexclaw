@@ -107,6 +107,10 @@ Record it as `creation.provisionalId` in a pending packet. A listing can supply 
 but title, cwd or elapsed time alone cannot establish the mapping. Confirm canonical
 identity through host evidence and read-only inspection; otherwise leave the packet
 pending. An absent listing, failure or long delay never authorizes recreating the lane.
+A queued worktree **fork** is the one narrow exception: it carries no assignment until
+its follow-up message, so routing that lane another way cannot duplicate work. One was
+observed never registering; see DISPATCH-FORK-LANE-01 in
+[dispatch surfaces](../../pabcd/references/dispatch-surfaces.md).
 
 ## Watching lanes, and the wave that is actually capped
 

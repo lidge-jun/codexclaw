@@ -262,6 +262,10 @@ the child's actual permission mode before assigning unattended writes. A
 bounded checkout worker can instead use `create_worktree` plus a subagent with
 the returned absolute path as every shell workdir. This does not give the
 subagent its own task, goal or PABCD state.
+A lane that does need its own goal can use a same-directory fork instead
+(DISPATCH-FORK-LANE-01 in [dispatch surfaces](dispatch-surfaces.md)): it
+inherited full access where created threads did not, but it shares the
+checkout, so it creates its own worktree and pins it with `cxc session source`.
 
 **Delegation safeguards:**
 

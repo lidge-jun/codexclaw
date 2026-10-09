@@ -107,7 +107,65 @@ projectless targets. Confirm their actual permission state before planning an
 unattended write lane. The bounded worktree/subagent route does not grant new
 permissions; it uses the coordinator's inherited subagent permission and an
 explicit checkout path. When a lane needs independent goal/PABCD ownership,
-keep the thread route and handle its actual permission state.
+keep the thread route and handle its actual permission state; DISPATCH-FORK-LANE-01
+below is one way to do that.
+
+## DISPATCH-FORK-LANE-01 — a fork as the thread route when created threads lose permission
+
+A same-directory `fork_thread({})` is a thread too: it gets its own task, session
+binding, goal and PABCD state. Use it for independent task lanes when `create_thread`
+children on this host start with reduced permission. What it changes:
+
+- **Permission.** On the maintainer's host, same-directory forks kept the
+  coordinator's full access. All seven lane forks dispatched on 2026-10-09 recorded
+  `approval_policy: never` with a `danger-full-access` sandbox in their rollouts,
+  and none waited on an approval; the lane forks of 2026-10-01 behaved the same.
+  That is an observation, not a guarantee: confirm the child's
+  actual permission before unattended writes. The opt-in PermissionRequest
+  auto-allow hook deliberately ignores forks, so it does not cover a fork that
+  started restricted.
+- **Identity.** It returns a canonical `threadId` immediately, so the lane is
+  addressable at once and the follow-up message can carry its assignment.
+- **History.** The child carries the coordinator's full conversation, including
+  the plan for every other lane, and a full-history fork inherits the parent
+  model. The follow-up message must name the one lane it owns and the boundaries
+  of the others.
+- **Checkout.** It shares the coordinator's checkout, and its native cwd and
+  session state stay there. The shared checkout is read-only to fork lanes: no
+  edits, branch switches or commits. Before anything else, the follow-up message
+  must have the fork:
+  1. create its own checkout, one per lane, in a gitignored directory of the
+     repository or a sibling directory:
+     `git -C <shared> worktree add -b <branch> <absolute lane path> origin/<base>`;
+  2. bind its session state, then pin that checkout as its source:
+     `cxc session bind`, then `cxc session source <absolute lane path> --json`,
+     before `loop init`. Without the pin, SOURCE-DELTA-01 reads the shared
+     checkout, so a lane's B>C evidence does not describe its own work (the
+     2026-10-01 lanes hit this), and WORKTREE-GUARD-04 does not fence its git
+     writes;
+  3. pass the lane path as the shell workdir on every command, and write git
+     commands as `git -C <lane path> ...`, because hooks see only the command
+     text.
+
+Prefer a `worktree` thread whenever its permission is intact. The fork route
+trades an isolated native cwd for inherited permission, and every step above
+exists to give that isolation back.
+
+### A worktree fork that never registers
+
+Observed on 2026-10-09: `fork_thread({ environment: { type: "worktree" } })`,
+called during an active coordinator turn, returned `status: "queued"` with a
+`clientThreadId`. The managed worktree directory appeared within seconds, but no
+task with that cwd appeared in `list_threads` for more than 25 minutes, including
+after the coordinator's turn ended, and `get_worktree_creation_status` did not
+recognize the provisional id.
+
+Keep that lane pending, as [lane dispatch](../../loop/references/lane-dispatch.md)
+requires, and do not message or retry it. A fork carries no assignment until its
+follow-up message, so if it registers later it does nothing. That makes it safe
+to route the lane through same-directory forks instead. A queued `create_thread`
+differs: its prompt is the assignment, so recreating that lane can duplicate
+the work. Report the orphaned worktree path to the user; do not delete it.
 
 ## DISPATCH-AUTHORITY-01 — asking for lane work is asking for the lanes
 

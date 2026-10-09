@@ -6,6 +6,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- DISPATCH-FORK-LANE-01: when `create_thread` children start with reduced permission, the dispatch docs now describe a same-directory `fork_thread` as the thread route for an independent lane. The fork kept full access on the maintainer's host, but it shares the coordinator's checkout, so the lane creates its own worktree, pins it with `cxc session source`, and passes it as every workdir. The docs also record a `fork_thread` worktree fork that created its worktree but never registered a task, and why routing that lane another way cannot duplicate work, unlike a queued `create_thread`.
+
 ## [0.2.41] - 2026-10-06
 
 ### Added
