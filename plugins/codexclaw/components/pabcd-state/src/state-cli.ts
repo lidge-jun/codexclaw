@@ -113,8 +113,10 @@ export function comparablePath(p: string, platform: NodeJS.Platform = process.pl
  * Windows). A false match only ever keeps a file in place.
  */
 function looseRelKey(rel: string): string {
-  const n = rel.normalize("NFC");
-  return process.platform === "win32" || process.platform === "darwin" ? n.toLowerCase() : n;
+  if (process.platform !== "win32" && process.platform !== "darwin") return rel.normalize("NFC");
+  // Upper-then-lower folds aliases a plain toLowerCase() keeps apart (final sigma, long s);
+  // NFKC also merges compatibility forms. Over-matching only keeps more files in place.
+  return rel.normalize("NFKC").toUpperCase().toLowerCase().normalize("NFKC");
 }
 
 function fileIdentity(p: string): string | null {

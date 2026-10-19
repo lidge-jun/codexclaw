@@ -466,3 +466,21 @@ test("#299 r2: a tracked directory spelled with different case (Devlog/, .Codexc
     assert.equal(git(co, "status", "--porcelain"), "", dir);
   }
 });
+
+test("#299 r3: Unicode case aliases in a parent directory (Σ/ς, S/ſ) keep tracked files in place", () => {
+  if (process.platform !== "darwin") return;
+  const env = envFor(join(scratch, "base"));
+  for (const [tracked, alias] of [["\u03a3", "\u03c2"], ["S", "\u017f"]]) {
+    const co = checkout("https://github.com/acme/app.git");
+    mkdirSync(join(co, tracked, "devlog"), { recursive: true });
+    writeFileSync(join(co, tracked, "devlog", "tracked.md"), "t\n");
+    git(co, "add", tracked);
+    git(co, "commit", "-q", "-m", "tracked");
+    const names = readdirSync(co);
+    if (!names.includes(alias)) renameSync(join(co, tracked), join(co, alias));
+    if (!existsSync(join(co, alias))) continue; // filesystem does not treat them as aliases
+    const r = runStateCli(["migrate", "--apply"], join(co, alias), env);
+    assert.equal(r.code, 0, r.output);
+    assert.ok(existsSync(join(co, alias, "devlog", "tracked.md")), alias + ": tracked file left in place");
+  }
+});
