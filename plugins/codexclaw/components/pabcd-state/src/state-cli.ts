@@ -257,12 +257,25 @@ function stripCrlf(buf: Buffer): Buffer {
 }
 
 /**
- * Live bytes that are exactly the blob with LF turned into CRLF: what a core.autocrlf=true
- * checkout writes for a file git treats as text. The blob must contain no CR at all, so a
- * binary whose own bytes include CR is never folded this way.
+ * Set per sync run: true only when the base's own git config has core.autocrlf=true, i.e. a
+ * checkout could have written CRLF copies of LF blobs. Everywhere else comparisons are exact.
+ */
+let autocrlfCheckouts = false;
+
+/**
+ * Live bytes that are exactly what git's core.autocrlf=true checkout writes for the blob:
+ * the blob looks like text to git (no NUL in its first 8000 bytes, no CR at all) and EVERY
+ * LF became CRLF. A partial CR insertion, a binary, or a base without autocrlf never matches,
+ * so a real edit is never folded away (#302 review).
  */
 function isCheckoutEolArtifact(live: Buffer, blob: Buffer): boolean {
-  return !blob.includes(0x0d) && live.includes(0x0d) && stripCrlf(live).equals(blob);
+  if (!autocrlfCheckouts) return false;
+  if (blob.includes(0x0d) || blob.subarray(0, 8000).includes(0x00)) return false;
+  let lf = 0;
+  for (const b of blob) if (b === 0x0a) lf += 1;
+  let cr = 0;
+  for (const b of live) if (b === 0x0d) cr += 1;
+  return lf > 0 && cr === lf && live.length === blob.length + lf && stripCrlf(live).equals(blob);
 }
 
 function sameBytes(path: string, data: Buffer | null, lfText = false): boolean {
@@ -403,6 +416,7 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
   }
   let tmpWorktree: string | null = null;
   const lines: string[] = ["state sync in " + base];
+  autocrlfCheckouts = gitIn(base, env, ["config", "--get", "core.autocrlf"]).stdout.toLowerCase() === "true";
   try {
     try {
       if (ensureLines(join(base, ".gitignore"), BASE_GITIGNORE, "# codexclaw state sync: never commit locks or scratch files")) lines.push("wrote .gitignore entries");
@@ -498,6 +512,7 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
     }
     return { code: 0, output: lines.join("\n") };
   } finally {
+    autocrlfCheckouts = false;
     if (tmpWorktree) {
       gitIn(base, env, ["worktree", "remove", "--force", tmpWorktree]);
       gitIn(base, env, ["worktree", "prune"]);

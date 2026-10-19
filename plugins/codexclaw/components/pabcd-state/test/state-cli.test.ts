@@ -497,3 +497,28 @@ test("#299 r3: Unicode case aliases in a parent directory (Σ/ς, S/ſ) keep tra
     assert.ok(existsSync(join(co, alias, "devlog", "tracked.md")), alias + ": tracked file left in place");
   }
 });
+
+for (const autocrlf of [false, true]) {
+test("#302 review: real CR edits (partial insertion, binary) are committed, never folded away (base autocrlf=" + autocrlf + ")", () => {
+  {
+    const m = twoMachines();
+    if (autocrlf) git(m.a, "config", "core.autocrlf", "true");
+    mkdirSync(join(m.dirA, "evidence", "s1"), { recursive: true });
+    const text = Buffer.from("a\nb\nc\n");
+    const bin = Buffer.from([0x00, 0x41, 0x0a, 0x42, 0x0a]);
+    writeFileSync(join(m.dirA, "evidence", "s1", "t.txt"), text);
+    writeFileSync(join(m.dirA, "evidence", "s1", "b.bin"), bin);
+    assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+    const partial = Buffer.from("a\r\nb\nc\n");
+    const binEdit = Buffer.from([0x00, 0x41, 0x0d, 0x0a, 0x42, 0x0a]);
+    writeFileSync(join(m.dirA, "evidence", "s1", "t.txt"), partial);
+    writeFileSync(join(m.dirA, "evidence", "s1", "b.bin"), binEdit);
+    const r = runStateCli(["sync"], m.co, envFor(m.a));
+    assert.equal(r.code, 0, r.output);
+    const rel = m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/";
+    const show = (f: string) => spawnSync("git", ["-C", m.remote, "cat-file", "blob", "HEAD:" + rel + f]).stdout as Buffer;
+    assert.ok(show("t.txt").equals(partial), "partial CR edit committed (autocrlf=" + autocrlf + ")");
+    assert.ok(show("b.bin").equals(binEdit), "binary CR edit committed (autocrlf=" + autocrlf + ")");
+  }
+});
+}
