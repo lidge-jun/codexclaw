@@ -56,3 +56,21 @@ D12 Migrate: dry-run by default, `--apply` to move; per file, an identical desti
 IN: `plugins/codexclaw/components/pabcd-state/src/**` (+ dist, tests), `subagent-config/src/final-gate-guard.ts`, `cxc-ops/src/reset.ts` (+ resolver copies with a parity test), `plugins/codexclaw/scripts/gate.mjs`, `plugins/codexclaw/bin/cxc.mjs`, `bin/codexclaw.mjs`, skills/structure docs (wp3), CHANGELOG.
 OUT: volatile state locations, `rules/`, recall/bg-wake/messenger-bridge storage, Codex config.
 
+
+
+## wp1 D summary (2026-10-20)
+
+Conclusion: the resolver and the durable/volatile split are in place (PR1). Every durable read and write in pabcd-state, subagent-config's final-gate guard and cxc-ops reset goes through `state-root.ts`; repo mode paths and messages are byte-identical to before, which the unchanged existing suite confirms.
+
+Evidence: clean worktree at e212079f — focused suites 2525 tests / 2522 pass / 0 fail; full `npm test` 3790 / 3776 pass with only the failures origin/dev shows in the same environment (3771 / 3757: messenger-bridge timer tests, the mcp staleModel timeout, the gui router file); `npm run gate` OK. Hook bench: no change beyond run-to-run noise (two paired runs, deltas of ±5 ms in both directions).
+
+Reviews (gpt-6.1-sol, fresh contexts): code r1 FAIL (`..name` containment, disabled roots trusted, git quoting) → r2 FAIL (receipt cleared before root validation, line continuations) → r3 FAIL (comment ending in a backslash) → r4 PASS (128 configs × 5 copies against `git config`). Security r1 FAIL (containment, disabled roots, exclude symlink, post-check swap, 32-bit id collision) → r2 FAIL (receipt deletion) → r3 PASS.
+
+What did not go well: the first file-based git parser was naive about git's quoting, comments and continuations and took three review rounds; the hypothesis that a regex per line is enough died. Evidence the direction is wrong would be a real config the resolver reads differently from `git config --get`; `cxc state path` shows the origin key so such a case is visible.
+
+Deviations from 010: the SessionStart legacy-state warning was dropped (SessionStart emits nothing today and the prompt budget is tight); `cxc state path` and `plan init` carry it. `cxc-ops/doctor.ts` was left unchanged (it checks the volatile directory only).
+
+Residuals accepted: same-user directory swaps can race the resolver's checks (no fd-pinned mkdir in Node); durable readers other than the evidence guard and receipt producers do not consult the disabled flag.
+
+Next: wp2 per 020.
+

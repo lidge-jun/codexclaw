@@ -1,6 +1,6 @@
 # wp1 — resolver, durable/volatile consolidation, evidence guard (PR1)
 
-Status: PLANNED
+Status: DONE
 
 ## New module: `pabcd-state/src/state-root.ts`
 
