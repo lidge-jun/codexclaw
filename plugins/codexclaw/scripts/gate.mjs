@@ -21,7 +21,7 @@
  *  - checkCounts reads the real manifest at `.codex-plugin/plugin.json`.
  */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, dirname, relative, sep } from "node:path";
+import { join, dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { check as inventoryCheck } from "./inventory.mjs";
 import { checkPromptArchitecture as promptArchitectureCheck } from "./check-prompt-architecture.mjs";
@@ -49,7 +49,7 @@ export function devlogRootFor(repoRoot) {
 
 /** The mvp_hard dir the gate validates, as an absolute path. */
 export function mvpHardPathFor(repoRoot) {
-  return join(repoRoot, mvpHardDir(repoRoot));
+  return mvpHardDir(repoRoot);
 }
 
 /**
@@ -59,11 +59,12 @@ export function mvpHardPathFor(repoRoot) {
  * INDEX after a reorg, without hardcoding a single path.
  */
 function mvpHardDir(repoRoot) {
-  const devlog = relative(repoRoot, resolveDevlogRoot(repoRoot)) || ".";
+  // Absolute: an external devlog may sit on another Windows drive, where relative() cannot bridge.
+  const devlog = resolve(resolveDevlogRoot(repoRoot));
   const planDir = join(devlog, "_plan", "mvp_hard");
-  if (existsSync(join(repoRoot, planDir))) return planDir;
+  if (existsSync(planDir)) return planDir;
   const finDir = join(devlog, "_fin", "mvp_hard");
-  if (existsSync(join(repoRoot, finDir))) return finDir;
+  if (existsSync(finDir)) return finDir;
   return planDir; // default to the live path for the "missing INDEX" violation message
 }
 
@@ -103,7 +104,7 @@ export function parseIndexRows(indexText) {
 
 /** Resolve the single loop doc for a decade, or null if zero / multiple top-level docs. */
 function resolveLoopDoc(repoRoot, decade) {
-  const dir = join(repoRoot, mvpHardDir(repoRoot));
+  const dir = mvpHardDir(repoRoot);
   if (!existsSync(dir)) return null;
   // a "top-level" loop doc starts with exactly the decade then `_` (e.g. 090_...); a
   // sub-loop (091_...) shares the decade prefix only when decade is itself 09x. Match
@@ -115,7 +116,7 @@ function resolveLoopDoc(repoRoot, decade) {
 export function checkStatusSync(repoRoot = REPO_ROOT) {
   const violations = [];
   const mvpHard = mvpHardDir(repoRoot);
-  const indexPath = join(repoRoot, mvpHard, "000_INDEX.md");
+  const indexPath = join(mvpHard, "000_INDEX.md");
   if (!existsSync(indexPath)) return { ok: false, violations: [`missing INDEX: ${indexPath}`] };
   const rows = parseIndexRows(readFileSync(indexPath, "utf8"));
   for (const row of rows) {
@@ -127,7 +128,7 @@ export function checkStatusSync(repoRoot = REPO_ROOT) {
       violations.push(`${row.ln}: INDEX impl-state '${row.impl}' is not in the LOCKED enum`);
     }
     const docName = NO_OWN_DOC.get(row.ln);
-    const docPath = docName ? join(repoRoot, mvpHard, docName) : resolveLoopDoc(repoRoot, row.decade);
+    const docPath = docName ? join(mvpHard, docName) : resolveLoopDoc(repoRoot, row.decade);
     if (!docPath || !existsSync(docPath)) {
       violations.push(`${row.ln} (decade ${row.decade}): no single loop doc resolved (add to NO_OWN_DOC or create the decade doc)`);
       continue;

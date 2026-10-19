@@ -302,3 +302,16 @@ test("review r1: migrate never writes through or reads through symlinks", () => 
   runStateCli(["migrate", "--apply"], co2, env);
   assert.ok(existsSync(join(outside, "ledger.jsonl")));
 });
+
+test("review r2: sync refuses a symlinked .gitignore or .gitattributes in the base", () => {
+  if (process.platform === "win32") return;
+  const m = twoMachines();
+  const victim = join(scratch, "victim.txt");
+  writeFileSync(victim, "keep\n");
+  symlinkSync(victim, join(m.a, ".gitattributes"));
+  const r = runStateCli(["sync"], m.co, envFor(m.a));
+  assert.equal(r.code, 1);
+  assert.match(r.output, /not a regular file/);
+  assert.equal(readFileSync(victim, "utf8"), "keep\n");
+  assert.equal(existsSync(join(m.a, ".cxc-sync.lock")), false);
+});

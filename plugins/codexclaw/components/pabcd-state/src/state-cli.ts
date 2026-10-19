@@ -134,6 +134,11 @@ export function runDevlogCli(argv: string[], cwd: string, env: NodeJS.ProcessEnv
 // ---------------------------------------------------------------- sync
 
 function ensureLines(path: string, lines: string[], header: string): boolean {
+  // Never append through a link: the base's own ignore/attribute files must be real files.
+  if (existsSync(path) || isDanglingLink(path)) {
+    const st = lstatSync(path);
+    if (st.isSymbolicLink() || !st.isFile()) throw new Error(path + " is not a regular file; refusing to edit it");
+  }
   const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
   const have = new Set(existing.split(/\r?\n/).map((l) => l.trim()));
   const missing = lines.filter((l) => !have.has(l));
@@ -141,6 +146,14 @@ function ensureLines(path: string, lines: string[], header: string): boolean {
   const lead = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
   appendFileSync(path, lead + header + "\n" + missing.join("\n") + "\n");
   return true;
+}
+
+function isDanglingLink(path: string): boolean {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 function splitJsonlLines(buf: Buffer): string[] {
@@ -325,8 +338,12 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
   let tmpWorktree: string | null = null;
   const lines: string[] = ["state sync in " + base];
   try {
-    if (ensureLines(join(base, ".gitignore"), BASE_GITIGNORE, "# codexclaw state sync: never commit locks or scratch files")) lines.push("wrote .gitignore entries");
-    if (ensureLines(join(base, ".gitattributes"), BASE_GITATTRIBUTES, "# codexclaw state sync: append-only ledgers merge by union")) lines.push("wrote .gitattributes (*.jsonl merge=union)");
+    try {
+      if (ensureLines(join(base, ".gitignore"), BASE_GITIGNORE, "# codexclaw state sync: never commit locks or scratch files")) lines.push("wrote .gitignore entries");
+      if (ensureLines(join(base, ".gitattributes"), BASE_GITATTRIBUTES, "# codexclaw state sync: append-only ledgers merge by union")) lines.push("wrote .gitattributes (*.jsonl merge=union)");
+    } catch (err) {
+      return { code: 1, output: "state sync: " + (err instanceof Error ? err.message : String(err)) };
+    }
     const trackedAll = gitIn(base, env, ["ls-files", "-z"]);
     const trackedScratch = trackedAll.buf.toString("utf8").split("\0").filter((p) => p && isScratchPath(p));
     if (trackedScratch.length > 0) {
