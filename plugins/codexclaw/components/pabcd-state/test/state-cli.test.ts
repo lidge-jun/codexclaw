@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clearStateRootCache, resolveStateRoot } from "../src/state-root.ts";
@@ -425,4 +425,28 @@ test("#299: comparablePath folds case and separators on win32 only", async () =>
   assert.equal(comparablePath(p, "win32"), comparablePath(p, "linux").toLowerCase());
   assert.ok(!comparablePath(p, "win32").includes("\\"));
   assert.equal(comparablePath(p + "/", "linux"), comparablePath(p, "linux"));
+});
+
+test("#299 r1: tracked files survive migrate across case, NFC/NFD and literal-backslash spellings", () => {
+  if (process.platform === "win32") return; // backslash is a separator there; case/identity covered by the test above
+  const env = envFor(join(scratch, "base"));
+  // Case and NFC/NFD aliases only exist on macOS's default filesystem; a literal backslash is
+  // a plain filename character on every POSIX system.
+  const cases: Array<[string, string]> = [["tracked\\name.md", "tracked\\name.md"]];
+  if (process.platform === "darwin") cases.push(["Tracked.md", "tracked.md"], ["caf\u00e9.md", "cafe\u0301.md"]);
+  for (const [indexName, diskName] of cases) {
+    const co = checkout("https://github.com/acme/app.git");
+    mkdirSync(join(co, "devlog"), { recursive: true });
+    writeFileSync(join(co, "devlog", indexName), "t\n");
+    git(co, "add", "devlog");
+    git(co, "commit", "-q", "-m", "tracked");
+    const names = readdirSync(join(co, "devlog")) as string[];
+    if (!names.includes(diskName) && indexName !== diskName) {
+      // case/normalization-preserving FS: rename on disk to the other spelling (git still tracks indexName)
+      renameSync(join(co, "devlog", names[0]), join(co, "devlog", diskName));
+    }
+    const r = runStateCli(["migrate", "--apply"], co, env);
+    assert.equal(r.code, 0, r.output);
+    assert.equal((readdirSync(join(co, "devlog")) as string[]).length, 1, indexName + ": tracked file left in place");
+  }
 });
