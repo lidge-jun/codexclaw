@@ -74,3 +74,16 @@ Residuals accepted: same-user directory swaps can race the resolver's checks (no
 
 Next: wp2 per 020.
 
+
+
+## wp2 D summary (2026-10-20)
+
+Conclusion: `cxc state path/sync/migrate` and `cxc devlog path` ship in PR2, with `plan init`, the P>A gate messages and `gate.mjs` reading the devlog through the resolver. Rebuilt on origin/dev after #295 was squash-merged; also carries the Windows 8.3 short-path fix CI found on #295 after merge.
+
+Evidence (clean worktree, 71100fcd): focused suites 2484 / 2481 pass / 0 fail; full `npm test` 3807 / 3793 pass with only the environment failures origin/dev shows locally (#296); `npm run gate` OK.
+
+Reviews (gpt-6.1-sol, fresh contexts): code r1 FAIL (4), data-integrity r1 FAIL (9), r2 FAIL/FAIL (linked policy files, cross-drive gate path, CRLF duplicates), r3 FAIL/FAIL (legacy autocrlf base), r4 FAIL (text=auto rewrote binary evidence), r5 FAIL (UTF-8 compare equated different binaries), r6 PASS.
+
+What did not go well: line-ending handling took four rounds; each fix (`* -text`, `text=auto`, UTF-8 compare) solved one case and broke another. The hypothesis that a repo-wide attribute could fix CRLF died; the working rule is byte-exact everywhere except the two file types codexclaw writes as LF text.
+
+Residuals: a new 100755 file arrives as 0600 (state holds no executables); migrate's lock is not honored by hook writers (IDLE check bounds it); one goalplan must not be driven from two machines at once.

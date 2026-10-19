@@ -1,6 +1,6 @@
 # wp2 — CLI: state path/sync/migrate, devlog path, plan surfaces (PR2)
 
-Status: PLANNED
+Status: DONE
 
 ## Commands (pabcd-state cli.ts, new `state-cli.ts`)
 
