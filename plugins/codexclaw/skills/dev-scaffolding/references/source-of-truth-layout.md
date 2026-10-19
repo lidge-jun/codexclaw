@@ -25,7 +25,7 @@ Keep it light:
 
 ## 2.1 Lightweight Source of Truth (implementation-unit devlog)
 
-The implementation-unit devlog routine (`devlog/_plan/` units — `pabcd` §Work-Phase
+The implementation-unit devlog routine (`_plan/` units under the directory printed by `cxc devlog path` — `pabcd` §Work-Phase
 Loop, UNIT-RESIDENCE-01) is the DEFAULT for C2+ work where the repository uses it.
 C0/C1 follow the record exemptions in `dev` §0.1; do not create a unit just for them. Propose the `docs/`/`plans/`
 architecture docs when:

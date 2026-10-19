@@ -34,7 +34,7 @@ Read the mandatory owner before its work.
 | A, if authorized | Audit, resolve/rebut blockers and re-audit to pass/justified near-pass: [Audit phase](references/phase-audit.md). |
 | B | Implement audited scope, verify and surface deviations; cxc-dev owns git (DEV-GIT-COMMIT-01, DEV-GIT-PUSH-01); declared stacks read [Stacked PRs](../dev/references/stacked-prs.md) (DEV-STACK-02). |
 | C | Fresh relevant proof and source-of-truth sync: [Check phase](references/phase-check.md). |
-| D | Record conclusion, changes and evidence; update STATUS/devlog, apply cxc-dev git rules, resolve this work-phase's pending work and close to IDLE. Read [Reader documents](../dev/references/reader-documents.md) (READER-DOC-02/04). |
+| D | Record conclusion, changes and evidence; update STATUS and the devlog (`cxc devlog path`), apply cxc-dev git rules, resolve this work-phase's pending work and close to IDLE. Read [Reader documents](../dev/references/reader-documents.md) (READER-DOC-02/04). |
 | P/A defining render/conditional checks | Read Check phase above for reachable activation and observable evidence. |
 
 LOOP-PESSIMIST-01 (DEFAULT): for loop/multi-pass D, record what did not improve, which hypothesis died and what evidence would refute the direction.

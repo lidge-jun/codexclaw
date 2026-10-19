@@ -25,6 +25,9 @@ phase 1, `020-029` phase 2, and so on. This repo standardizes on three-digit pre
 (`000_`, `010_`, `020_`). Never bare semantic filenames (`PLAN.md`, `RCA.md`) — the
 numeric prefix is the ordering and the audit trail.
 
+Use the devlog directory printed by `cxc devlog path`: checkout-local in repo/local mode,
+outside the checkout in external mode. In none mode, devlog writes are disabled.
+
 ## How the routine rides PABCD (the loop)
 
 | Phase | Documentation action | Gate |

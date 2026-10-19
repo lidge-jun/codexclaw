@@ -49,8 +49,8 @@ Interview OPEN ASSUMPTIONS, steering decisions, and quality gates.
 
 ### Shipped schema
 
-This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
-(+ `ledger.jsonl`). Fill these fields; do not invent parallel ones:
+This is the on-disk shape under `<durable root>/goalplans/<slug>/goalplan.json`
+(+ `ledger.jsonl`; the durable root is `.codexclaw/` in repo mode, see `cxc state path`). Fill these fields; do not invent parallel ones:
 
 - `objective`, `slug`, `createdAt`, `updatedAt`.
 - `workPhases[]` — each `{ id, title, status: pending|in_progress|done, dependsOn?, tasks[], criteriaIds[] }`.

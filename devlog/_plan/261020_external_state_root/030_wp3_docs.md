@@ -8,3 +8,13 @@ Constraints: the prompt-architecture gate (`check-prompt-architecture.mjs`) budg
 
 Verifier: `npm run gate`, `npm test` (skill pin tests), review by sol.
 
+
+
+## P re-verification (2026-10-20, wp3 cycle, on origin/dev 94eb2ec6)
+
+Drafted edits (one sentence or table cell each, no rule semantics changed):
+- skills: `pabcd/SKILL.md` D row (devlog via `cxc devlog path`), `pabcd/references/phase-control.md` (durable files live in the root `cxc state path` prints; P->A planUnit row), `pabcd/references/implementation-units.md` (UNIT-RESIDENCE-01 path), `dev/SKILL.md` DEV-PRIVACY-01 (codexclaw plans/evidence follow `cxc state path`), `dev-scaffolding/references/implementation-log.md` (devlog root paragraph), `dev-scaffolding/references/source-of-truth-layout.md` (SCAF-SOT-01 wording), `loop/references/durable-goalplan.md` (goalplan location), `qa/references/evidence-contract.md` (evidence root).
+- structure: NEW `structure/80_state_layout.md` (modes, precedence, config, project id, durable/volatile table, evidence guard, commands incl. the enterprise migrate commands, known limits); `structure/INDEX.md` row + hub note.
+- docs: `docs/security-hardening.md` goalplan containment root.
+- README state section and migrate commands shipped with PR2 (#298).
+Depends on #298 for the `cxc state` / `cxc devlog` commands it names. Verifier: `npm run gate` (prompt-architecture budgets), skill pin tests in `npm test`.
