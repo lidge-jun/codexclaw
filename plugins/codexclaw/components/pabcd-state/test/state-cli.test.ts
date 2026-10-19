@@ -380,3 +380,20 @@ test("review r4: evidence bytes (CRLF inside a binary without NUL) survive a syn
   assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "shot.pdf")).equals(bytes));
   assert.ok(Buffer.from(git(m.a, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/shot.pdf"), "latin1").length > 0);
 });
+
+test("review r5: a remote update to a binary file is never mistaken for 'same content'", () => {
+  const m = twoMachines();
+  mkdirSync(join(m.dirA, "evidence", "s1"), { recursive: true });
+  const v1 = Buffer.from([0x53, 0x51, 0xff, 0x0d, 0x0a, 0x01]);
+  const v2 = Buffer.from([0x53, 0x51, 0xfe, 0x0d, 0x0a, 0x01]);
+  writeFileSync(join(m.dirA, "evidence", "s1", "db.sqlite"), v1);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.b)).code, 0);
+  writeFileSync(join(m.dirA, "evidence", "s1", "db.sqlite"), v2);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  const r = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(r.code, 1, r.output);
+  assert.match(r.output, /db\.sqlite \(modified on the other side/);
+  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v1), "local copy untouched");
+  assert.equal(git(m.remote, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/db.sqlite").length > 0, true);
+});

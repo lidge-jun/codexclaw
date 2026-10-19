@@ -208,13 +208,30 @@ function goalplanSlugDir(base: string, rel: string): string | null {
   return join(base, ...parts.slice(0, i + 2));
 }
 
-function sameBytes(path: string, data: Buffer | null): boolean {
+/** The files codexclaw writes as LF text (the ones .gitattributes normalizes). */
+function isLfText(rel: string): boolean {
+  return rel.endsWith(".jsonl") || rel.endsWith("/goalplan.json") || rel === "goalplan.json";
+}
+
+/** Drop CR bytes that precede LF, at the byte level (never decodes, so binaries stay exact). */
+function stripCrlf(buf: Buffer): Buffer {
+  const out = Buffer.allocUnsafe(buf.length);
+  let n = 0;
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i] === 0x0d && buf[i + 1] === 0x0a) continue;
+    out[n++] = buf[i];
+  }
+  return out.subarray(0, n);
+}
+
+function sameBytes(path: string, data: Buffer | null, lfText = false): boolean {
   if (!existsSync(path)) return data === null;
   if (data === null) return false;
   const live = readFileSync(path);
   if (live.equals(data)) return true;
-  // Same content up to line endings (autocrlf checkouts) is not a conflict.
-  return live.toString("utf8").replace(/\r\n/g, "\n") === data.toString("utf8").replace(/\r\n/g, "\n");
+  // Ledgers and goalplans that differ only by CRLF (an autocrlf checkout) are the same
+  // content; every other file is compared byte for byte.
+  return lfText && stripCrlf(live).equals(stripCrlf(data));
 }
 
 function blobAt(base: string, env: NodeJS.ProcessEnv, rev: string, rel: string): Buffer | null {
@@ -257,7 +274,7 @@ function applyMerge(base: string, env: NodeJS.ProcessEnv, snapshot: string, merg
     }
     const mergedBlob = status === "D" ? null : blobAt(base, env, merge, rel);
     const snapBlob = status === "A" ? null : blobAt(base, env, snapshot, rel);
-    if (sameBytes(live, mergedBlob)) continue;
+    if (sameBytes(live, mergedBlob, isLfText(rel))) continue;
     if (rel.endsWith(".jsonl") && mergedBlob) {
       out.appended += appendMissingLines(live, mergedBlob);
       continue;
@@ -273,7 +290,7 @@ function applyMerge(base: string, env: NodeJS.ProcessEnv, snapshot: string, merg
         continue;
       }
       try {
-        if (!sameBytes(live, snapBlob)) {
+        if (!sameBytes(live, snapBlob, isLfText(rel))) {
           out.conflicts.push(rel + " (changed here since the sync snapshot)");
         } else if (mergedBlob === null) {
           unlinkSync(live);
