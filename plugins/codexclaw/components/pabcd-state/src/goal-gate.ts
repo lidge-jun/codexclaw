@@ -40,6 +40,7 @@ import { resolveSessionSource } from "./session-source.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
 import { hasSpentBudget, unrecordableVerdictStatus } from "./subagent-evidence.ts";
 import { readPabcdEnabled } from "./interview-policy.ts";
+import { durableLabel } from "./state-root.ts";
 // Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
 // 260724 WP1: deny remedies name `cxc orchestrate ...`/`cxc loop validate` — on a
 // payload-only install those must render the resolvable invocation. Emit-time only.
@@ -245,7 +246,7 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled 
     const marker = unrecordableVerdictStatus(payload.cwd, payload.session_id);
     if (marker.present || marker.unreadable) {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: delegated verdict unconfirmed (.codexclaw/evidence-unrecordable/). Re-verify and clear marker. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
+        `GOAL-COMPLETE-GATE-01: delegated verdict unconfirmed (${durableLabel(payload.cwd, "evidence-unrecordable")}/). Re-verify and clear marker. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
     // Independent durable signal: a retry counter still at the cap means an agent
@@ -287,7 +288,7 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload, pabcdEnabled 
         if (!verdict.ok) {
           const reasons = verdict.reasons.slice(0, 4).join("; ");
           return goalCompleteDenyEnvelope(
-            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' fails E8: ${reasons}. Repair .codexclaw/goalplans/${state.slug}/goalplan.json; \`cxc loop validate --session ${payload.session_id}\`. Owner: $codexclaw:cxc-loop durable-goalplan.md (LOOP-CONTINUE-01).`,
+            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' fails E8: ${reasons}. Repair ${durableLabel(payload.cwd, "goalplans", state.slug, "goalplan.json")}; \`cxc loop validate --session ${payload.session_id}\`. Owner: $codexclaw:cxc-loop durable-goalplan.md (LOOP-CONTINUE-01).`,
           );
         }
       } else {

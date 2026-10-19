@@ -6,6 +6,17 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- State root resolver (`state-root.ts`). Durable codexclaw state — the transition ledger, goalplans, evidence, evidence attempts/markers and interview ledgers — now resolves per checkout to one of four modes: `repo` (today's `<cwd>/.codexclaw` and `devlog/`), `local` (same paths, hidden through `.git/info/exclude`), `external` (`~/.codexclaw/projects/<host__owner__repo-hash>/state` and `.../devlog`, shared by every worktree of the repository and kept when a worktree is removed) and `none` (durable writes skipped). `CODEXCLAW_STATE_MODE` and `CODEXCLAW_STATE_ROOT` override; the user config `~/.codexclaw/config.json` takes `state.mode`, `state.root`, `state.ownerAllowlist` and per-repository `state.projects`. Without configuration, repositories owned by `lidge-jun`, `goat-si` or `lidge-ai` stay in `repo` mode, other owners go `external`, git checkouts without an origin go `local`, and plain directories keep `repo`. Volatile state (sessions, caches, friction and render logs, bridge db) stays in the checkout.
+
+### Changed
+
+- The subagent evidence guard and test/QA receipts use the resolved evidence root. A receipt must still be a real, non-empty file inside that root, and the guard now also refuses a symlinked root or any symlinked directory between the root and the receipt.
+- `cxc loop init` publishes the plan create-only, so two checkouts of one project cannot overwrite each other's new plan.
+- In `local`, `external` and `none` modes `cxc config interview` writes `.codexclaw/codexclaw.json` instead of the committable root file, and a new `.codexclaw/` gets a self-ignoring `.gitignore`.
+- `cxc reset` leaves shared external state alone and lists it.
+
 ## [0.2.42] - 2026-10-09
 
 ### Added

@@ -122,6 +122,10 @@ test("issue255: existing state directory and ignore file are untouched", () => {
 
 test("issue255: Git ignores runtime state and exposes only project rules without an ancestor ignore", () => {
   const cwd = freshCwd();
+  // 261020: this pins the repo-mode layout. A bare `git init` without an origin now
+  // resolves to state mode local (state-root.test.ts covers that), so pin repo here.
+  const savedMode = process.env.CODEXCLAW_STATE_MODE;
+  process.env.CODEXCLAW_STATE_MODE = "repo";
   try {
     assert.equal(spawnSync("git", ["init", "-q", cwd]).status, 0);
     ensureState(cwd, "x");
@@ -131,7 +135,11 @@ test("issue255: Git ignores runtime state and exposes only project rules without
     writeFileSync(join(cwd, ".gitignore"), ".codexclaw/\n");
     assert.equal(run(".codexclaw/rules/a.md"), 0);
     assert.equal(readFileSync(join(cwd, ".codexclaw", ".gitignore"), "utf8"), IGNORE_TEXT);
-  } finally { rmSync(cwd, { recursive: true, force: true }); }
+  } finally {
+    if (savedMode === undefined) delete process.env.CODEXCLAW_STATE_MODE;
+    else process.env.CODEXCLAW_STATE_MODE = savedMode;
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("SessionStart ensureState: fresh session creates the exact default IDLE state without temp files", () => {

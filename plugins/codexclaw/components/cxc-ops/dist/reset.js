@@ -15,6 +15,7 @@
  */
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { resolveStateRoot } from "./state-root.js";
 
 
 
@@ -31,6 +32,15 @@ const GOALPLANS_SUBDIR = "goalplans";
 
 
 
+
+
+
+
+
+
+function withKept(result             , kept          )              {
+  return kept.length > 0 ? { ...result, kept } : result;
+}
 
 function rmIfExists(path        , removed          , absent          )       {
   if (existsSync(path)) {
@@ -49,10 +59,19 @@ export function runReset(cwd        , scope            )              {
   const stateDir = join(cwd, STATE_DIR);
   const removed           = [];
   const absent           = [];
+  const root = resolveStateRoot(cwd);
+  // Durable items are only reset when they live in this checkout (repo/local/none).
+  const sharedDurable = root.mode === "external" ? root.durableDir : null;
+  const kept           = [];
+  const durable = (name        )       => {
+    if (sharedDurable) kept.push(join(sharedDurable, name));
+    else rmIfExists(join(stateDir, name), removed, absent);
+  };
 
   if (scope === "all") {
     rmIfExists(stateDir, removed, absent);
-    return { scope, removed, absent };
+    if (sharedDurable) kept.push(sharedDurable);
+    return withKept({ scope, removed, absent }, kept);
   }
 
   if (scope === "state") {
@@ -65,18 +84,18 @@ export function runReset(cwd        , scope            )              {
     } else {
       absent.push(sessionsDir);
     }
-    rmIfExists(join(stateDir, LEDGER_FILE), removed, absent);
+    durable(LEDGER_FILE);
     // 131/D2': per-session interview scan-evidence ledgers are session state too.
-    rmIfExists(join(stateDir, INTERVIEWS_SUBDIR), removed, absent);
+    durable(INTERVIEWS_SUBDIR);
     rmIfExists(join(stateDir, "affordance-recovery"), removed, absent);
-    return { scope, removed, absent };
+    return withKept({ scope, removed, absent }, kept);
   }
 
   if (scope === "goalplans") {
     // 030: project-local goalplan substrate. Distinct from session state so a plan
     // survives a `--state` reset; removed only here or via `--all`.
-    rmIfExists(join(stateDir, GOALPLANS_SUBDIR), removed, absent);
-    return { scope, removed, absent };
+    durable(GOALPLANS_SUBDIR);
+    return withKept({ scope, removed, absent }, kept);
   }
 
   // scope === "generated"
@@ -95,5 +114,8 @@ export function parseResetScope(args          )             {
 export function renderReset(result             )         {
   const head = `reset --${result.scope}: removed ${result.removed.length} path(s)`;
   const body = result.removed.map((p) => `  - ${p}`).join("\n");
-  return result.removed.length ? `${head}\n${body}` : `${head} (nothing to remove)`;
+  const main = result.removed.length ? `${head}\n${body}` : `${head} (nothing to remove)`;
+  const kept = result.kept ?? [];
+  if (kept.length === 0) return main;
+  return `${main}\nkept shared external state (all worktrees of this project use it; delete by hand if intended):\n${kept.map((p) => `  - ${p}`).join("\n")}`;
 }

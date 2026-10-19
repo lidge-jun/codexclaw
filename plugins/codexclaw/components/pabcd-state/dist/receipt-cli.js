@@ -1,4 +1,5 @@
-import { ensureCodexclawDir } from "./codexclaw-dir.js";
+import { ensureDurableDir } from "./codexclaw-dir.js";
+import { DurableStateDisabledError, evidenceDir } from "./state-root.js";
 /**
  * receipt-cli.ts — `cxc receipt test` (075).
  *
@@ -20,7 +21,7 @@ import { readState } from "./state.js";
 import { compareSource, gitEnv } from "./source-identity.js";
 import { resolveSessionSource } from "./session-source.js";
 import { captureSessionSourceIdentity } from "./session-source-identity.js";
-import { STATE_DIR, sanitizeKey } from "./state.js";
+import { sanitizeKey } from "./state.js";
 
 
 
@@ -67,12 +68,21 @@ export function parseReceiptCliArgs(argv          , cwd        )                
 /** One receipt per session, at a fixed name, so a failed re-run cannot leave an
  *  earlier success behind under a different filename. */
 export function receiptPathFor(cwd        , sessionId        )         {
-  return join(cwd, STATE_DIR, "evidence", sanitizeKey(sessionId), "test-receipt.json");
+  return join(evidenceDir(cwd), sanitizeKey(sessionId), "test-receipt.json");
 }
 
 
 
 export function runReceiptCli(args                )                   {
+  try {
+    return runReceiptCliInner(args);
+  } catch (err) {
+    if (err instanceof DurableStateDisabledError) return { output: `receipt: ${err.message}`, code: 1 };
+    throw err;
+  }
+}
+
+function runReceiptCliInner(args                )                   {
   if (args.verb === "help") {
     return {
       output: [
@@ -85,7 +95,8 @@ export function runReceiptCli(args                )                   {
         "Notes:",
         "  Everything after `--` is the command; nothing before it is.",
         "  The session must be at phase C — a receipt is produced during Check.",
-        "  The receipt is written to <cwd>/.codexclaw/evidence/<session>/test-receipt.json",
+        "  The receipt is written to <evidence root>/<session>/test-receipt.json (<cwd>/.codexclaw/evidence",
+        "  in repo mode; cxc state path prints the root)",
         "  and is refused if the command changes the source while it runs.",
         "  --generated declares paths the check REGENERATES by design (a validator that",
         "  rebuilds its own artifacts). Repeatable. Undeclared rewrites are still refused.",
@@ -113,6 +124,9 @@ export function runReceiptCli(args                )                   {
   }
 
   const path = receiptPathFor(args.cwd, session);
+  // 261020: validate the durable root BEFORE touching anything under it, so a disabled or
+  // redirected root never has a file removed (security review r2).
+  ensureDurableDir(args.cwd);
   // Clear first: a stale success must not survive a failing re-run.
   rmSync(path, { force: true });
 
@@ -179,7 +193,7 @@ export function runReceiptCli(args                )                   {
     // Recorded so a reader can see WHICH rewrites the check was allowed to make.
     ...(args.generated && args.generated.length > 0 ? { generatedPaths: args.generated } : {}),
   };
-  ensureCodexclawDir(args.cwd);
+  ensureDurableDir(args.cwd);
   mkdirSync(join(path, ".."), { recursive: true });
   writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
   return { output: path, code: 0 };

@@ -309,7 +309,7 @@ export function runScanCli(args: ScanCliArgs): { output: string; code: number } 
         "Notes:",
         "  --session is required; there is no latest-session fallback for a mutating command.",
         "  --cwd matters when the answer ledger lives outside the process cwd:",
-        "  answers are read from <cwd>/.codexclaw/interviews/<session>.jsonl.",
+        "  answers are read from <durable root>/interviews/<session>.jsonl (<cwd>/.codexclaw in repo mode).",
         "  --derive folds captured answers in; --map attributes a questionId to a dimension.",
         "  --derive is what makes a dimension count for I->P readiness: the gate re-reads the",
         "  ledger and requires an asked+answered+mapped question per dimension. --known records",

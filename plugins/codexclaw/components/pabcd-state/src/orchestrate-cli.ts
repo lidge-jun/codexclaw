@@ -13,6 +13,7 @@
  * Structural argv parsing (NOT the prompt grammar): verb is argv[0]; `--attest` takes
  * the NEXT single argv token as the exact JSON string (the shell already quoted it).
  */
+import { durableDir, durableLabel, devlogLabel } from "./state-root.ts";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -445,7 +446,7 @@ function hasPabcdCloseRow(
   checkEpoch: string | null,
   closedWorkPhaseId: string | null,
 ): boolean {
-  return readJsonlObjects(join(cwd, STATE_DIR, LEDGER_FILE)).some(
+  return readJsonlObjects(join(durableDir(cwd), LEDGER_FILE)).some(
     (row) => row.sessionId === sessionId && row.from === "C"
       && row.to === "IDLE" && row.reason === "done"
       && row.checkEpoch === checkEpoch
