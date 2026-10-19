@@ -6,15 +6,13 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
-<<<<<<< HEAD
 ### Fixed
 
 - `cxc state sync` applies a file another machine edited or deleted (a devlog doc, a re-recorded receipt) when the local copy is still byte-for-byte the last synced version, re-checked right before the swap; a locally edited copy is a reported conflict and is never written. This also ends the stops a `core.autocrlf=true` clone caused by committing line-ending-only changes (#302).
-=======
+
 ### Documentation
 
-- Skills, references and the new `structure/80_state_layout.md` describe where codexclaw keeps durable state: plan units under `cxc devlog path`, ledgers/goalplans/evidence under the durable directory `cxc state path` prints, the four modes, the project id, the evidence guard, and the enterprise migration commands. Copy-paste attest examples and the QA receipt command use placeholders for the resolved paths.
->>>>>>> d1d8d1b6 (docs(state): resolver-aware wording for devlog, evidence and goalplan paths; structure/80 state layout)
+- Skills, references and the new `structure/80_state_layout.md` describe where codexclaw keeps durable state: plan units under `cxc devlog path`, ledgers/goalplans/evidence under the durable directory `cxc state path` prints, the four modes, the project id, the evidence guard, and the enterprise migration commands (migration is manual). Copy-paste attest examples and the QA receipt command use placeholders for the resolved paths.
 
 ### Added
 
