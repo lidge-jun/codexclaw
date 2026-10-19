@@ -106,13 +106,18 @@ export function isInside(child        , parent        )          {
   return rel === "" || (rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel));
 }
 
+/** realpathSync.native expands Windows 8.3 short names (RUNNER~1), which the JS realpath keeps; fall back when unavailable. */
+function realpathNative(p        )         {
+  return typeof realpathSync.native === "function" ? realpathSync.native(p) : realpathSync(p);
+}
+
 /** realpath of the nearest existing ancestor, with the missing tail re-appended. */
 export function realpathLoose(p        )         {
   let cur = resolve(p);
   const tail           = [];
   for (;;) {
     try {
-      return join(realpathSync(cur), ...tail.reverse());
+      return join(realpathNative(cur), ...tail.reverse());
     } catch {
       const parent = dirname(cur);
       if (parent === cur) return resolve(p);
@@ -367,7 +372,7 @@ export function readStateConfig(env                   , checkoutRoot        , wa
   }
   let real        ;
   try {
-    real = realpathSync(path);
+    real = realpathNative(path);
   } catch {
     return {};
   }
@@ -585,7 +590,7 @@ export function ensurePrivacyExcludes(cwd        , env                    = proc
     if (excludeDone.has(key)) return;
     // Never follow a link out of the git dir: info/ and info/exclude must be real entries
     // inside the real common dir, and the file is opened O_NOFOLLOW.
-    const realCommon = realpathSync(git.commonDir);
+    const realCommon = realpathNative(git.commonDir);
     const infoDir = join(realCommon, "info");
     if (existsSync(infoDir) && lstatSync(infoDir).isSymbolicLink()) return;
     const realExclude = join(infoDir, "exclude");
