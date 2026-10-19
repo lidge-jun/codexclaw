@@ -87,3 +87,12 @@ Reviews (gpt-6.1-sol, fresh contexts): code r1 FAIL (4), data-integrity r1 FAIL 
 What did not go well: line-ending handling took four rounds; each fix (`* -text`, `text=auto`, UTF-8 compare) solved one case and broke another. The hypothesis that a repo-wide attribute could fix CRLF died; the working rule is byte-exact everywhere except the two file types codexclaw writes as LF text.
 
 Residuals: a new 100755 file arrives as 0600 (state holds no executables); migrate's lock is not honored by hook writers (IDLE check bounds it); one goalplan must not be driven from two machines at once.
+
+
+## wp3 D summary and unit closure (2026-10-20)
+
+Conclusion: the unit is delivered. #295 (resolver, durable/volatile split, evidence guard), #298 (state path/sync/migrate, devlog path, plan init and gate via the resolver), #300 (Windows path spelling; tracked files never moved), #303 (CI follow-up: win32 test expectation, inventory, sync applies remote edits to untouched files) and #304 (docs and skills; manual migration).
+
+What did not go well: every git-facing piece took several independent review rounds (git config parsing 4, sync line endings 6, tracked-file matching 4), and two regressions (#299, #302) only showed on the Windows CI legs after merge, because macOS could not reproduce 8.3 names and the crlf leg was never run locally. The hypothesis that died: that local macOS runs plus reviewer simulation are enough for path and line-ending code. Evidence that would refute the current direction: another Windows-only failure in state-cli after #303; running the suite with `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.autocrlf GIT_CONFIG_VALUE_0=true` locally is now part of the check for this area.
+
+Residuals and follow-ups: same-user directory swaps can race the resolver (no fd-pinned mkdir); durable readers other than the evidence guard ignore the disabled flag; a writer rewriting the same non-ledger file between sync's final re-check and rename; migrate's lock is not honored by hook writers. Issues: #296 (local env test failures), #297 (l1-injections path-length budget), #299 and #302 (fixed), #301 (inventory drift per PR).

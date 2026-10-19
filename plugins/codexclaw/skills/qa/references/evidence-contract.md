@@ -1,6 +1,7 @@
 ## 3. Evidence contract
 
-Artifacts live under `.codexclaw/evidence/<sessionId>/qa/<scenario-id>/`:
+Artifacts live under `<evidence root>/<sessionId>/qa/<scenario-id>/`, where the evidence
+root is `.codexclaw/evidence/` in repo mode and `<durable>/evidence/` from `cxc state path` otherwise:
 
 - `invocation.txt` — the exact command(s)/steps, copy-pasteable.
 - the artifact(s) — capture, screenshot, response, transcript.
@@ -32,7 +33,7 @@ Rules:
 - `NA` is legal only when the class structurally cannot apply to the surface
   (e.g. viewport class on a headless API), always with a recorded reason.
 - This directory is shared with the SubagentStop receipt gate's root
-  (`.codexclaw/evidence/`); main-session QA artifacts do not interact with
+  (`<durable>/evidence/`, using the durable directory shown by `cxc state path`); main-session QA artifacts do not interact with
   worker receipts (the gate validates only the worker's own
   `EVIDENCE_RECORDED:` marker path).
 - A worker that CANNOT write there was dispatched wrong, not gated wrong: read-only
@@ -40,15 +41,16 @@ Rules:
   budget is terminal, so a mis-routed worker is released rather than trapped — but its
   verdict stays unresolved and blocks goal completion until a receipt settles it.
 
-After every scenario is done, emit the aggregate receipt:
+After every scenario is done, emit the aggregate receipt. Replace `<evidence-root>` with
+the resolved durable directory plus `/evidence`:
 
 ```
 node plugins/codexclaw/skills/qa/scripts/validate-evidence.mjs \
-  .codexclaw/evidence/<sessionId>/qa/ --emit-receipt
+  "<evidence-root>/<sessionId>/qa/" --emit-receipt
 ```
 
 It validates every `verdict.json`, confirms they all describe the same tree,
-and writes `.codexclaw/evidence/<sessionId>/qa-receipt.json`. Validated verdict
+and writes `<evidence-root>/<sessionId>/qa-receipt.json`. Validated verdict
 and identity files are hashed into typed `artifactManifest` entries
 (`path`, `sha256`, `kind`, optional `criterionIds`), rechecked whenever the
 receipt is read. A schemaVersion 2+ plan with a recorded final gate needs an

@@ -10,6 +10,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 - `cxc state sync` applies a file another machine edited or deleted (a devlog doc, a re-recorded receipt) when the local copy is still byte-for-byte the last synced version, re-checked right before the swap; a locally edited copy is a reported conflict and is never written. This also ends the stops a `core.autocrlf=true` clone caused by committing line-ending-only changes (#302).
 
+### Documentation
+
+- Skills, references and the new `structure/80_state_layout.md` describe where codexclaw keeps durable state: plan units under `cxc devlog path`, ledgers/goalplans/evidence under the durable directory `cxc state path` prints, the four modes, the project id, the evidence guard, and the enterprise migration commands (migration is manual). Copy-paste attest examples and the QA receipt command use placeholders for the resolved paths.
+
 ### Added
 
 - State root resolver (`state-root.ts`). Durable codexclaw state — the transition ledger, goalplans, evidence, evidence attempts/markers and interview ledgers — now resolves per checkout to one of four modes: `repo` (today's `<cwd>/.codexclaw` and `devlog/`), `local` (same paths, hidden through `.git/info/exclude`), `external` (`~/.codexclaw/projects/<host__owner__repo-hash>/state` and `.../devlog`, shared by every worktree of the repository and kept when a worktree is removed) and `none` (durable writes skipped). `CODEXCLAW_STATE_MODE` and `CODEXCLAW_STATE_ROOT` override; the user config `~/.codexclaw/config.json` takes `state.mode`, `state.root`, `state.ownerAllowlist` and per-repository `state.projects`. Without configuration, repositories owned by `lidge-jun`, `goat-si` or `lidge-ai` stay in `repo` mode, other owners go `external`, git checkouts without an origin go `local`, and plain directories keep `repo`. Volatile state (sessions, caches, friction and render logs, bridge db) stays in the checkout.
