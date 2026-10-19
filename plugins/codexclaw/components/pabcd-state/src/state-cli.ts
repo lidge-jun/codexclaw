@@ -353,7 +353,35 @@ function applyMerge(base: string, env: NodeJS.ProcessEnv, snapshot: string, merg
       else if (!sameBytes(live, mergedBlob)) out.conflicts.push(rel + " (appeared here during the sync)");
       continue;
     }
-    out.conflicts.push(rel + " (" + (status === "D" ? "deleted" : "modified") + " on the other side; only jsonl ledgers, new files and goalplans are applied automatically)");
+    // A file edited or deleted on the other machine (a devlog doc, a re-recorded receipt, or a
+    // line-ending-only commit from an autocrlf checkout) is applied only when this copy is still
+    // byte-for-byte the snapshot, re-checked immediately before the swap; any local difference
+    // is a conflict and nothing is written (#302).
+    if (!sameBytes(live, snapBlob)) {
+      out.conflicts.push(rel + " (" + (status === "D" ? "deleted" : "modified") + " on the other side and changed here too)");
+      continue;
+    }
+    if (mergedBlob === null) {
+      if (sameBytes(live, snapBlob)) {
+        unlinkSync(live);
+        out.removed += 1;
+      } else {
+        out.conflicts.push(rel + " (changed here during the sync)");
+      }
+      continue;
+    }
+    const tmp = live + "." + process.pid + "." + Date.now() + ".sync.tmp";
+    try {
+      writeFileSync(tmp, mergedBlob, { mode: 0o600, flag: "wx" });
+      if (sameBytes(live, snapBlob)) {
+        renameSync(tmp, live);
+        out.replaced += 1;
+      } else {
+        out.conflicts.push(rel + " (changed here during the sync)");
+      }
+    } finally {
+      rmSync(tmp, { force: true });
+    }
   }
   return out;
 }
@@ -458,7 +486,7 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
       }
       const merged = gitIn(tmpWorktree, env, ["rev-parse", "HEAD"]).stdout;
       const applied = applyMerge(base, env, snapshot, merged);
-      lines.push("applied remote changes: " + applied.appended + " ledger line(s) appended, " + applied.created + " file(s) created, " + applied.replaced + " goalplan file(s) replaced, " + applied.removed + " removed");
+      lines.push("applied remote changes: " + applied.appended + " ledger line(s) appended, " + applied.created + " file(s) created, " + applied.replaced + " file(s) replaced, " + applied.removed + " removed");
       if (applied.conflicts.length > 0) {
         return { code: 1, output: [...lines, "stopped before moving the branch; conflicts:", ...applied.conflicts.map((c) => "  - " + c), "Nothing was overwritten. Resolve these paths by hand, then rerun."].join("\n") };
       }

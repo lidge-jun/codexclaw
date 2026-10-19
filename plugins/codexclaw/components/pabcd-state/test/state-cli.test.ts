@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { clearStateRootCache, resolveStateRoot } from "../src/state-root.ts";
 import { runDevlogCli, runStateCli } from "../src/state-cli.ts";
 import { runPlanCli } from "../src/plan-cli.ts";
@@ -136,7 +136,15 @@ test("two machines: divergent ledgers union-merge, new files arrive, nothing is 
   assert.equal(r.code, 0, r.output);
   const ledgerB = readFileSync(join(m.dirB, "ledger.jsonl"), "utf8");
   assert.ok(ledgerB.includes('"A1"') && ledgerB.includes('"B1"'), ledgerB);
-  assert.equal(git(m.b, "status", "--porcelain"), "");
+  // Everything is committed and pushed. Under a global core.autocrlf=true (the CI crlf leg)
+  // the clone's README keeps the CRLF its checkout wrote; sync deliberately leaves that
+  // line-ending-only difference uncommitted, so only content changes are checked there.
+  assert.equal(git(m.b, "rev-parse", "HEAD"), git(m.b, "rev-parse", "@{u}"));
+  const dirty = git(m.b, "status", "--porcelain").split("\n").filter(Boolean);
+  for (const line of dirty) {
+    const p = line.replace(/^\s*\S+\s+/, "");
+    assert.ok(readFileSync(join(m.b, p)).toString("latin1").replace(/\r\n/g, "\n") === git(m.b, "show", "HEAD:" + p) + "\n", line);
+  }
 
   r = runStateCli(["sync"], m.co, envFor(m.a));
   assert.equal(r.code, 0, r.output);
@@ -381,7 +389,7 @@ test("review r4: evidence bytes (CRLF inside a binary without NUL) survive a syn
   assert.ok(Buffer.from(git(m.a, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/shot.pdf"), "latin1").length > 0);
 });
 
-test("review r5: a remote update to a binary file is never mistaken for 'same content'", () => {
+test("review r5 / #302: a remote binary update is applied when the local copy is untouched, and conflicts when it was edited", () => {
   const m = twoMachines();
   mkdirSync(join(m.dirA, "evidence", "s1"), { recursive: true });
   const v1 = Buffer.from([0x53, 0x51, 0xff, 0x0d, 0x0a, 0x01]);
@@ -392,10 +400,18 @@ test("review r5: a remote update to a binary file is never mistaken for 'same co
   writeFileSync(join(m.dirA, "evidence", "s1", "db.sqlite"), v2);
   assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
   const r = runStateCli(["sync"], m.co, envFor(m.b));
-  assert.equal(r.code, 1, r.output);
-  assert.match(r.output, /db\.sqlite \(modified on the other side/);
-  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v1), "local copy untouched");
-  assert.equal(git(m.remote, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/db.sqlite").length > 0, true);
+  assert.equal(r.code, 0, r.output);
+  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v2), "remote edit applied byte-exact");
+
+  // Now both sides edit: B's local edit must survive and be reported.
+  const v3 = Buffer.from([0x53, 0x51, 0xfd, 0x0d, 0x0a, 0x01]);
+  const v4 = Buffer.from([0x53, 0x51, 0xfc, 0x0d, 0x0a, 0x01]);
+  writeFileSync(join(m.dirA, "evidence", "s1", "db.sqlite"), v3);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  writeFileSync(join(m.dirB, "evidence", "s1", "db.sqlite"), v4);
+  const c = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(c.code, 1, c.output);
+  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v4), "local edit kept");
 });
 
 test("#299: migrate skips tracked files even when the checkout is reached through another spelling of its path", () => {
@@ -422,9 +438,14 @@ test("#299: comparablePath folds case and separators on win32 only", async () =>
   const { comparablePath } = await import("../src/state-cli.ts");
   const p = join(scratch, "MixedCase");
   mkdirSync(p);
-  assert.equal(comparablePath(p, "win32"), comparablePath(p, "linux").toLowerCase());
+  // The win32 spelling is the native realpath with forward slashes, lower-cased; build the
+  // expectation the same way so it holds on every host (on Windows the native path has "\\").
+  assert.equal(comparablePath(p, "win32"), comparablePath(p, "linux").replace(/\\/g, "/").toLowerCase());
   assert.ok(!comparablePath(p, "win32").includes("\\"));
-  assert.equal(comparablePath(p + "/", "linux"), comparablePath(p, "linux"));
+  assert.equal(comparablePath(p + sep, "linux"), comparablePath(p, "linux"));
+  if (process.platform !== "win32") {
+    assert.equal(comparablePath(p, "linux"), realpathSync.native(p), "POSIX keeps the native spelling, backslashes included");
+  }
 });
 
 test("#299 r1: tracked files survive migrate across case, NFC/NFD and literal-backslash spellings", () => {
@@ -484,3 +505,33 @@ test("#299 r3: Unicode case aliases in a parent directory (Σ/ς, S/ſ) keep tra
     assert.ok(existsSync(join(co, alias, "devlog", "tracked.md")), alias + ": tracked file left in place");
   }
 });
+
+for (const autocrlf of [false, true]) {
+test("#302 review: real CR edits (partial insertion, binary) are committed, never folded away (base autocrlf=" + autocrlf + ")", () => {
+  {
+    const m = twoMachines();
+    if (autocrlf) git(m.a, "config", "core.autocrlf", "true");
+    mkdirSync(join(m.dirA, "evidence", "s1"), { recursive: true });
+    const text = Buffer.from("a\nb\nc\n");
+    const bin = Buffer.from([0x00, 0x41, 0x0a, 0x42, 0x0a]);
+    writeFileSync(join(m.dirA, "evidence", "s1", "t.txt"), text);
+    writeFileSync(join(m.dirA, "evidence", "s1", "b.bin"), bin);
+    writeFileSync(join(m.dirA, "evidence", "s1", "full.txt"), text);
+    assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+    const partial = Buffer.from("a\r\nb\nc\n");
+    const binEdit = Buffer.from([0x00, 0x41, 0x0d, 0x0a, 0x42, 0x0a]);
+    // Every LF turned into CRLF by a tool, not by a git checkout: still a real edit.
+    const full = Buffer.from("a\r\nb\r\nc\r\n");
+    writeFileSync(join(m.dirA, "evidence", "s1", "t.txt"), partial);
+    writeFileSync(join(m.dirA, "evidence", "s1", "b.bin"), binEdit);
+    writeFileSync(join(m.dirA, "evidence", "s1", "full.txt"), full);
+    const r = runStateCli(["sync"], m.co, envFor(m.a));
+    assert.equal(r.code, 0, r.output);
+    const rel = m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/";
+    const show = (f: string) => spawnSync("git", ["-C", m.remote, "cat-file", "blob", "HEAD:" + rel + f]).stdout as Buffer;
+    assert.ok(show("t.txt").equals(partial), "partial CR edit committed (autocrlf=" + autocrlf + ")");
+    assert.ok(show("b.bin").equals(binEdit), "binary CR edit committed (autocrlf=" + autocrlf + ")");
+    assert.ok(show("full.txt").equals(full), "whole-file CRLF rewrite committed (autocrlf=" + autocrlf + ")");
+  }
+});
+}
