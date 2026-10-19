@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clearStateRootCache, resolveStateRoot } from "../src/state-root.ts";
@@ -396,4 +396,91 @@ test("review r5: a remote update to a binary file is never mistaken for 'same co
   assert.match(r.output, /db\.sqlite \(modified on the other side/);
   assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v1), "local copy untouched");
   assert.equal(git(m.remote, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/db.sqlite").length > 0, true);
+});
+
+test("#299: migrate skips tracked files even when the checkout is reached through another spelling of its path", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  mkdirSync(join(co, "devlog"), { recursive: true });
+  writeFileSync(join(co, "devlog", "tracked.md"), "t\n");
+  writeFileSync(join(co, "devlog", "free.md"), "f\n");
+  git(co, "add", "devlog/tracked.md");
+  git(co, "commit", "-q", "-m", "tracked");
+  let via = co;
+  if (process.platform !== "win32") {
+    via = join(scratch, "alias");
+    symlinkSync(co, via);
+  }
+  const env = envFor(join(scratch, "base"));
+  const r = runStateCli(["migrate", "--apply"], via + (process.platform === "win32" ? "\\" : "/"), env);
+  assert.equal(r.code, 0, r.output);
+  assert.ok(existsSync(join(co, "devlog", "tracked.md")), "tracked file untouched");
+  assert.equal(existsSync(join(co, "devlog", "free.md")), false, "untracked file moved");
+  assert.match(r.output, /skipped tracked 1/);
+});
+
+test("#299: comparablePath folds case and separators on win32 only", async () => {
+  const { comparablePath } = await import("../src/state-cli.ts");
+  const p = join(scratch, "MixedCase");
+  mkdirSync(p);
+  assert.equal(comparablePath(p, "win32"), comparablePath(p, "linux").toLowerCase());
+  assert.ok(!comparablePath(p, "win32").includes("\\"));
+  assert.equal(comparablePath(p + "/", "linux"), comparablePath(p, "linux"));
+});
+
+test("#299 r1: tracked files survive migrate across case, NFC/NFD and literal-backslash spellings", () => {
+  if (process.platform === "win32") return; // backslash is a separator there; case/identity covered by the test above
+  const env = envFor(join(scratch, "base"));
+  // Case and NFC/NFD aliases only exist on macOS's default filesystem; a literal backslash is
+  // a plain filename character on every POSIX system.
+  const cases: Array<[string, string]> = [["tracked\\name.md", "tracked\\name.md"]];
+  if (process.platform === "darwin") cases.push(["Tracked.md", "tracked.md"], ["caf\u00e9.md", "cafe\u0301.md"]);
+  for (const [indexName, diskName] of cases) {
+    const co = checkout("https://github.com/acme/app.git");
+    mkdirSync(join(co, "devlog"), { recursive: true });
+    writeFileSync(join(co, "devlog", indexName), "t\n");
+    git(co, "add", "devlog");
+    git(co, "commit", "-q", "-m", "tracked");
+    const names = readdirSync(join(co, "devlog")) as string[];
+    if (!names.includes(diskName) && indexName !== diskName) {
+      // case/normalization-preserving FS: rename on disk to the other spelling (git still tracks indexName)
+      renameSync(join(co, "devlog", names[0]), join(co, "devlog", diskName));
+    }
+    const r = runStateCli(["migrate", "--apply"], co, env);
+    assert.equal(r.code, 0, r.output);
+    assert.equal((readdirSync(join(co, "devlog")) as string[]).length, 1, indexName + ": tracked file left in place");
+  }
+});
+
+test("#299 r2: a tracked directory spelled with different case (Devlog/, .Codexclaw/) is never moved", () => {
+  if (process.platform !== "darwin") return; // needs a case-insensitive filesystem
+  const env = envFor(join(scratch, "base"));
+  for (const [dir, file] of [["Devlog", "tracked.md"], [".Codexclaw", "ledger.jsonl"]]) {
+    const co = checkout("https://github.com/acme/app.git");
+    mkdirSync(join(co, dir), { recursive: true });
+    writeFileSync(join(co, dir, file), '{"n":1}\n');
+    git(co, "add", "-f", dir);
+    git(co, "commit", "-q", "-m", "tracked " + dir);
+    const r = runStateCli(["migrate", "--apply"], co, env);
+    assert.equal(r.code, 0, r.output);
+    assert.ok(existsSync(join(co, dir, file)), dir + "/" + file + " left in place");
+    assert.equal(git(co, "status", "--porcelain"), "", dir);
+  }
+});
+
+test("#299 r3: Unicode case aliases in a parent directory (Σ/ς, S/ſ) keep tracked files in place", () => {
+  if (process.platform !== "darwin") return;
+  const env = envFor(join(scratch, "base"));
+  for (const [tracked, alias] of [["\u03a3", "\u03c2"], ["S", "\u017f"]]) {
+    const co = checkout("https://github.com/acme/app.git");
+    mkdirSync(join(co, tracked, "devlog"), { recursive: true });
+    writeFileSync(join(co, tracked, "devlog", "tracked.md"), "t\n");
+    git(co, "add", tracked);
+    git(co, "commit", "-q", "-m", "tracked");
+    const names = readdirSync(co);
+    if (!names.includes(alias)) renameSync(join(co, tracked), join(co, alias));
+    if (!existsSync(join(co, alias))) continue; // filesystem does not treat them as aliases
+    const r = runStateCli(["migrate", "--apply"], join(co, alias), env);
+    assert.equal(r.code, 0, r.output);
+    assert.ok(existsSync(join(co, alias, "devlog", "tracked.md")), alias + ": tracked file left in place");
+  }
 });

@@ -15,10 +15,10 @@
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync, copyFileSync, constants as fsConstants, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync,
-  readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, unlinkSync, writeFileSync,
+  readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, unlinkSync, writeFileSync,
 } from "node:fs";
 import { hostname, tmpdir } from "node:os";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { ensureDurableDir } from "./codexclaw-dir.js";
 import { LEGACY_DURABLE_ITEMS, resolveStateRoot,                } from "./state-root.js";
 
@@ -90,9 +90,41 @@ function gitIn(dir        , env                   , args          )         {
 
 function realLoose(p        )         {
   try {
-    return realpathSync(p);
+    // .native expands Windows 8.3 short names (RUNNER~1) that the JS realpath keeps.
+    return typeof realpathSync.native === "function" ? realpathSync.native(p) : realpathSync(p);
   } catch {
     return p;
+  }
+}
+
+/**
+ * A path in one comparable spelling: native realpath; on Windows also forward slashes and
+ * lower case. git prints C:/Users/runneradmin/... while Node may hold C:\Users\RUNNER~1\...;
+ * both must compare equal (#299). On POSIX a backslash is a legal filename character and is kept.
+ */
+export function comparablePath(p        , platform                  = process.platform)         {
+  const real = realLoose(resolve(p));
+  return platform === "win32" ? real.replace(/\\/g, "/").toLowerCase() : real;
+}
+
+/**
+ * Conservative key for "could these two names be the same tracked file": Unicode NFC, and
+ * case-folded on the platforms whose default filesystems are case-insensitive (macOS,
+ * Windows). A false match only ever keeps a file in place.
+ */
+function looseRelKey(rel        )         {
+  if (process.platform !== "win32" && process.platform !== "darwin") return rel.normalize("NFC");
+  // Upper-then-lower folds aliases a plain toLowerCase() keeps apart (final sigma, long s);
+  // NFKC also merges compatibility forms. Over-matching only keeps more files in place.
+  return rel.normalize("NFKC").toUpperCase().toLowerCase().normalize("NFKC");
+}
+
+function fileIdentity(p        )                {
+  try {
+    const st = statSync(p, { bigint: true });
+    return st.ino === 0n ? null : st.dev + ":" + st.ino;
+  } catch {
+    return null;
   }
 }
 
@@ -338,7 +370,7 @@ export function runStateSync(cwd        , env                   , dryRun        
   if (top.status !== 0) {
     return { code: 0, output: "state sync: " + base + " is not a git repository; nothing to sync.\nTo sync across machines: git -C " + base + " init, add a PRIVATE remote, push once, then run cxc state sync." };
   }
-  if (realLoose(top.stdout) !== realLoose(base)) {
+  if (comparablePath(top.stdout) !== comparablePath(base)) {
     return { code: 1, output: "state sync: " + base + " is inside another git repository (" + top.stdout + "); refusing. Make the state base its own repository." };
   }
   if (dryRun) {
@@ -484,14 +516,46 @@ function walk(src        , dst        , ops             , dstBase        )      
   else ops.push({ kind: "conflict", src, dst });
 }
 
-function trackedSet(cwd        , env                   )                     {
-  const r = gitIn(cwd, env, ["ls-files", "-z", "--full-name", "--", ".codexclaw", "devlog"]);
+
+
+/**
+ * Tracked paths as repo-relative keys (git's own --full-name form, see looseRelKey) and as
+ * file identities (dev:ino of the working-tree file), plus the comparable top-level.
+ * Absolute-string matching broke on Windows short names and slashes and let migrate move
+ * tracked files (#299); identity also covers case and NFC/NFD spellings.
+ */
+function trackedSet(cwd        , env                   )                      {
   const top = gitIn(cwd, env, ["rev-parse", "--show-toplevel"]);
-  const out = new Set        ();
-  if (top.status !== 0) return out; // not a git checkout: nothing can be tracked
+  const rels = new Set        ();
+  const ids = new Set        ();
+  if (top.status !== 0) return { top: "", rels, ids }; // not a git checkout: nothing can be tracked
+  // List the whole index from the top-level: a pathspec ("devlog") is matched case-sensitively,
+  // so a tracked "Devlog/x.md" reached as devlog/x.md on a case-insensitive filesystem would be
+  // missed (#299 r2). Only entries whose folded key falls under the migration sources are kept.
+  const r = gitIn(top.stdout, env, ["ls-files", "-z"]);
   if (r.status !== 0) return null; // a git checkout whose index cannot be read: refuse
-  for (const rel of r.buf.toString("utf8").split("\0")) if (rel) out.add(realLoose(join(top.stdout, rel)));
-  return out;
+  const cwdRel = relative(comparablePath(top.stdout), comparablePath(cwd)).split(sep).join("/");
+  const prefixes = [".codexclaw/", "devlog/"].map((p) => looseRelKey(cwdRel === "" ? p : cwdRel + "/" + p));
+  for (const rel of r.buf.toString("utf8").split("\0")) {
+    if (!rel) continue;
+    const key = looseRelKey(rel);
+    if (!prefixes.some((p) => key.startsWith(p))) continue;
+    rels.add(key);
+    const id = fileIdentity(join(top.stdout, ...rel.split("/")));
+    if (id) ids.add(id);
+  }
+  return { top: comparablePath(top.stdout), rels, ids };
+}
+
+/** true/false for tracked/untracked; null when the path cannot be placed under the top-level. */
+function isTracked(index              , src        )                 {
+  if (index.top === "") return false;
+  const id = fileIdentity(src);
+  if (id && index.ids.has(id)) return true;
+  const here = comparablePath(src);
+  const rel = process.platform === "win32" ? posix.relative(index.top, here) : relative(index.top, here).split(sep).join("/");
+  if (rel === "" || rel === ".." || rel.startsWith("../") || posix.isAbsolute(rel) || /^[a-z]:/i.test(rel)) return null;
+  return index.rels.has(looseRelKey(rel));
 }
 
 function activeSessions(volatileDir        )           {
@@ -578,9 +642,15 @@ export function runStateMigrate(cwd        , env                   , apply      
     return { code: 1, output: "state migrate: git ls-files failed in " + root.cwd + "; refusing to move files whose tracked status is unknown" };
   }
   for (const op of ops) {
-    if (op.kind !== "skip-symlink" && tracked.has(realLoose(op.src))) {
+    if (op.kind === "skip-symlink") continue;
+    const status = isTracked(tracked, op.src);
+    if (status === true) {
       op.kind = "skip-tracked";
       op.note = "tracked in git; left in place";
+    } else if (status === null) {
+      // Fail closed: a file whose tracked status cannot be determined is never moved.
+      op.kind = "skip-tracked";
+      op.note = "tracked status unknown (outside the git top-level); left in place";
     }
   }
   const count = (k             ) => ops.filter((o) => o.kind === k).length;
