@@ -29,14 +29,15 @@ const SYNC_LOCK = ".cxc-sync.lock";
 const MIGRATE_LOCK = ".migrate.lock";
 const GOALPLAN_LOCK_DIR = ".goalplan.lock";
 const BASE_GITIGNORE = [SYNC_LOCK, MIGRATE_LOCK, "*.tmp", GOALPLAN_LOCK_DIR + "/", ".probe-*"];
-const BASE_GITATTRIBUTES = ["*.jsonl merge=union"];
+// "* -text": the state repo stores bytes as written (no CRLF conversion on any machine).
+const BASE_GITATTRIBUTES = ["* -text", "*.jsonl merge=union"];
 
 /** Lock and scratch paths that must never be committed, merged in, or applied. */
 export function isScratchPath(rel        )          {
   const parts = rel.split("/");
   const leaf = parts[parts.length - 1] ?? "";
   return parts.includes(GOALPLAN_LOCK_DIR) || leaf === SYNC_LOCK || leaf === MIGRATE_LOCK
-    || leaf.endsWith(".tmp") || leaf.startsWith(".probe-");
+    || parts.some((p) => p.endsWith(".tmp") || p.startsWith(".probe-"));
 }
 
 /** True when p, or any existing directory between base and p, is a symlink. */
@@ -157,7 +158,8 @@ function isDanglingLink(path        )          {
 }
 
 function splitJsonlLines(buf        )           {
-  return buf.toString("utf8").split("\n").filter((l) => l.length > 0);
+  // CRLF and LF lines are the same ledger event (a checkout with core.autocrlf rewrites them).
+  return buf.toString("utf8").split(/\r?\n/).filter((l) => l.length > 0);
 }
 
 /** Append the lines of 'merged' that 'live' lacks (multiset-aware), keeping merged order. */
@@ -206,7 +208,10 @@ function goalplanSlugDir(base        , rel        )                {
 function sameBytes(path        , data               )          {
   if (!existsSync(path)) return data === null;
   if (data === null) return false;
-  return readFileSync(path).equals(data);
+  const live = readFileSync(path);
+  if (live.equals(data)) return true;
+  // Same content up to line endings (autocrlf checkouts) is not a conflict.
+  return live.toString("utf8").replace(/\r\n/g, "\n") === data.toString("utf8").replace(/\r\n/g, "\n");
 }
 
 function blobAt(base        , env                   , rev        , rel        )                {
@@ -359,7 +364,16 @@ export function runStateSync(cwd        , env                   , dryRun        
     const stamp = (what        ) => "cxc state sync: " + what + " " + hostname() + " " + new Date().toISOString();
     const stage = ()                => {
       const add = gitIn(base, env, ["add", "-A"]);
-      return add.status === 0 ? null : add.stderr || "git add failed";
+      if (add.status !== 0) return add.stderr || "git add failed";
+      // Belt and braces: whatever the ignore files say, a lock or scratch path never
+      // gets committed. Unstaging touches only the index, never history or files.
+      const names = gitIn(base, env, ["diff", "--cached", "--name-only", "-z"]);
+      const scratch = names.buf.toString("utf8").split("\0").filter((p) => p && isScratchPath(p));
+      if (scratch.length > 0) {
+        const reset = gitIn(base, env, ["reset", "-q", "--", ...scratch]);
+        if (reset.status !== 0) return "could not unstage lock/scratch files: " + reset.stderr;
+      }
+      return null;
     };
     const staged = stage();
     if (staged) return { code: 1, output: [...lines, "staging failed: " + staged].join("\n") };
