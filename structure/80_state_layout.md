@@ -45,12 +45,12 @@ Partitioning comes from keys that already exist (`goalplans/<slug>`, `evidence/<
 
 ## Commands
 
-- `cxc state path [--json]` — mode, reason, directories, project id, warnings (including legacy in-checkout state to migrate).
+- `cxc state path [--json]` — mode, reason, directories, project id, warnings (including a migrate hint when a legacy `.codexclaw/ledger.jsonl` or `.codexclaw/goalplans/` is still in the checkout).
 - `cxc devlog path [--explain|--json]` — the devlog directory alone, for `$(cxc devlog path)/_plan`.
 - `cxc state sync [--dry-run]` — for a base that is its own private git repository. Without an upstream, sync commits locally only. With an upstream it takes a snapshot commit, fetches, merges remote changes when needed in a throwaway linked worktree (`*.jsonl merge=union`), applies them to the live tree (missing ledger lines appended, new files created exclusively, goalplan files swapped under the goalplan write lock, other files edited or deleted remotely applied only while the local copy is still byte-for-byte the last synced version), `git reset --soft` to the merge, commits and pushes local commits. Never `--force`; a local edit to a file the other machine also changed is a conflict that stops the sync before adopting the merged commit. Do not drive one goalplan from two machines at once.
 - `cxc state migrate [--apply]` — moves a checkout's legacy durable state and `devlog/` into the external layout. Dry run by default; identical files count as done, `*.jsonl` union-merge, other differences are conflicts with both copies kept; symlinks and git-tracked source files are skipped (tracked status is matched by file identity and by case- and Unicode-folded repo-relative name, so aliases on macOS and Windows still count as tracked); `--apply` is refused while a session is mid-cycle, has pending D-close recovery, or is unreadable (the dry run still reports the plan). Goalplan JSON files containing legacy evidence or devlog path strings are listed as potentially stale.
 
-Migration is manual. A foreign-owner checkout writes new durable state externally as soon as it resolves to `external`, but state already in the checkout stays there (and `cxc state path` / `cxc plan init` warn about it) until you move it. From the checkout, with running cycles closed to IDLE:
+Migration is manual. A foreign-owner checkout writes new durable state externally as soon as it resolves to `external`, but state already in the checkout stays there until you move it. `cxc state path` and `cxc plan init` warn only when a legacy `.codexclaw/ledger.jsonl` or `.codexclaw/goalplans/` exists; a checkout holding only `devlog/`, evidence or interview ledgers gets no warning, so run the dry run below to see everything that would move. From the checkout, with running cycles closed to IDLE:
 
 ```bash
 cd /path/to/enterprise-checkout
