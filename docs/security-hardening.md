@@ -8,7 +8,8 @@ PABCD state, recall, subagent configuration, and messenger bridge.
 - The browser talks only to the loopback `cxc serve` or Vite development API.
   Mutating requests require a loopback `Host`, JSON content type, and the
   `x-codexclaw-local: 1` header. Both servers use the same 1 MB JSON reader.
-- Goalplans live below `<cwd>/.codexclaw/goalplans/<slug>`. A slug is an
+- Goalplans live below `<durable root>/goalplans/<slug>` (`<cwd>/.codexclaw` in repo
+  mode; see `structure/80_state_layout.md`). A slug is an
   identifier, not a path: separators, dot segments, stored/requested mismatches,
   and symlinked state roots are rejected.
 - Automatic recall is project-scoped. Cross-project search remains available

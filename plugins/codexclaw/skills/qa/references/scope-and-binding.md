@@ -19,4 +19,4 @@ claim until repaired (LOOP-REPAIR-01 counts apply) or the criterion is
 re-scoped through a P-phase amendment, never silently. This is E7 discipline:
 no hook reads verdict.json. The E2 touchpoint: QA delegated to a registered `executor`
 subagent rides the existing SubagentStop receipt gate (legacy `worker` also supported) — the executor cannot
-finish without a non-empty receipt under `.codexclaw/evidence/`.
+finish without a non-empty receipt under the resolved evidence root (see `cxc state path`).

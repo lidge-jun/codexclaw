@@ -24,7 +24,7 @@ survey padding inside a phase plan. Audit this separation. Naming deviations fol
 the runtime P→A gate still requires an existing directory with a numbered plan file.
 
 **UNIT-RESIDENCE-01 (DEFAULT).** C2+ development belongs to an
-implementation unit (devlog/_plan/YYMMDD_slug/). Ceremony scales with class.
+implementation unit (`<cxc devlog path>/_plan/YYMMDD_slug/`; `devlog/_plan/` in repo mode). Ceremony scales with class.
 C0/C1 record behavior is canonically defined by [cxc-dev §0.1](../../dev/SKILL.md):
 C0 is exempt from numbered unit records; C1 records in the owning unit only when
 one already exists. Do not create a unit solely for a C0/C1 fast-path record.

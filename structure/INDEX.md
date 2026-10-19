@@ -8,7 +8,7 @@ aliases: [Codexclaw Architecture Reference, codexclaw 구조 허브, structure i
 
 > codexclaw 프로젝트의 구조 허브. Start here for the single-plugin shape, the Codex runtime boundary, component responsibilities, skills/hooks/CLI surfaces, and the `.codexclaw/` state model.
 >
-> Planning state lives under `devlog/_plan/`: `mvp_res/` is the shipped MVP source-of-record, while `mvp_hard/` is the parity-hardening track.
+> Planning state lives under `devlog/_plan/`: `mvp_res/` is the shipped MVP source-of-record, while `mvp_hard/` is the parity-hardening track. In other repositories the devlog and durable state may live outside the checkout; see [`80_state_layout.md`](80_state_layout.md).
 
 ---
 
@@ -29,6 +29,7 @@ where" hub; the numbered files carry the durable reasoning.
 | [`50_emergence_gap.md`](50_emergence_gap.md) | Why PABCD is a convergence (exploitation) machine with no divergence/plateau surface — the structural weakness on emergent/algorithmic tasks (NYPC 3.5/8 diagnosis), with an honest E-tier fix taxonomy. |
 | [`60_native_capabilities.md`](60_native_capabilities.md) | Live-verified Codex native capability matrix (browser/computer use, deferred V1 collab tools, catalog/flag-selected V2, lifecycle equivalents, `update_plan`, `view_image`, `imagegen`, flag-gated CSV fan-out) and the per-skill gap map the WP-N track patches. |
 | [`70_prompt_architecture.md`](70_prompt_architecture.md) | Prompt layering standard: the six layers (guards, hook injections, catalog, SKILL.md routers, references, tests), the placement test for a rule, one owner per rule, size budgets and the `check-prompt-architecture.mjs` gate. |
+| [`80_state_layout.md`](80_state_layout.md) | State layout: repo/local/external/none modes, durable vs volatile `.codexclaw` state, project ids, the evidence-root guard, and `cxc state path/sync/migrate` + `cxc devlog path`. |
 
 Writing rule: keep this directory flat. Add or extend lexicographically ordered
 `NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so
