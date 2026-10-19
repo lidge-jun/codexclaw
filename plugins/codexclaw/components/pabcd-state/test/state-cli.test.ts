@@ -127,7 +127,7 @@ test("two machines: divergent ledgers union-merge, new files arrive, nothing is 
   let r = runStateCli(["sync"], m.co, envFor(m.a));
   assert.equal(r.code, 0, r.output);
   assert.match(r.output, /pushed/);
-  assert.match(readFileSync(join(m.a, ".gitattributes"), "utf8"), /\*\.jsonl merge=union/);
+  assert.match(readFileSync(join(m.a, ".gitattributes"), "utf8"), /\*\.jsonl text eol=lf merge=union/);
 
   mkdirSync(join(m.dirB, "goalplans", "g1"), { recursive: true });
   appendFileSync(join(m.dirB, "ledger.jsonl"), '{"m":"B1"}\n');
@@ -366,4 +366,17 @@ test("review r3: a base cloned with core.autocrlf before the attributes existed 
   assert.equal(readFileSync(join(b, id, "state", "ledger.jsonl"), "utf8").split(/\r?\n/).filter(Boolean).length, 2);
   assert.equal(runStateCli(["sync"], co, envFor(a)).code, 0);
   assert.equal(git(a, "show", "HEAD:" + id + "/state/ledger.jsonl").split(/\r?\n/).filter(Boolean).length, 2);
+});
+
+test("review r4: evidence bytes (CRLF inside a binary without NUL) survive a sync unchanged", () => {
+  const m = twoMachines();
+  mkdirSync(join(m.dirA, "evidence", "s1"), { recursive: true });
+  const bytes = Buffer.from("%PDF-1.4\r\nstream\r\n\x01\x02\r\n\xff\xfe\r\nendstream\r\n", "latin1");
+  writeFileSync(join(m.dirA, "evidence", "s1", "shot.pdf"), bytes);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  git(m.b, "config", "core.autocrlf", "true");
+  const r = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(r.code, 0, r.output);
+  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "shot.pdf")).equals(bytes));
+  assert.ok(Buffer.from(git(m.a, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/shot.pdf"), "latin1").length > 0);
 });
