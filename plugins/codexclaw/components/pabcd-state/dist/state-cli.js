@@ -18,7 +18,7 @@ import {
   readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, unlinkSync, writeFileSync,
 } from "node:fs";
 import { hostname, tmpdir } from "node:os";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { ensureDurableDir } from "./codexclaw-dir.js";
 import { LEGACY_DURABLE_ITEMS, resolveStateRoot,                } from "./state-root.js";
 
@@ -90,10 +90,21 @@ function gitIn(dir        , env                   , args          )         {
 
 function realLoose(p        )         {
   try {
-    return realpathSync(p);
+    // .native expands Windows 8.3 short names (RUNNER~1) that the JS realpath keeps.
+    return typeof realpathSync.native === "function" ? realpathSync.native(p) : realpathSync(p);
   } catch {
     return p;
   }
+}
+
+/**
+ * A path in one comparable spelling: native realpath, forward slashes, and lower case on
+ * Windows (case-insensitive filesystem). git prints C:/Users/runneradmin/... while Node may
+ * hold C:\Users\RUNNER~1\...; both must compare equal (#299).
+ */
+export function comparablePath(p        , platform                  = process.platform)         {
+  const real = realLoose(resolve(p)).replace(/\\/g, "/");
+  return platform === "win32" ? real.toLowerCase() : real;
 }
 
 // ---------------------------------------------------------------- path
@@ -338,7 +349,7 @@ export function runStateSync(cwd        , env                   , dryRun        
   if (top.status !== 0) {
     return { code: 0, output: "state sync: " + base + " is not a git repository; nothing to sync.\nTo sync across machines: git -C " + base + " init, add a PRIVATE remote, push once, then run cxc state sync." };
   }
-  if (realLoose(top.stdout) !== realLoose(base)) {
+  if (comparablePath(top.stdout) !== comparablePath(base)) {
     return { code: 1, output: "state sync: " + base + " is inside another git repository (" + top.stdout + "); refusing. Make the state base its own repository." };
   }
   if (dryRun) {
@@ -484,14 +495,30 @@ function walk(src        , dst        , ops             , dstBase        )      
   else ops.push({ kind: "conflict", src, dst });
 }
 
-function trackedSet(cwd        , env                   )                     {
+
+
+/**
+ * Tracked paths as repo-relative POSIX strings (git's own --full-name form), plus the
+ * comparable top-level they are relative to. Absolute-string matching broke on Windows
+ * short names and slashes and let migrate move tracked files (#299).
+ */
+function trackedSet(cwd        , env                   )                      {
   const r = gitIn(cwd, env, ["ls-files", "-z", "--full-name", "--", ".codexclaw", "devlog"]);
   const top = gitIn(cwd, env, ["rev-parse", "--show-toplevel"]);
-  const out = new Set        ();
-  if (top.status !== 0) return out; // not a git checkout: nothing can be tracked
+  const win = process.platform === "win32";
+  const rels = new Set        ();
+  if (top.status !== 0) return { top: "", rels }; // not a git checkout: nothing can be tracked
   if (r.status !== 0) return null; // a git checkout whose index cannot be read: refuse
-  for (const rel of r.buf.toString("utf8").split("\0")) if (rel) out.add(realLoose(join(top.stdout, rel)));
-  return out;
+  for (const rel of r.buf.toString("utf8").split("\0")) if (rel) rels.add(win ? rel.toLowerCase() : rel);
+  return { top: comparablePath(top.stdout), rels };
+}
+
+/** true/false for tracked/untracked; null when the path cannot be placed under the top-level. */
+function isTracked(index              , src        )                 {
+  if (index.top === "") return false;
+  const rel = posix.relative(index.top, comparablePath(src));
+  if (rel === "" || rel === ".." || rel.startsWith("../") || posix.isAbsolute(rel) || /^[a-z]:/i.test(rel)) return null;
+  return index.rels.has(rel);
 }
 
 function activeSessions(volatileDir        )           {
@@ -578,9 +605,15 @@ export function runStateMigrate(cwd        , env                   , apply      
     return { code: 1, output: "state migrate: git ls-files failed in " + root.cwd + "; refusing to move files whose tracked status is unknown" };
   }
   for (const op of ops) {
-    if (op.kind !== "skip-symlink" && tracked.has(realLoose(op.src))) {
+    if (op.kind === "skip-symlink") continue;
+    const status = isTracked(tracked, op.src);
+    if (status === true) {
       op.kind = "skip-tracked";
       op.note = "tracked in git; left in place";
+    } else if (status === null) {
+      // Fail closed: a file whose tracked status cannot be determined is never moved.
+      op.kind = "skip-tracked";
+      op.note = "tracked status unknown (outside the git top-level); left in place";
     }
   }
   const count = (k             ) => ops.filter((o) => o.kind === k).length;
