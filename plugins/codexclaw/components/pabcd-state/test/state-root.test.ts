@@ -311,3 +311,13 @@ test("review r1: long names keep distinct ids, and a project dir of another orig
   writeFileSync(join(r.projectDir!, "project.json"), JSON.stringify({ origin: "github.com/other/app" }));
   assert.match(resolveStateRoot(dir).disabledReason ?? "", /belongs to origin/);
 });
+
+test("review r2: origin url split by a backslash continuation reads like git", () => {
+  const dir = repo(null);
+  const cfg = join(dir, ".git", "config");
+  writeFileSync(cfg, readFileSync(cfg, "utf8") + '[remote "origin"]\n\turl = "https://github.com/acme/\\\napp.git"\n');
+  clearStateRootCache();
+  const r = spawnSync("git", ["-C", dir, "config", "--get", "remote.origin.url"], { encoding: "utf8" });
+  assert.equal(readGitInfo(dir)!.originUrl, r.stdout.trim());
+  assert.equal(resolveStateRoot(dir).originKey, "github.com/acme/app");
+});

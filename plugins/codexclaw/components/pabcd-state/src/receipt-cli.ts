@@ -124,6 +124,9 @@ function runReceiptCliInner(args: ReceiptCliArgs): ReceiptCliResult {
   }
 
   const path = receiptPathFor(args.cwd, session);
+  // 261020: validate the durable root BEFORE touching anything under it, so a disabled or
+  // redirected root never has a file removed (security review r2).
+  ensureDurableDir(args.cwd);
   // Clear first: a stale success must not survive a failing re-run.
   rmSync(path, { force: true });
 
