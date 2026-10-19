@@ -15,7 +15,7 @@
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync, copyFileSync, constants as fsConstants, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync,
-  readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, unlinkSync, writeFileSync,
+  readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, unlinkSync, writeFileSync,
 } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
@@ -98,13 +98,32 @@ function realLoose(p        )         {
 }
 
 /**
- * A path in one comparable spelling: native realpath, forward slashes, and lower case on
- * Windows (case-insensitive filesystem). git prints C:/Users/runneradmin/... while Node may
- * hold C:\Users\RUNNER~1\...; both must compare equal (#299).
+ * A path in one comparable spelling: native realpath; on Windows also forward slashes and
+ * lower case. git prints C:/Users/runneradmin/... while Node may hold C:\Users\RUNNER~1\...;
+ * both must compare equal (#299). On POSIX a backslash is a legal filename character and is kept.
  */
 export function comparablePath(p        , platform                  = process.platform)         {
-  const real = realLoose(resolve(p)).replace(/\\/g, "/");
-  return platform === "win32" ? real.toLowerCase() : real;
+  const real = realLoose(resolve(p));
+  return platform === "win32" ? real.replace(/\\/g, "/").toLowerCase() : real;
+}
+
+/**
+ * Conservative key for "could these two names be the same tracked file": Unicode NFC, and
+ * case-folded on the platforms whose default filesystems are case-insensitive (macOS,
+ * Windows). A false match only ever keeps a file in place.
+ */
+function looseRelKey(rel        )         {
+  const n = rel.normalize("NFC");
+  return process.platform === "win32" || process.platform === "darwin" ? n.toLowerCase() : n;
+}
+
+function fileIdentity(p        )                {
+  try {
+    const st = statSync(p, { bigint: true });
+    return st.ino === 0n ? null : st.dev + ":" + st.ino;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------- path
@@ -498,27 +517,36 @@ function walk(src        , dst        , ops             , dstBase        )      
 
 
 /**
- * Tracked paths as repo-relative POSIX strings (git's own --full-name form), plus the
- * comparable top-level they are relative to. Absolute-string matching broke on Windows
- * short names and slashes and let migrate move tracked files (#299).
+ * Tracked paths as repo-relative keys (git's own --full-name form, see looseRelKey) and as
+ * file identities (dev:ino of the working-tree file), plus the comparable top-level.
+ * Absolute-string matching broke on Windows short names and slashes and let migrate move
+ * tracked files (#299); identity also covers case and NFC/NFD spellings.
  */
 function trackedSet(cwd        , env                   )                      {
   const r = gitIn(cwd, env, ["ls-files", "-z", "--full-name", "--", ".codexclaw", "devlog"]);
   const top = gitIn(cwd, env, ["rev-parse", "--show-toplevel"]);
-  const win = process.platform === "win32";
   const rels = new Set        ();
-  if (top.status !== 0) return { top: "", rels }; // not a git checkout: nothing can be tracked
+  const ids = new Set        ();
+  if (top.status !== 0) return { top: "", rels, ids }; // not a git checkout: nothing can be tracked
   if (r.status !== 0) return null; // a git checkout whose index cannot be read: refuse
-  for (const rel of r.buf.toString("utf8").split("\0")) if (rel) rels.add(win ? rel.toLowerCase() : rel);
-  return { top: comparablePath(top.stdout), rels };
+  for (const rel of r.buf.toString("utf8").split("\0")) {
+    if (!rel) continue;
+    rels.add(looseRelKey(rel));
+    const id = fileIdentity(join(top.stdout, ...rel.split("/")));
+    if (id) ids.add(id);
+  }
+  return { top: comparablePath(top.stdout), rels, ids };
 }
 
 /** true/false for tracked/untracked; null when the path cannot be placed under the top-level. */
 function isTracked(index              , src        )                 {
   if (index.top === "") return false;
-  const rel = posix.relative(index.top, comparablePath(src));
+  const id = fileIdentity(src);
+  if (id && index.ids.has(id)) return true;
+  const here = comparablePath(src);
+  const rel = process.platform === "win32" ? posix.relative(index.top, here) : relative(index.top, here).split(sep).join("/");
   if (rel === "" || rel === ".." || rel.startsWith("../") || posix.isAbsolute(rel) || /^[a-z]:/i.test(rel)) return null;
-  return index.rels.has(rel);
+  return index.rels.has(looseRelKey(rel));
 }
 
 function activeSessions(volatileDir        )           {
