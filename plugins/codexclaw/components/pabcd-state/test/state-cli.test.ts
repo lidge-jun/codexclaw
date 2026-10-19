@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { clearStateRootCache, resolveStateRoot } from "../src/state-root.ts";
 import { runDevlogCli, runStateCli } from "../src/state-cli.ts";
 import { runPlanCli } from "../src/plan-cli.ts";
@@ -136,7 +136,15 @@ test("two machines: divergent ledgers union-merge, new files arrive, nothing is 
   assert.equal(r.code, 0, r.output);
   const ledgerB = readFileSync(join(m.dirB, "ledger.jsonl"), "utf8");
   assert.ok(ledgerB.includes('"A1"') && ledgerB.includes('"B1"'), ledgerB);
-  assert.equal(git(m.b, "status", "--porcelain"), "");
+  // Everything is committed and pushed. Under a global core.autocrlf=true (the CI crlf leg)
+  // the clone's README keeps the CRLF its checkout wrote; sync deliberately leaves that
+  // line-ending-only difference uncommitted, so only content changes are checked there.
+  assert.equal(git(m.b, "rev-parse", "HEAD"), git(m.b, "rev-parse", "@{u}"));
+  const dirty = git(m.b, "status", "--porcelain").split("\n").filter(Boolean);
+  for (const line of dirty) {
+    const p = line.replace(/^\s*\S+\s+/, "");
+    assert.ok(readFileSync(join(m.b, p)).toString("latin1").replace(/\r\n/g, "\n") === git(m.b, "show", "HEAD:" + p) + "\n", line);
+  }
 
   r = runStateCli(["sync"], m.co, envFor(m.a));
   assert.equal(r.code, 0, r.output);
@@ -422,9 +430,14 @@ test("#299: comparablePath folds case and separators on win32 only", async () =>
   const { comparablePath } = await import("../src/state-cli.ts");
   const p = join(scratch, "MixedCase");
   mkdirSync(p);
-  assert.equal(comparablePath(p, "win32"), comparablePath(p, "linux").toLowerCase());
+  // The win32 spelling is the native realpath with forward slashes, lower-cased; build the
+  // expectation the same way so it holds on every host (on Windows the native path has "\\").
+  assert.equal(comparablePath(p, "win32"), comparablePath(p, "linux").replace(/\\/g, "/").toLowerCase());
   assert.ok(!comparablePath(p, "win32").includes("\\"));
-  assert.equal(comparablePath(p + "/", "linux"), comparablePath(p, "linux"));
+  assert.equal(comparablePath(p + sep, "linux"), comparablePath(p, "linux"));
+  if (process.platform !== "win32") {
+    assert.equal(comparablePath(p, "linux"), realpathSync.native(p), "POSIX keeps the native spelling, backslashes included");
+  }
 });
 
 test("#299 r1: tracked files survive migrate across case, NFC/NFD and literal-backslash spellings", () => {
