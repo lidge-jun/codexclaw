@@ -228,3 +228,73 @@ test("migrate refuses when the checkout resolves to repo mode", () => {
   assert.equal(r.code, 1);
   assert.match(r.output, /mode repo/);
 });
+
+test("review r1: sync refuses disabled roots, never applies symlink/scratch entries or ledger deletions, cleans up after a failed merge worktree", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  const inside = runStateCli(["sync"], co, envFor(join(co, "state")));
+  assert.equal(inside.code, 1);
+  assert.match(inside.output, /inside the checkout/);
+
+  const m = twoMachines();
+  mkdirSync(join(m.dirA, "goalplans", "g1"), { recursive: true });
+  appendFileSync(join(m.dirA, "goalplans", "g1", "ledger.jsonl"), '{"e":1}\n');
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.b)).code, 0);
+  rmSync(join(m.dirA, "goalplans", "g1", "ledger.jsonl"));
+  symlinkSync("/etc/hosts", join(m.dirA, "link"));
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  const r = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(r.code, 1, r.output);
+  assert.match(r.output, /append-only ledger deleted on the other side/);
+  assert.match(r.output, /entry mode 120000/);
+  assert.ok(existsSync(join(m.dirB, "goalplans", "g1", "ledger.jsonl")));
+  assert.equal(existsSync(join(m.dirB, "link")), false);
+
+  writeFileSync(join(m.b, ".git", "hooks", "post-checkout"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  const before = git(m.b, "worktree", "list").split("\n").length;
+  runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(git(m.b, "worktree", "list").split("\n").length, before);
+  assert.equal(existsSync(join(m.b, ".cxc-sync.lock")), false);
+});
+
+test("review r1: sync refuses tracked scratch files and redacts credentials in git errors", () => {
+  const m = twoMachines();
+  mkdirSync(join(m.dirA, "goalplans", "g1", ".goalplan.lock"), { recursive: true });
+  writeFileSync(join(m.dirA, "goalplans", "g1", ".goalplan.lock", "owner.json"), "{}\n");
+  git(m.a, "add", "-f", ".");
+  git(m.a, "commit", "-q", "-m", "oops");
+  const r = runStateCli(["sync"], m.co, envFor(m.a));
+  assert.equal(r.code, 1);
+  assert.match(r.output, /lock or scratch files are tracked/);
+  git(m.a, "rm", "-r", "-q", "--cached", ".");
+  git(m.a, "commit", "-q", "-m", "untrack");
+  rmSync(join(m.dirA, "goalplans", "g1", ".goalplan.lock"), { recursive: true });
+  git(m.a, "remote", "set-url", "origin", "https://user:SECRET@127.0.0.1:1/x.git?access_token=SECRET2");
+  const f = runStateCli(["sync"], m.co, envFor(m.a));
+  assert.equal(f.code, 1);
+  assert.ok(!f.output.includes("SECRET"), f.output);
+});
+
+test("review r1: migrate never writes through or reads through symlinks", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  const env = envFor(join(scratch, "base"));
+  mkdirSync(join(co, ".codexclaw"), { recursive: true });
+  writeFileSync(join(co, ".codexclaw", "ledger.jsonl"), '{"n":1}\n');
+  const root = resolveStateRoot(co, env);
+  mkdirSync(root.durableDir, { recursive: true });
+  const victim = join(scratch, "victim.txt");
+  writeFileSync(victim, "keep\n");
+  symlinkSync(victim, join(root.durableDir, "ledger.jsonl"));
+  const r = runStateCli(["migrate", "--apply"], co, env);
+  assert.equal(r.code, 0, r.output);
+  assert.equal(readFileSync(victim, "utf8"), "keep\n");
+  assert.ok(existsSync(join(co, ".codexclaw", "ledger.jsonl")));
+
+  const co2 = checkout("https://github.com/acme/other.git");
+  const outside = join(scratch, "outside-cc");
+  mkdirSync(outside);
+  writeFileSync(join(outside, "ledger.jsonl"), '{"n":1}\n');
+  symlinkSync(outside, join(co2, ".codexclaw"));
+  runStateCli(["migrate", "--apply"], co2, env);
+  assert.ok(existsSync(join(outside, "ledger.jsonl")));
+});

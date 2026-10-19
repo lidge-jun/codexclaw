@@ -31,6 +31,30 @@ const GOALPLAN_LOCK_DIR = ".goalplan.lock";
 const BASE_GITIGNORE = [SYNC_LOCK, MIGRATE_LOCK, "*.tmp", GOALPLAN_LOCK_DIR + "/", ".probe-*"];
 const BASE_GITATTRIBUTES = ["*.jsonl merge=union"];
 
+/** Lock and scratch paths that must never be committed, merged in, or applied. */
+export function isScratchPath(rel: string): boolean {
+  const parts = rel.split("/");
+  const leaf = parts[parts.length - 1] ?? "";
+  return parts.includes(GOALPLAN_LOCK_DIR) || leaf === SYNC_LOCK || leaf === MIGRATE_LOCK
+    || leaf.endsWith(".tmp") || leaf.startsWith(".probe-");
+}
+
+/** True when p, or any existing directory between base and p, is a symlink. */
+function pathHasSymlink(base: string, p: string): boolean {
+  const rel = relative(base, p);
+  if (rel === "" || rel === ".." || rel.startsWith(".." + sep)) return true;
+  let cur = base;
+  for (const part of rel.split(sep)) {
+    cur = join(cur, part);
+    try {
+      if (lstatSync(cur).isSymbolicLink()) return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 function flag(argv: string[], name: string): string | undefined {
   const i = argv.indexOf("--" + name);
   return i >= 0 ? argv[i + 1] : undefined;
@@ -44,13 +68,18 @@ function gitEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 interface GitRun { status: number; stdout: string; stderr: string; buf: Buffer }
 
+/** Strip userinfo and query strings from URLs so git errors never echo credentials. */
+export function redactUrls(text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)([^\s/@]*@)?([^\s?#'"]*)(\?[^\s'"]*)?/gi, (_m, scheme: string, _user, rest: string) => scheme + rest);
+}
+
 function gitIn(dir: string, env: NodeJS.ProcessEnv, args: string[]): GitRun {
   const r = spawnSync("git", ["-C", dir, ...args], { env: gitEnv(env), maxBuffer: 256 * 1024 * 1024 });
   const buf = (r.stdout as Buffer | null) ?? Buffer.alloc(0);
   return {
     status: typeof r.status === "number" ? r.status : 1,
     stdout: buf.toString("utf8").trim(),
-    stderr: ((r.stderr as Buffer | null) ?? Buffer.alloc(0)).toString("utf8").trim(),
+    stderr: redactUrls(((r.stderr as Buffer | null) ?? Buffer.alloc(0)).toString("utf8").trim()),
     buf,
   };
 }
@@ -176,16 +205,35 @@ interface ApplyOutcome { appended: number; created: number; replaced: number; re
 
 function applyMerge(base: string, env: NodeJS.ProcessEnv, snapshot: string, merge: string): ApplyOutcome {
   const out: ApplyOutcome = { appended: 0, created: 0, replaced: 0, removed: 0, conflicts: [] };
-  const diff = gitIn(base, env, ["diff", "--no-renames", "--name-status", "-z", snapshot, merge]);
+  // --raw keeps the entry modes: only regular files (100644/100755) are ever applied.
+  const diff = gitIn(base, env, ["diff", "--no-renames", "--raw", "-z", snapshot, merge]);
   if (diff.status !== 0) {
     out.conflicts.push("git diff failed: " + diff.stderr);
     return out;
   }
   const fields = diff.buf.toString("utf8").split("\0").filter((f) => f.length > 0);
   for (let i = 0; i + 1 < fields.length; i += 2) {
-    const status = fields[i][0];
+    const meta = fields[i].replace(/^:/, "").split(" ");
+    const newMode = meta[1] ?? "";
+    const status = (meta[4] ?? "M")[0];
     const rel = fields[i + 1];
     const live = join(base, ...rel.split("/"));
+    if (isScratchPath(rel)) {
+      out.conflicts.push(rel + " (lock or scratch file in the merge; never applied)");
+      continue;
+    }
+    if (status !== "D" && newMode !== "100644" && newMode !== "100755") {
+      out.conflicts.push(rel + " (entry mode " + newMode + " is not a regular file; symlinks and submodules are never applied)");
+      continue;
+    }
+    if (pathHasSymlink(base, live)) {
+      out.conflicts.push(rel + " (the local path is or passes through a symlink; never written)");
+      continue;
+    }
+    if (rel.endsWith(".jsonl") && status === "D") {
+      out.conflicts.push(rel + " (append-only ledger deleted on the other side; kept here)");
+      continue;
+    }
     const mergedBlob = status === "D" ? null : blobAt(base, env, merge, rel);
     const snapBlob = status === "A" ? null : blobAt(base, env, snapshot, rel);
     if (sameBytes(live, mergedBlob)) continue;
@@ -215,9 +263,14 @@ function applyMerge(base: string, env: NodeJS.ProcessEnv, snapshot: string, merg
           if (createExclusive(live, mergedBlob) === "created") out.created += 1;
           else out.conflicts.push(rel + " (created here during the sync)");
         } else {
-          const tmp = live + "." + process.pid + ".sync.tmp";
-          writeFileSync(tmp, mergedBlob, { mode: 0o600 });
-          renameSync(tmp, live);
+          // wx (O_EXCL) never follows or reuses an existing entry at the tmp name.
+          const tmp = live + "." + process.pid + "." + Date.now() + ".sync.tmp";
+          try {
+            writeFileSync(tmp, mergedBlob, { mode: 0o600, flag: "wx" });
+            renameSync(tmp, live);
+          } finally {
+            rmSync(tmp, { force: true });
+          }
           out.replaced += 1;
         }
       } finally {
@@ -240,6 +293,7 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
   if (root.mode !== "external" || !root.stateBase) {
     return { code: 0, output: "state sync: mode " + root.mode + " keeps durable state at " + root.durableDir + "; nothing to sync" };
   }
+  if (root.disabledReason) return { code: 1, output: "state sync: " + root.disabledReason };
   const base = root.stateBase;
   if (!existsSync(base)) return { code: 0, output: "state sync: " + base + " does not exist yet; nothing to sync" };
   const top = gitIn(base, env, ["rev-parse", "--show-toplevel"]);
@@ -273,8 +327,11 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
   try {
     if (ensureLines(join(base, ".gitignore"), BASE_GITIGNORE, "# codexclaw state sync: never commit locks or scratch files")) lines.push("wrote .gitignore entries");
     if (ensureLines(join(base, ".gitattributes"), BASE_GITATTRIBUTES, "# codexclaw state sync: append-only ledgers merge by union")) lines.push("wrote .gitattributes (*.jsonl merge=union)");
-    const tracked = gitIn(base, env, ["ls-files", "--", SYNC_LOCK, MIGRATE_LOCK, "*/" + MIGRATE_LOCK]);
-    if (tracked.stdout) return { code: 1, output: "state sync: lock files are tracked in " + base + " (" + tracked.stdout + "); untrack them first" };
+    const trackedAll = gitIn(base, env, ["ls-files", "-z"]);
+    const trackedScratch = trackedAll.buf.toString("utf8").split("\0").filter((p) => p && isScratchPath(p));
+    if (trackedScratch.length > 0) {
+      return { code: 1, output: "state sync: lock or scratch files are tracked in " + base + " (" + trackedScratch.slice(0, 5).join(", ") + "); untrack them first" };
+    }
     if (gitIn(base, env, ["diff", "--cached", "--quiet"]).status !== 0) {
       return { code: 1, output: "state sync: " + base + " already has staged changes that sync did not make; commit or unstage them first" };
     }
@@ -283,7 +340,12 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
       return gitIn(base, env, ["commit", "-q", "-m", message]);
     };
     const stamp = (what: string) => "cxc state sync: " + what + " " + hostname() + " " + new Date().toISOString();
-    gitIn(base, env, ["add", "-A"]);
+    const stage = (): string | null => {
+      const add = gitIn(base, env, ["add", "-A"]);
+      return add.status === 0 ? null : add.stderr || "git add failed";
+    };
+    const staged = stage();
+    if (staged) return { code: 1, output: [...lines, "staging failed: " + staged].join("\n") };
     const snap = commitIfStaged(stamp("snapshot"));
     if (snap && snap.status !== 0) return { code: 1, output: "state sync: commit failed: " + snap.stderr };
     if (snap) lines.push("committed local changes");
@@ -301,7 +363,8 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
       rmdirSync(tmpWorktree);
       const add = gitIn(base, env, ["worktree", "add", "-q", "--detach", tmpWorktree, snapshot]);
       if (add.status !== 0) {
-        tmpWorktree = null;
+        // Git can register the worktree and still fail (e.g. a post-checkout hook); the
+        // finally block removes whatever exists at tmpWorktree.
         return { code: 1, output: [...lines, "could not create a merge worktree: " + add.stderr].join("\n") };
       }
       const merge = gitIn(tmpWorktree, env, ["merge", "--no-edit", "-q", upstream]);
@@ -318,7 +381,8 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
       }
       const reset = gitIn(base, env, ["reset", "--soft", merged]);
       if (reset.status !== 0) return { code: 1, output: [...lines, "could not advance the branch: " + reset.stderr].join("\n") };
-      gitIn(base, env, ["add", "-A"]);
+      const restaged = stage();
+      if (restaged) return { code: 1, output: [...lines, "staging failed after the merge: " + restaged].join("\n") };
       const after = commitIfStaged(stamp("after-merge"));
       if (after && after.status !== 0) return { code: 1, output: [...lines, "commit failed: " + after.stderr].join("\n") };
     }
@@ -346,7 +410,7 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
 type MigrateKind = "move" | "same" | "merge" | "conflict" | "skip-symlink" | "skip-tracked";
 interface MigrateOp { kind: MigrateKind; src: string; dst: string; note?: string }
 
-function walk(src: string, dst: string, ops: MigrateOp[]): void {
+function walk(src: string, dst: string, ops: MigrateOp[], dstBase: string): void {
   let st;
   try {
     st = lstatSync(src);
@@ -358,21 +422,23 @@ function walk(src: string, dst: string, ops: MigrateOp[]): void {
     return;
   }
   if (st.isDirectory()) {
-    for (const name of readdirSync(src).sort()) walk(join(src, name), join(dst, name), ops);
+    for (const name of readdirSync(src).sort()) walk(join(src, name), join(dst, name), ops, dstBase);
     return;
   }
   if (!st.isFile()) return;
-  if (!existsSync(dst)) ops.push({ kind: "move", src, dst });
+  if (pathHasSymlink(dstBase, dst)) ops.push({ kind: "skip-symlink", src, dst, note: "destination is or passes through a symlink" });
+  else if (!existsSync(dst)) ops.push({ kind: "move", src, dst });
   else if (readFileSync(src).equals(readFileSync(dst))) ops.push({ kind: "same", src, dst });
   else if (src.endsWith(".jsonl")) ops.push({ kind: "merge", src, dst });
   else ops.push({ kind: "conflict", src, dst });
 }
 
-function trackedSet(cwd: string, env: NodeJS.ProcessEnv): Set<string> {
+function trackedSet(cwd: string, env: NodeJS.ProcessEnv): Set<string> | null {
   const r = gitIn(cwd, env, ["ls-files", "-z", "--full-name", "--", ".codexclaw", "devlog"]);
   const top = gitIn(cwd, env, ["rev-parse", "--show-toplevel"]);
   const out = new Set<string>();
-  if (r.status !== 0 || top.status !== 0) return out;
+  if (top.status !== 0) return out; // not a git checkout: nothing can be tracked
+  if (r.status !== 0) return null; // a git checkout whose index cannot be read: refuse
   for (const rel of r.buf.toString("utf8").split("\0")) if (rel) out.add(realLoose(join(top.stdout, rel)));
   return out;
 }
@@ -446,11 +512,20 @@ export function runStateMigrate(cwd: string, env: NodeJS.ProcessEnv, apply: bool
   const goalplanSources: string[] = [];
   for (const item of LEGACY_DURABLE_ITEMS) {
     const src = join(root.volatileDir, item);
+    if (pathHasSymlink(root.cwd, src)) {
+      ops.push({ kind: "skip-symlink", src, dst: join(root.durableDir, item), note: "source is or passes through a symlink" });
+      continue;
+    }
     if (item === "goalplans" && existsSync(src)) goalplanSources.push(src);
-    walk(src, join(root.durableDir, item), ops);
+    walk(src, join(root.durableDir, item), ops, root.projectDir);
   }
-  walk(join(root.cwd, "devlog"), root.devlogDir, ops);
+  const devlogSrc = join(root.cwd, "devlog");
+  if (pathHasSymlink(root.cwd, devlogSrc)) ops.push({ kind: "skip-symlink", src: devlogSrc, dst: root.devlogDir, note: "source is a symlink" });
+  else walk(devlogSrc, root.devlogDir, ops, root.projectDir);
   const tracked = trackedSet(root.cwd, env);
+  if (tracked === null) {
+    return { code: 1, output: "state migrate: git ls-files failed in " + root.cwd + "; refusing to move files whose tracked status is unknown" };
+  }
   for (const op of ops) {
     if (op.kind !== "skip-symlink" && tracked.has(realLoose(op.src))) {
       op.kind = "skip-tracked";
