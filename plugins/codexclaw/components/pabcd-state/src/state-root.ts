@@ -22,7 +22,10 @@
  * imports are banned); plugins/codexclaw/test/codexclaw-dir-copies.test.mjs pins them.
  */
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import {
+  closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync,
+  writeSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
@@ -97,9 +100,10 @@ function sha(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function isInside(child: string, parent: string): boolean {
+export function isInside(child: string, parent: string): boolean {
   const rel = relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  // "..x" is a real child named "..x"; only ".." or "../..." leaves the parent.
+  return rel === "" || (rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel));
 }
 
 /** realpath of the nearest existing ancestor, with the missing tail re-appended. */
@@ -157,7 +161,7 @@ export function normalizeRemoteUrl(raw: string | null | undefined): RemoteKey | 
 
 function sanitizePart(value: string): string {
   const s = value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
-  return s.length === 0 || s === "." || s === ".." ? "x" : s.slice(0, 64);
+  return s.length === 0 || s === "." || s === ".." ? "x" : s.slice(0, 40);
 }
 
 function readTextSafe(path: string): string | null {
@@ -166,6 +170,33 @@ function readTextSafe(path: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** A git config value: double quotes group, backslash escapes, unquoted # or ; starts a comment. */
+export function parseGitConfigValue(raw: string): string {
+  let out = "";
+  let quoted = false;
+  let pendingSpace = "";
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (c === "\\" && i + 1 < raw.length) {
+      const n = raw[++i];
+      out += pendingSpace + (n === "n" ? "\n" : n === "t" ? "\t" : n === "b" ? "" : n);
+      pendingSpace = "";
+    } else if (c === '"') {
+      quoted = !quoted;
+      out += pendingSpace;
+      pendingSpace = "";
+    } else if (!quoted && (c === "#" || c === ";")) {
+      break;
+    } else if (!quoted && (c === " " || c === "\t")) {
+      if (out.length > 0) pendingSpace += c;
+    } else {
+      out += pendingSpace + c;
+      pendingSpace = "";
+    }
+  }
+  return out;
 }
 
 /** First url of [remote "origin"] in a git config file (no include/includeIf/insteadOf). */
@@ -178,8 +209,11 @@ export function parseOriginUrl(configText: string): string | null {
       continue;
     }
     if (!inOrigin) continue;
-    const m = /^\s*url\s*=\s*(.*?)\s*$/i.exec(line);
-    if (m && m[1].length > 0) return m[1].replace(/^"(.*)"$/, "$1");
+    const m = /^\s*url\s*=(.*)$/i.exec(line);
+    if (m) {
+      const value = parseGitConfigValue(m[1]);
+      if (value.length > 0) return value;
+    }
   }
   return null;
 }
@@ -222,21 +256,21 @@ export function readGitInfo(cwd: string): GitInfo | null {
 }
 
 /**
- * Project id: readable sanitized parts plus 8 hex of the full key's sha256, so two keys that
- * sanitize alike still get different ids. All worktrees of one repository share the id: the
+ * Project id: readable sanitized parts plus 128 bits (32 hex) of the full key's sha256, so two
+ * keys that sanitize or truncate alike still get different ids. All worktrees of one repository share the id: the
  * origin is read from the shared config, and the no-origin fallback hashes the common git dir.
  */
 export function deriveProjectId(cwd: string, git: GitInfo | null, remote: RemoteKey | null): string {
   if (remote) {
-    return remote.key.split("/").map(sanitizePart).join("__") + "-" + sha(remote.key).slice(0, 8);
+    return remote.key.split("/").map(sanitizePart).join("__") + "-" + sha(remote.key).slice(0, 32);
   }
   if (git) {
     const common = realpathLoose(git.commonDir);
     const name = basename(common) === ".git" ? basename(dirname(common)) : basename(common);
-    return "local__" + sanitizePart(name) + "-" + sha(common).slice(0, 12);
+    return "local__" + sanitizePart(name) + "-" + sha(common).slice(0, 32);
   }
   const real = realpathLoose(cwd);
-  return "path__" + sanitizePart(basename(real)) + "-" + sha(real).slice(0, 12);
+  return "path__" + sanitizePart(basename(real)) + "-" + sha(real).slice(0, 32);
 }
 
 function homeOf(env: NodeJS.ProcessEnv): string {
@@ -441,6 +475,22 @@ export function resolveStateRoot(cwd: string, env: NodeJS.ProcessEnv = process.e
       }
     }
   }
+  if (!root.disabledReason && remote) {
+    // A project dir claimed by a different origin (a hash collision or a hand-made dir) is
+    // never shared: the recorded origin must match.
+    const recorded = readTextSafe(join(projectDir, "project.json"));
+    if (recorded !== null) {
+      let origin: unknown = null;
+      try {
+        origin = (JSON.parse(recorded) as { origin?: unknown }).origin;
+      } catch {
+        origin = undefined;
+      }
+      if (origin !== remote.key) {
+        root.disabledReason = "external project dir " + projectDir + " belongs to origin " + JSON.stringify(origin) + ", not " + remote.key + "; refusing to share it";
+      }
+    }
+  }
   if (existsSync(join(volatileDir, "ledger.jsonl")) || existsSync(join(volatileDir, "goalplans"))) {
     warnings.push("legacy durable state found in " + volatileDir + " (not read in external mode); run: cxc state migrate --apply");
   }
@@ -500,13 +550,26 @@ export function ensurePrivacyExcludes(cwd: string, env: NodeJS.ProcessEnv = proc
     const excludePath = join(git.commonDir, "info", "exclude");
     const key = excludePath + "\0" + entries.join("\0");
     if (excludeDone.has(key)) return;
-    const existing = readTextSafe(excludePath) ?? "";
+    // Never follow a link out of the git dir: info/ and info/exclude must be real entries
+    // inside the real common dir, and the file is opened O_NOFOLLOW.
+    const realCommon = realpathSync(git.commonDir);
+    const infoDir = join(realCommon, "info");
+    if (existsSync(infoDir) && lstatSync(infoDir).isSymbolicLink()) return;
+    const realExclude = join(infoDir, "exclude");
+    if (existsSync(realExclude) && !lstatSync(realExclude).isFile()) return;
+    const existing = readTextSafe(realExclude) ?? "";
     const lines = new Set(existing.split(/\r?\n/).map((l) => l.trim()));
     const missing = entries.filter((e) => !lines.has(e));
     if (missing.length > 0) {
-      mkdirSync(dirname(excludePath), { recursive: true });
+      mkdirSync(infoDir, { recursive: true });
       const lead = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
-      appendFileSync(excludePath, lead + "# codexclaw: state mode " + root.mode + " keeps these out of git\n" + missing.join("\n") + "\n");
+      const noFollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
+      const fd = openSync(realExclude, fsConstants.O_APPEND | fsConstants.O_CREAT | fsConstants.O_WRONLY | noFollow, 0o644);
+      try {
+        writeSync(fd, lead + "# codexclaw: state mode " + root.mode + " keeps these out of git\n" + missing.join("\n") + "\n");
+      } finally {
+        closeSync(fd);
+      }
     }
     excludeDone.add(key);
   } catch {

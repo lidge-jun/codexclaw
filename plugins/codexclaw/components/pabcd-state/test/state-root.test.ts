@@ -76,7 +76,7 @@ test("normalizeRemoteUrl: ssh, scp, https with credentials, .git suffix and case
 
 test("project id: readable, collision-resistant, and never carries credentials", () => {
   const a = deriveProjectId("/x", null, normalizeRemoteUrl("https://u:secret@github.com/acme/app.git"));
-  assert.match(a, /^github\.com__acme__app-[0-9a-f]{8}$/);
+  assert.match(a, /^github\.com__acme__app-[0-9a-f]{32}$/);
   assert.ok(!a.includes("secret"));
   const b = deriveProjectId("/x", null, normalizeRemoteUrl("https://gitlab.com/acme/app"));
   assert.notEqual(a, b);
@@ -258,4 +258,56 @@ test("goalplan create is exclusive: a second create never replaces the first", (
   assert.throws(() => writeGoalplan(dir, second, { exclusive: true }), GoalplanExistsError);
   assert.equal(readGoalplan(dir, first.slug)?.criteria[0].scenario, "first");
   assert.ok(existsSync(join(resolveStateRoot(dir).durableDir, "goalplans", first.slug, "goalplan.json")));
+});
+
+test("review r1: '..name' children count as inside the checkout", () => {
+  const dir = repo("https://github.com/acme/app.git");
+  process.env.CODEXCLAW_STATE_ROOT = join(dir, "..private");
+  assert.match(resolveStateRoot(dir).disabledReason ?? "", /inside the checkout/);
+});
+
+test("review r1: a disabled root accepts no receipt, even one planted where it would live", () => {
+  const dir = repo("https://github.com/acme/app.git");
+  process.env.CODEXCLAW_STATE_MODE = "none";
+  const planted = join(resolveStateRoot(dir).durableDir, "evidence", "s");
+  mkdirSync(planted, { recursive: true });
+  writeFileSync(join(planted, "r.json"), "{}\n");
+  assert.equal(hasValidReceipt(dir, join(planted, "r.json")), false);
+  delete process.env.CODEXCLAW_STATE_MODE;
+  const r = resolveStateRoot(dir);
+  mkdirSync(join(scratch, "elsewhere", "state", "evidence", "s"), { recursive: true });
+  writeFileSync(join(scratch, "elsewhere", "state", "evidence", "s", "r.json"), "{}\n");
+  mkdirSync(r.stateBase!, { recursive: true });
+  symlinkSync(join(scratch, "elsewhere"), r.projectDir!);
+  assert.equal(hasValidReceipt(dir, join(r.durableDir, "evidence", "s", "r.json")), false);
+});
+
+test("review r1: origin parsing follows git quoting and inline comments", () => {
+  const dir = repo(null);
+  const cfg = join(dir, ".git", "config");
+  writeFileSync(cfg, readFileSync(cfg, "utf8") + '[remote "origin"]\n\turl = "https://github.com/acme/app.git" # mirror\n');
+  clearStateRootCache();
+  const r = spawnSync("git", ["-C", dir, "config", "--get", "remote.origin.url"], { encoding: "utf8" });
+  assert.equal(readGitInfo(dir)!.originUrl, r.stdout.trim());
+  assert.equal(resolveStateRoot(dir).originKey, "github.com/acme/app");
+});
+
+test("review r1: info/exclude is never followed out of the git dir", () => {
+  const dir = repo("https://github.com/acme/app.git");
+  rmSync(join(dir, ".git", "info", "exclude"), { force: true });
+  symlinkSync(join(dir, "README.md"), join(dir, ".git", "info", "exclude"));
+  ensureDurableDir(dir);
+  assert.equal(readFileSync(join(dir, "README.md"), "utf8"), "x\n");
+});
+
+test("review r1: long names keep distinct ids, and a project dir of another origin is not shared", () => {
+  const long = "a".repeat(64);
+  const a = deriveProjectId("/x", null, normalizeRemoteUrl("https://github.com/acme/" + long + "45581"));
+  const b = deriveProjectId("/x", null, normalizeRemoteUrl("https://github.com/acme/" + long + "111323"));
+  assert.notEqual(a, b);
+  const dir = repo("https://github.com/acme/app.git");
+  const r = resolveStateRoot(dir);
+  mkdirSync(r.projectDir!, { recursive: true });
+  writeFileSync(join(r.projectDir!, "project.json"), JSON.stringify({ origin: "github.com/other/app" }));
+  assert.match(resolveStateRoot(dir).disabledReason ?? "", /belongs to origin/);
 });
