@@ -256,14 +256,23 @@ function stripCrlf(buf        )         {
   return out.subarray(0, n);
 }
 
+/**
+ * Live bytes that are exactly the blob with LF turned into CRLF: what a core.autocrlf=true
+ * checkout writes for a file git treats as text. The blob must contain no CR at all, so a
+ * binary whose own bytes include CR is never folded this way.
+ */
+function isCheckoutEolArtifact(live        , blob        )          {
+  return !blob.includes(0x0d) && live.includes(0x0d) && stripCrlf(live).equals(blob);
+}
+
 function sameBytes(path        , data               , lfText = false)          {
   if (!existsSync(path)) return data === null;
   if (data === null) return false;
   const live = readFileSync(path);
   if (live.equals(data)) return true;
   // Ledgers and goalplans that differ only by CRLF (an autocrlf checkout) are the same
-  // content; every other file is compared byte for byte.
-  return lfText && stripCrlf(live).equals(stripCrlf(data));
+  // content; any other file only when the live copy is the blob's autocrlf checkout.
+  return (lfText && stripCrlf(live).equals(stripCrlf(data))) || isCheckoutEolArtifact(live, data);
 }
 
 function blobAt(base        , env                   , rev        , rel        )                {
@@ -420,10 +429,20 @@ export function runStateSync(cwd        , env                   , dryRun        
       // Belt and braces: whatever the ignore files say, a lock or scratch path never
       // gets committed. Unstaging touches only the index, never history or files.
       const names = gitIn(base, env, ["diff", "--cached", "--name-only", "-z"]);
-      const scratch = names.buf.toString("utf8").split("\0").filter((p) => p && isScratchPath(p));
+      const staged = names.buf.toString("utf8").split("\0").filter((p) => p.length > 0);
+      const scratch = staged.filter((p) => isScratchPath(p));
+      // A file whose only change is the CRLF an autocrlf checkout wrote (seen once "* -text"
+      // takes effect in a base cloned before it) is not a change; committing it would make
+      // the next merge report the file as modified on the other side.
+      for (const p of staged) {
+        if (isScratchPath(p)) continue;
+        const blob = blobAt(base, env, "HEAD", p);
+        const livePath = join(base, ...p.split("/"));
+        if (blob && existsSync(livePath) && isCheckoutEolArtifact(readFileSync(livePath), blob)) scratch.push(p);
+      }
       if (scratch.length > 0) {
         const reset = gitIn(base, env, ["reset", "-q", "--", ...scratch]);
-        if (reset.status !== 0) return "could not unstage lock/scratch files: " + reset.stderr;
+        if (reset.status !== 0) return "could not unstage lock/scratch or line-ending-only files: " + reset.stderr;
       }
       return null;
     };
