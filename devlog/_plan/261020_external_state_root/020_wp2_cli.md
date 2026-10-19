@@ -25,3 +25,16 @@ Status: PLANNED
 
 Focused tests, `npm run build`, `npm test`, `npm run gate`.
 
+
+
+## P re-verification (2026-10-20, wp2 cycle)
+
+Drafted during the wp1 review wait and re-checked against 020 + 006/007:
+- `src/state-cli.ts` (NEW): `runStateCli` (path/sync/migrate), `runDevlogCli`; sync follows 006 step list with the 007 apply rules (jsonl append, goalplan swap under `.goalplan.lock`, create-only adds incl. new goalplans, `--no-renames`); migrate per 004 #8/006 #5 (mode must resolve to external; refuses mid-cycle sessions; jsonl union; conflicts keep both; skips symlinks and `git ls-files` paths; stale-reference scan).
+- `src/cli.ts`: `state` and `devlog` kinds (stderr on non-zero).
+- `src/plan-cli.ts`: devlog root from the resolver; disabled → exit 1; local → excludes; repo-mode foreign owner → warning; prints the absolute planUnit when outside cwd.
+- `src/plan-gate.ts`: messages use `devlogLabel`.
+- `plugins/codexclaw/bin/cxc.mjs`, `bin/codexclaw.mjs`: route `state`/`devlog`; help.
+- `scripts/gate.mjs`: devlog root via the built resolver (fallback `<root>/devlog`).
+- Deviation: the hook P directive's example `planUnit` text stays static (`devlog/_plan/YYMMDD_slug`); in external mode the P>A refusal names the resolved path and `plan init` prints the exact planUnit.
+- Tests: `test/state-cli.test.ts` (8): path/devlog output, plan init → P>A with the absolute unit and a clean `git status`, repo-mode warning, sync no-op cases (non-external, non-git base, base nested in another repo), two-clone divergent sync with union merge and create-only arrival, goalplan lock stops the sync without moving the branch, migrate dry-run/apply/rerun/conflict/tracked/symlink/mid-cycle, migrate refused in repo mode.

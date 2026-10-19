@@ -1,0 +1,230 @@
+import { test, beforeEach, afterEach } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { clearStateRootCache, resolveStateRoot } from "../src/state-root.ts";
+import { runDevlogCli, runStateCli } from "../src/state-cli.ts";
+import { runPlanCli } from "../src/plan-cli.ts";
+import { validatePlanArtifacts } from "../src/plan-gate.ts";
+
+let scratch = "";
+let saved: Record<string, string | undefined> = {};
+const KEYS = ["CODEXCLAW_HOME", "CODEXCLAW_STATE_ROOT", "CODEXCLAW_STATE_MODE"] as const;
+const ID = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+
+function git(cwd: string, ...args: string[]): string {
+  const r = spawnSync("git", ["-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", env: { ...process.env, ...ID } });
+  assert.equal(r.status, 0, args.join(" ") + ": " + r.stderr);
+  return r.stdout.trim();
+}
+
+function checkout(origin: string): string {
+  const dir = realpathSync(mkdtempSync(join(scratch, "co-")));
+  git(dir, "init", "-q");
+  git(dir, "remote", "add", "origin", origin);
+  writeFileSync(join(dir, "README.md"), "x\n");
+  git(dir, "add", "README.md");
+  git(dir, "commit", "-q", "-m", "init");
+  clearStateRootCache();
+  return dir;
+}
+
+function envFor(base: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  return { ...process.env, ...ID, CODEXCLAW_STATE_ROOT: base, ...extra };
+}
+
+beforeEach(() => {
+  saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  scratch = realpathSync(mkdtempSync(join(tmpdir(), "cxc-state-cli-")));
+  process.env.CODEXCLAW_HOME = join(scratch, "home");
+  delete process.env.CODEXCLAW_STATE_ROOT;
+  delete process.env.CODEXCLAW_STATE_MODE;
+  clearStateRootCache();
+});
+
+afterEach(() => {
+  for (const k of KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+  clearStateRootCache();
+  rmSync(scratch, { recursive: true, force: true });
+});
+
+test("state path and devlog path report the resolved layout", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  const env = envFor(join(scratch, "base"));
+  const text = runStateCli(["path"], co, env).output;
+  assert.match(text, /^mode: external \(auto: origin owner github.com\/acme is not allowlisted\)/);
+  const json = JSON.parse(runStateCli(["path", "--json"], co, env).output);
+  assert.equal(json.durableDir, join(scratch, "base", json.projectId, "state"));
+  assert.equal(runDevlogCli(["path"], co, env).output, join(scratch, "base", json.projectId, "devlog"));
+  assert.match(runDevlogCli(["path", "--explain"], co, env).output, /\nmode: external/);
+  const none = runDevlogCli(["path"], co, { ...env, CODEXCLAW_STATE_MODE: "none" });
+  assert.equal(none.code, 1);
+  assert.match(runStateCli(["path"], co, { ...env, CODEXCLAW_STATE_MODE: "none" }).output, /cannot be satisfied in mode none/);
+});
+
+test("plan init writes into the external devlog and P>A accepts that absolute unit", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  process.env.CODEXCLAW_STATE_ROOT = join(scratch, "base");
+  const res = runPlanCli({ verb: "init", slug: "thing", phases: 1, cwd: co, date: "261020" } as never);
+  assert.equal(res.code, 0, res.output);
+  const unit = join(resolveStateRoot(co).devlogDir!, "_plan", "261020_thing");
+  assert.ok(existsSync(join(unit, "000_plan.md")));
+  assert.ok(res.output.includes("planUnit for P -> A: " + unit), res.output);
+  assert.equal(existsSync(join(co, "devlog")), false);
+  const gate = validatePlanArtifacts({ from: "P", to: "A", did: "x", planUnit: unit } as never, co);
+  assert.equal(gate.ok, true);
+  assert.equal(git(co, "status", "--porcelain"), "");
+});
+
+test("plan init in an explicitly repo-mode foreign repository warns", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  process.env.CODEXCLAW_STATE_MODE = "repo";
+  const res = runPlanCli({ verb: "init", slug: "thing", phases: 1, cwd: co, date: "261020" } as never);
+  assert.equal(res.code, 0);
+  assert.match(res.output, /warning: writing devlog\/ into a repository owned by github.com\/acme/);
+});
+
+test("state sync is a no-op outside external mode or without a git base", () => {
+  const co = checkout("git@github.com:lidge-jun/x.git");
+  assert.match(runStateCli(["sync"], co, envFor(join(scratch, "base"))).output, /nothing to sync/);
+  const foreign = checkout("https://github.com/acme/app.git");
+  const base = join(scratch, "plainbase");
+  mkdirSync(base);
+  const r = runStateCli(["sync"], foreign, envFor(base));
+  assert.equal(r.code, 0);
+  assert.match(r.output, /not a git repository/);
+  const nested = join(scratch, "outer");
+  mkdirSync(join(nested, "inner"), { recursive: true });
+  git(nested, "init", "-q");
+  assert.equal(runStateCli(["sync"], foreign, envFor(join(nested, "inner"))).code, 1);
+});
+
+function twoMachines(): { remote: string; a: string; b: string; co: string; dirA: string; dirB: string } {
+  const remote = join(scratch, "remote.git");
+  git(scratch, "init", "-q", "--bare", remote);
+  const a = join(scratch, "macA");
+  git(scratch, "clone", "-q", remote, a);
+  writeFileSync(join(a, "README.md"), "private state\n");
+  git(a, "add", "README.md");
+  git(a, "commit", "-q", "-m", "init");
+  git(a, "push", "-q", "-u", "origin", "main");
+  const b = join(scratch, "macB");
+  git(scratch, "clone", "-q", remote, b);
+  const co = checkout("https://github.com/acme/app.git");
+  const id = resolveStateRoot(co, envFor(a)).projectId!;
+  return { remote, a, b, co, dirA: join(a, id, "state"), dirB: join(b, id, "state") };
+}
+
+test("two machines: divergent ledgers union-merge, new files arrive, nothing is forced", () => {
+  const m = twoMachines();
+  mkdirSync(m.dirA, { recursive: true });
+  appendFileSync(join(m.dirA, "ledger.jsonl"), '{"m":"A1"}\n');
+  let r = runStateCli(["sync"], m.co, envFor(m.a));
+  assert.equal(r.code, 0, r.output);
+  assert.match(r.output, /pushed/);
+  assert.match(readFileSync(join(m.a, ".gitattributes"), "utf8"), /\*\.jsonl merge=union/);
+
+  mkdirSync(join(m.dirB, "goalplans", "g1"), { recursive: true });
+  appendFileSync(join(m.dirB, "ledger.jsonl"), '{"m":"B1"}\n');
+  writeFileSync(join(m.dirB, "goalplans", "g1", "goalplan.json"), '{"slug":"g1"}\n');
+  r = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(r.code, 0, r.output);
+  const ledgerB = readFileSync(join(m.dirB, "ledger.jsonl"), "utf8");
+  assert.ok(ledgerB.includes('"A1"') && ledgerB.includes('"B1"'), ledgerB);
+  assert.equal(git(m.b, "status", "--porcelain"), "");
+
+  r = runStateCli(["sync"], m.co, envFor(m.a));
+  assert.equal(r.code, 0, r.output);
+  assert.ok(readFileSync(join(m.dirA, "ledger.jsonl"), "utf8").includes('"B1"'));
+  assert.equal(readFileSync(join(m.dirA, "goalplans", "g1", "goalplan.json"), "utf8"), '{"slug":"g1"}\n');
+  assert.equal(existsSync(join(m.a, ".cxc-sync.lock")), false);
+  assert.equal(git(m.a, "ls-files", ".cxc-sync.lock"), "");
+});
+
+test("sync stops before moving the branch when a goalplan is locked or a non-ledger file differs", () => {
+  const m = twoMachines();
+  mkdirSync(join(m.dirA, "goalplans", "g1"), { recursive: true });
+  writeFileSync(join(m.dirA, "goalplans", "g1", "goalplan.json"), '{"v":1}\n');
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.b)).code, 0);
+  writeFileSync(join(m.dirA, "goalplans", "g1", "goalplan.json"), '{"v":2}\n');
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+
+  mkdirSync(join(m.dirB, "goalplans", "g1", ".goalplan.lock"));
+  const before = git(m.b, "rev-parse", "HEAD");
+  const r = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(r.code, 1, r.output);
+  assert.match(r.output, /locked by a writer/);
+  assert.equal(git(m.b, "rev-parse", "HEAD"), before);
+  assert.equal(readFileSync(join(m.dirB, "goalplans", "g1", "goalplan.json"), "utf8"), '{"v":1}\n');
+
+  rmSync(join(m.dirB, "goalplans", "g1", ".goalplan.lock"), { recursive: true });
+  const ok = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(ok.code, 0, ok.output);
+  assert.equal(readFileSync(join(m.dirB, "goalplans", "g1", "goalplan.json"), "utf8"), '{"v":2}\n');
+});
+
+test("migrate: dry run changes nothing; apply moves, merges jsonl, keeps conflicts, skips tracked and symlinks; rerun is a no-op", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  const env = envFor(join(scratch, "base"));
+  const legacy = join(co, ".codexclaw");
+  mkdirSync(join(legacy, "goalplans", "g1"), { recursive: true });
+  mkdirSync(join(legacy, "evidence", "s1"), { recursive: true });
+  mkdirSync(join(legacy, "sessions"), { recursive: true });
+  writeFileSync(join(legacy, "ledger.jsonl"), '{"n":1}\n{"n":2}\n');
+  writeFileSync(join(legacy, "goalplans", "g1", "goalplan.json"), '{"receipt":".codexclaw/evidence/s1/r.json"}\n');
+  writeFileSync(join(legacy, "evidence", "s1", "r.json"), "legacy\n");
+  writeFileSync(join(legacy, "sessions", "s1.json"), JSON.stringify({ phase: "IDLE" }));
+  symlinkSync(join(co, "README.md"), join(legacy, "evidence", "s1", "link.json"));
+  mkdirSync(join(co, "devlog", "_plan", "u1"), { recursive: true });
+  writeFileSync(join(co, "devlog", "_plan", "u1", "000_plan.md"), "plan\n");
+  writeFileSync(join(co, "devlog", "tracked.md"), "t\n");
+  git(co, "add", "devlog/tracked.md");
+  git(co, "commit", "-q", "-m", "tracked devlog file");
+
+  const root = resolveStateRoot(co, env);
+  mkdirSync(join(root.durableDir, "evidence", "s1"), { recursive: true });
+  writeFileSync(join(root.durableDir, "ledger.jsonl"), '{"n":0}\n{"n":1}\n');
+  writeFileSync(join(root.durableDir, "evidence", "s1", "r.json"), "external\n");
+
+  const dry = runStateCli(["migrate"], co, env);
+  assert.equal(dry.code, 0, dry.output);
+  assert.match(dry.output, /dry run/);
+  assert.match(dry.output, /stale after migration/);
+  assert.ok(existsSync(join(legacy, "ledger.jsonl")));
+
+  writeFileSync(join(legacy, "sessions", "s1.json"), JSON.stringify({ phase: "B" }));
+  const blocked = runStateCli(["migrate", "--apply"], co, env);
+  assert.equal(blocked.code, 1);
+  assert.match(blocked.output, /mid-cycle/);
+  writeFileSync(join(legacy, "sessions", "s1.json"), JSON.stringify({ phase: "IDLE" }));
+
+  const applied = runStateCli(["migrate", "--apply"], co, env);
+  assert.equal(applied.code, 0, applied.output);
+  assert.equal(readFileSync(join(root.durableDir, "ledger.jsonl"), "utf8"), '{"n":0}\n{"n":1}\n{"n":2}\n');
+  assert.ok(existsSync(join(root.durableDir, "goalplans", "g1", "goalplan.json")));
+  assert.equal(readFileSync(join(root.durableDir, "evidence", "s1", "r.json"), "utf8"), "external\n");
+  assert.equal(readFileSync(join(legacy, "evidence", "s1", "r.json"), "utf8"), "legacy\n", "conflict keeps both");
+  assert.ok(existsSync(join(legacy, "evidence", "s1", "link.json")), "symlink left in place");
+  assert.ok(existsSync(join(root.devlogDir!, "_plan", "u1", "000_plan.md")));
+  assert.equal(existsSync(join(co, "devlog", "_plan")), false);
+  assert.ok(existsSync(join(co, "devlog", "tracked.md")), "tracked file untouched");
+  assert.ok(existsSync(join(legacy, "sessions", "s1.json")), "volatile state stays");
+  assert.equal(existsSync(join(legacy, "ledger.jsonl")), false);
+
+  const again = runStateCli(["migrate", "--apply"], co, env);
+  assert.equal(again.code, 0, again.output);
+  assert.match(again.output, /move 0, already there 0, jsonl union 0, conflicts 1/);
+});
+
+test("migrate refuses when the checkout resolves to repo mode", () => {
+  const co = checkout("git@github.com:lidge-jun/x.git");
+  const r = runStateCli(["migrate", "--apply"], co, envFor(join(scratch, "base")));
+  assert.equal(r.code, 1);
+  assert.match(r.output, /mode repo/);
+});

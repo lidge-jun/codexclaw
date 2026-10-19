@@ -22,12 +22,26 @@
  */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, dirname, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { check as inventoryCheck } from "./inventory.mjs";
 import { checkPromptArchitecture as promptArchitectureCheck } from "./check-prompt-architecture.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(HERE, "..", "..", "..");
+
+/**
+ * 261020: the devlog root comes from the state resolver (cxc devlog path). codexclaw itself
+ * resolves to repo mode, so this is <root>/devlog here; without a built dist the historical
+ * layout is assumed.
+ */
+let resolveDevlogRoot = (repoRoot) => join(repoRoot, "devlog");
+try {
+  const stateRoot = await import(pathToFileURL(join(HERE, "..", "components", "pabcd-state", "dist", "state-root.js")).href);
+  resolveDevlogRoot = (repoRoot) => stateRoot.devlogDir(repoRoot) ?? join(repoRoot, "devlog");
+} catch {
+  // dist not built yet: keep <root>/devlog
+}
+
 /**
  * Resolve the mvp_hard plan dir. It originally lived under `devlog/_plan/mvp_hard`, but
  * finished tracks may be archived to `devlog/_fin/mvp_hard`. Prefer the live `_plan`
@@ -35,9 +49,10 @@ export const REPO_ROOT = join(HERE, "..", "..", "..");
  * INDEX after a reorg, without hardcoding a single path.
  */
 function mvpHardDir(repoRoot) {
-  const planDir = join("devlog", "_plan", "mvp_hard");
+  const devlog = relative(repoRoot, resolveDevlogRoot(repoRoot)) || ".";
+  const planDir = join(devlog, "_plan", "mvp_hard");
   if (existsSync(join(repoRoot, planDir))) return planDir;
-  const finDir = join("devlog", "_fin", "mvp_hard");
+  const finDir = join(devlog, "_fin", "mvp_hard");
   if (existsSync(join(repoRoot, finDir))) return finDir;
   return planDir; // default to the live path for the "missing INDEX" violation message
 }
@@ -247,7 +262,7 @@ function walkPlanMds(dir, out) {
 
 export function checkVerifierClaims(repoRoot = REPO_ROOT) {
   const warnings = [];
-  const planDir = join(repoRoot, "devlog", "_plan");
+  const planDir = join(resolveDevlogRoot(repoRoot), "_plan");
   // `devlog/_fin/` is finished work and is deliberately out of scope.
   if (!existsSync(planDir)) return { ok: true, warnings };
   const files = [];

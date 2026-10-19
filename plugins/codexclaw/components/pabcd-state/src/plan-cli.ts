@@ -8,7 +8,8 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { DEFAULT_OWNER_ALLOWLIST, ensurePrivacyExcludes, ownerAllowed, readStateConfig, resolveStateRoot } from "./state-root.ts";
 
 export interface PlanCliArgs {
   verb: "init" | "help";
@@ -164,9 +165,10 @@ export function runPlanCli(args: PlanCliArgs): PlanCliResult {
         "  cxc plan --help",
         "",
         "Notes:",
-        "  Creates devlog/_plan/<YYMMDD>_<slug>/ with 000_plan.md plus one decade doc",
-        "  (010, 020, ...) per phase. P>A requires such a unit to exist on disk with",
-        "  numbered docs — a chat-message plan does not satisfy Plan.",
+        "  Creates <devlog>/_plan/<YYMMDD>_<slug>/ with 000_plan.md plus one decade doc",
+        "  (010, 020, ...) per phase. <devlog> is `cxc devlog path`: devlog/ in the checkout",
+        "  in repo mode, the external project devlog otherwise. P>A requires such a unit to",
+        "  exist on disk with numbered docs — a chat-message plan does not satisfy Plan.",
         "  --date is for callers that already carry their own prefix; omit it to stamp today.",
         "  init refuses to overwrite an existing unit.",
       ].join("\n"),
@@ -175,11 +177,25 @@ export function runPlanCli(args: PlanCliArgs): PlanCliResult {
   // args.date is the caller's own prefix when they passed one; only stamp today
   // when they did not (issue #30 - the doubled prefix came from stamping always).
   const unitName = `${args.date ?? yymmdd()}_${args.slug}`;
-  const unitDir = resolve(args.cwd, "devlog", "_plan", unitName);
+  // 261020: the devlog root comes from the state resolver (cxc devlog path).
+  const root = resolveStateRoot(args.cwd);
+  if (!root.devlogDir || root.disabledReason) {
+    return { output: `plan init: ${root.disabledReason ?? "devlog is disabled"}`, code: 1 };
+  }
+  const notices: string[] = root.warnings.map((w) => `warning: ${w}`);
+  if (root.mode === "repo" && root.originKey && root.owner) {
+    const cfg = readStateConfig(process.env, root.checkoutRoot);
+    const remote = { key: root.originKey, host: root.originKey.split("/")[0], owner: root.owner };
+    if (!ownerAllowed(remote, cfg.ownerAllowlist ?? DEFAULT_OWNER_ALLOWLIST)) {
+      notices.push(`warning: writing devlog/ into a repository owned by ${remote.host}/${remote.owner} (state mode repo: ${root.reason}); use CODEXCLAW_STATE_MODE=external to keep plans out of it`);
+    }
+  }
+  const unitDir = resolve(root.devlogDir, "_plan", unitName);
   if (existsSync(unitDir)) {
     return { output: `plan init: ${unitDir} already exists — refusing to overwrite. Write your docs there.`, code: 1 };
   }
   try {
+    if (root.mode === "local") ensurePrivacyExcludes(args.cwd);
     mkdirSync(unitDir, { recursive: true });
     writeFileSync(join(unitDir, "000_plan.md"), planDoc(args.slug), "utf8");
     for (let n = 1; n <= args.phases; n++) {
@@ -193,11 +209,14 @@ export function runPlanCli(args: PlanCliArgs): PlanCliResult {
   }
   // 002 B18: the old local was named `rel` while holding an absolute path, which on
   // Windows printed a full C:\Users\... line under a variable promising otherwise.
-  const shown = relative(args.cwd, unitDir) || unitDir;
+  const rel = relative(args.cwd, unitDir);
+  const shown = rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel : unitDir;
   return {
     output:
+      (notices.length > 0 ? `${notices.join("\n")}\n` : "") +
       `plan init: scaffolded ${shown} (000_plan.md + ${args.phases} phase doc(s)).\n` +
-      `Write every doc to diff-level BEFORE P -> A; the P>A gate requires planUnit to carry numbered docs.`,
+      `Write every doc to diff-level BEFORE P -> A; the P>A gate requires planUnit to carry numbered docs.` +
+      (shown === unitDir ? `\nplanUnit for P -> A: ${unitDir}` : ""),
     code: 0,
   };
 }
