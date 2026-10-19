@@ -241,15 +241,18 @@ test("review r1: sync refuses disabled roots, never applies symlink/scratch entr
   assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
   assert.equal(runStateCli(["sync"], m.co, envFor(m.b)).code, 0);
   rmSync(join(m.dirA, "goalplans", "g1", "ledger.jsonl"));
-  symlinkSync("/etc/hosts", join(m.dirA, "link"));
+  // Git for Windows commits links as plain files unless core.symlinks is on.
+  const links = process.platform !== "win32";
+  if (links) symlinkSync("/etc/hosts", join(m.dirA, "link"));
   assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
   const r = runStateCli(["sync"], m.co, envFor(m.b));
   assert.equal(r.code, 1, r.output);
   assert.match(r.output, /append-only ledger deleted on the other side/);
-  assert.match(r.output, /entry mode 120000/);
+  if (links) assert.match(r.output, /entry mode 120000/);
   assert.ok(existsSync(join(m.dirB, "goalplans", "g1", "ledger.jsonl")));
   assert.equal(existsSync(join(m.dirB, "link")), false);
 
+  mkdirSync(join(m.b, ".git", "hooks"), { recursive: true });
   writeFileSync(join(m.b, ".git", "hooks", "post-checkout"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
   const before = git(m.b, "worktree", "list").split("\n").length;
   runStateCli(["sync"], m.co, envFor(m.b));
@@ -276,6 +279,7 @@ test("review r1: sync refuses tracked scratch files and redacts credentials in g
 });
 
 test("review r1: migrate never writes through or reads through symlinks", () => {
+  if (process.platform === "win32") return; // file symlinks need a privilege the Windows runner may lack
   const co = checkout("https://github.com/acme/app.git");
   const env = envFor(join(scratch, "base"));
   mkdirSync(join(co, ".codexclaw"), { recursive: true });
