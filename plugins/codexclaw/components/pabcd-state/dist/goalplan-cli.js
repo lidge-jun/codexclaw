@@ -27,6 +27,7 @@ import {
   readyTasks,
   readyWorkPhases,
   withGoalplanWriteLock,
+  GoalplanExistsError,
   writeGoalplan,
   appendGoalplanLedger,
   validateGoalplan,
@@ -50,6 +51,7 @@ import { checkBoundSourceIdentity } from "./source-gate.js";
 import { resolveSessionSource } from "./session-source.js";
 import { parseSourceBoundReceipt } from "./source-receipt.js";
 import { applySteeringBatch } from "./steering.js";
+import { DurableStateDisabledError } from "./state-root.js";
 
 
 
@@ -735,8 +737,9 @@ export function renderGoalplanHelp()         {
     "  Mutating verbs require --session <id>; show, validate, and ready are read-only.",
     "  Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch.",
     "  Every value flag also accepts --flag=value; use it for a value that starts with --.",
-    "  The goalplan lives at <cwd>/.codexclaw/goalplans/<slug>/goalplan.json, so --cwd",
-    "  matters when the process cwd is not the workspace you are planning in.",
+    "  The goalplan lives at <durable root>/goalplans/<slug>/goalplan.json (<cwd>/.codexclaw in",
+    "  repo mode; `cxc state path` prints it), so --cwd matters when the process cwd is not",
+    "  the workspace you are planning in.",
     "  Repeat --depends-on once per prerequisite; add-task accepts only existing task ids",
     "  from the same work phase; comma-separated values are one id.",
     "  complete-task requires non-empty outcome evidence and never replaces a stored outcome.",
@@ -757,6 +760,15 @@ export function renderGoalplanHelp()         {
 }
 
 export function runGoalplanCli(args                 )                    {
+  try {
+    return runGoalplanCliInner(args);
+  } catch (err) {
+    if (err instanceof DurableStateDisabledError) return { output: `loop: ${err.message}`, code: 1 };
+    throw err;
+  }
+}
+
+function runGoalplanCliInner(args                 )                    {
   if (args.verb === "help") return { output: renderGoalplanHelp(), code: 0 };
   if (args.verb === "init") {
     const objective = (args.objective ?? "").trim();
@@ -791,7 +803,14 @@ export function runGoalplanCli(args                 )                    {
       criteria: args.criteria.map((scenario) => ({ scenario })),
       schemaVersion: args.schemaVersion,
     });
-    writeGoalplan(args.cwd, plan);
+    try {
+      writeGoalplan(args.cwd, plan, { exclusive: true });
+    } catch (err) {
+      if (err instanceof GoalplanExistsError) {
+        return { output: `loop init: a plan already exists at slug '${slug}' (use show/validate)`, code: 1 };
+      }
+      throw err;
+    }
     appendGoalplanLedger(args.cwd, slug, {
       ts: new Date().toISOString(),
       slug,

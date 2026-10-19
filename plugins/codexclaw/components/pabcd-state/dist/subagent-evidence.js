@@ -1,4 +1,5 @@
-import { ensureCodexclawDir } from "./codexclaw-dir.js";
+import { ensureDurableDir } from "./codexclaw-dir.js";
+import { durableDir, durableLabel, evidenceDir, resolveStateRoot } from "./state-root.js";
 /**
  * subagent-evidence.ts — SubagentStop evidence-receipt gate (lazygap_impl 010).
  *
@@ -46,7 +47,6 @@ import { createHash } from "node:crypto";
 import { renameWithRetry } from "./atomic-write.js";
 import {
   MAX_RECEIPT_CLAIM_LEN,
-  STATE_DIR,
   readState,
   readStateStrict,
   sanitizeKey,
@@ -83,7 +83,10 @@ const CONTEXT_PRESSURE_MARKERS = [
 ]         ;
 
 function evidenceRoot(cwd        )         {
-  return resolve(cwd, STATE_DIR, EVIDENCE_SUBDIR);
+  // 261020: the resolved DURABLE evidence root (state-root.ts); <cwd>/.codexclaw/evidence
+  // in repo/local mode. A receipt anywhere else — including the legacy in-checkout
+  // evidence dir while the mode is external — does not count.
+  return resolve(evidenceDir(cwd));
 }
 
 /**
@@ -96,8 +99,7 @@ function evidenceRoot(cwd        )         {
  */
 function attemptsPath(cwd        , sessionId        , agentId        , turnId = "")         {
   return join(
-    cwd,
-    STATE_DIR,
+    durableDir(cwd),
     EVIDENCE_ATTEMPTS_SUBDIR,
     turnId === ""
       // The absent-turn key needs the digest too: sanitizeKey is not injective, so
@@ -148,9 +150,28 @@ function realPathSafe(p        )         {
 }
 
 /**
- * The receipt must resolve INSIDE `.codexclaw/evidence/`, be a real (non-symlink) file,
- * and be non-empty. Resolves both the lexical path and the realpath to defeat symlink
- * escape. Any failure fails open by returning false (treated as "no valid receipt").
+ * 261020: no symlink anywhere from the evidence root down to the receipt — the root itself,
+ * every intermediate directory, and the leaf. The realpath containment check below already
+ * stops escapes; this also refuses links that stay inside the root, so the durable evidence
+ * tree is made of real files only.
+ */
+export function hasSymlinkComponent(root        , file        )          {
+  if (lstatSync(root).isSymbolicLink()) return true;
+  const rel = relative(root, file);
+  let cur = root;
+  for (const part of rel.split(/[\\/]+/)) {
+    if (part === "") continue;
+    cur = join(cur, part);
+    if (lstatSync(cur).isSymbolicLink()) return true;
+  }
+  return false;
+}
+
+/**
+ * The receipt must resolve INSIDE the resolved durable evidence root (`.codexclaw/evidence/`
+ * in repo/local mode), contain no symlink component below that root, and be a non-empty
+ * regular file. Resolves both the lexical path and the realpath to defeat symlink escape.
+ * Any failure returns false (treated as "no valid receipt").
  */
 export function hasValidReceipt(cwd        , receiptPath        )          {
   try {
@@ -158,8 +179,8 @@ export function hasValidReceipt(cwd        , receiptPath        )          {
     const resolved = isAbsolute(receiptPath) ? resolve(receiptPath) : resolve(cwd, receiptPath);
     if (!isPathInsideDirectory(resolved, root)) return false;
     if (!existsSync(resolved)) return false;
-    // symlink rejection (lstat the lexical path before following).
-    if (lstatSync(resolved).isSymbolicLink()) return false;
+    // symlink rejection: root, intermediate dirs and leaf (lstat before following).
+    if (hasSymlinkComponent(root, resolved)) return false;
     // realpath guard: the real file must still sit inside the real evidence root.
     const realRoot = realPathSafe(root);
     const realFile = realPathSafe(resolved);
@@ -216,8 +237,7 @@ export function readAttempts(cwd        , sessionId        , agentId        , tu
 export function writeAttempts(cwd        , sessionId        , agentId        , attempts        , turnId = "")          {
   try {
     const p = attemptsPath(cwd, sessionId, agentId, turnId);
-    ensureCodexclawDir(cwd);
-    mkdirSync(join(cwd, STATE_DIR, EVIDENCE_ATTEMPTS_SUBDIR), { recursive: true });
+    mkdirSync(join(ensureDurableDir(cwd), EVIDENCE_ATTEMPTS_SUBDIR), { recursive: true });
     const tmp = `${p}.${process.pid}.${Date.now()}.tmp`;
     writeFileSync(tmp, `${JSON.stringify({ attempts })}\n`);
     renameWithRetry(tmp, p);
@@ -326,7 +346,7 @@ export function recordTombstone(cwd        , sessionId        , payload         
 export const EVIDENCE_UNRECORDABLE_SUBDIR = "evidence-unrecordable";
 
 function unrecordableDir(cwd        )         {
-  return join(cwd, STATE_DIR, EVIDENCE_UNRECORDABLE_SUBDIR);
+  return join(durableDir(cwd), EVIDENCE_UNRECORDABLE_SUBDIR);
 }
 
 /**
@@ -338,7 +358,7 @@ function unrecordableDir(cwd        )         {
  */
 export function writeUnrecordableMarker(cwd        , sessionId        , agentId        )       {
   const dir = unrecordableDir(cwd);
-  ensureCodexclawDir(cwd);
+  ensureDurableDir(cwd);
   mkdirSync(dir, { recursive: true });
   const p = join(dir, `${sanitizeKey(sessionId)}-${sanitizeKey(agentId)}-${Date.now()}.json`);
   writeFileSync(p, `${JSON.stringify({ sessionId, agentId, at: new Date().toISOString() })}\n`, { flag: "wx" });
@@ -354,7 +374,7 @@ export function writeUnrecordableMarker(cwd        , sessionId        , agentId 
 function markerDirWritable(cwd        )          {
   const probe = join(unrecordableDir(cwd), `.probe-${process.pid}-${Date.now()}`);
   try {
-    ensureCodexclawDir(cwd);
+    ensureDurableDir(cwd);
     mkdirSync(unrecordableDir(cwd), { recursive: true });
     writeFileSync(probe, "", { flag: "wx" });
     rmSync(probe, { force: true });
@@ -372,6 +392,10 @@ function markerDirWritable(cwd        )          {
  * which is the same fail-open in a new place. Only ENOENT is a genuine absence.
  */
 export function unrecordableVerdictStatus(cwd        , sessionId        )                                            {
+  // 261020 (004 #10): in state mode none the operator disabled durable state on purpose.
+  // There is no marker directory to trust or distrust; unverified subagents remain
+  // tracked in the session file, which GOAL-COMPLETE-GATE-01 reads first.
+  if (resolveStateRoot(cwd).mode === "none") return { present: false, unreadable: false };
   try {
     const prefix = `${sanitizeKey(sessionId)}-`;
     const present = readdirSync(unrecordableDir(cwd)).some((n) => n.startsWith(prefix));
@@ -404,7 +428,8 @@ export function unrecordableVerdictStatus(cwd        , sessionId        )       
  * historical verdict would otherwise be lost.
  */
 export function hasSpentBudget(cwd        , sessionId        )          {
-  const dir = join(cwd, STATE_DIR, EVIDENCE_ATTEMPTS_SUBDIR);
+  if (resolveStateRoot(cwd).mode === "none") return false;
+  const dir = join(durableDir(cwd), EVIDENCE_ATTEMPTS_SUBDIR);
   const prefix = `${sanitizeKey(sessionId)}-`;
   let names          ;
   try {
@@ -446,12 +471,12 @@ export function resolveTombstone(cwd        , sessionId        , payload        
   }
 }
 
-function verifierDirective(attempt        )         {
+function verifierDirective(attempt        , evidenceAt = ".codexclaw/evidence/")         {
   return [
     "Your completion is unverified — no evidence receipt was recorded.",
     `This is attempt ${attempt} of ${MAX_ATTEMPTS}.`,
     "Actually run the relevant checks (build/tests/commands), write the output and your",
-    "judgement to a file under `.codexclaw/evidence/`, and make the LAST line of your reply",
+    `judgement to a file under \`${evidenceAt}\`, and make the LAST line of your reply`,
     "exactly `EVIDENCE_RECORDED: <path>` pointing at that file. Do not claim done without it.",
     // The read-only trap, named at attempt 1 instead of after 3 confusing retries.
     "If you were dispatched READ-ONLY and cannot write there, say so plainly in your final",
@@ -460,10 +485,10 @@ function verifierDirective(attempt        )         {
   ].join(" ");
 }
 
-export function escalationDirective()         {
+export function escalationDirective(evidenceAt = ".codexclaw/evidence/")         {
   return [
     `Evidence verification failed ${MAX_ATTEMPTS} times and is now fail-closed.`,
-    "Do not claim completion. Record the actual validation under `.codexclaw/evidence/`",
+    `Do not claim completion. Record the actual validation under \`${evidenceAt}\``,
     "and finish with `EVIDENCE_RECORDED: <path>`. If validation cannot run, record",
     "the blocker and diagnostics in that receipt so the parent can decide safely.",
   ].join(" ");
@@ -517,7 +542,7 @@ export function runSubagentStopGate(payload                     )         {
       recordTombstone(cwd, sessionId, payload, attempts);
       return "";
     }
-    return JSON.stringify({ decision: "block", reason: verifierDirective(next) });
+    return JSON.stringify({ decision: "block", reason: verifierDirective(next, durableLabel(cwd, EVIDENCE_SUBDIR) + "/") });
   } catch {
     // An internal error must not become an infinite block: the child cannot fix our
     // IO. Release and let the parent-side gate carry the verdict.
