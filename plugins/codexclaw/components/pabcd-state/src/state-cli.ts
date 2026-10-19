@@ -523,15 +523,22 @@ interface TrackedIndex { top: string; rels: Set<string>; ids: Set<string> }
  * tracked files (#299); identity also covers case and NFC/NFD spellings.
  */
 function trackedSet(cwd: string, env: NodeJS.ProcessEnv): TrackedIndex | null {
-  const r = gitIn(cwd, env, ["ls-files", "-z", "--full-name", "--", ".codexclaw", "devlog"]);
   const top = gitIn(cwd, env, ["rev-parse", "--show-toplevel"]);
   const rels = new Set<string>();
   const ids = new Set<string>();
   if (top.status !== 0) return { top: "", rels, ids }; // not a git checkout: nothing can be tracked
+  // List the whole index from the top-level: a pathspec ("devlog") is matched case-sensitively,
+  // so a tracked "Devlog/x.md" reached as devlog/x.md on a case-insensitive filesystem would be
+  // missed (#299 r2). Only entries whose folded key falls under the migration sources are kept.
+  const r = gitIn(top.stdout, env, ["ls-files", "-z"]);
   if (r.status !== 0) return null; // a git checkout whose index cannot be read: refuse
+  const cwdRel = relative(comparablePath(top.stdout), comparablePath(cwd)).split(sep).join("/");
+  const prefixes = [".codexclaw/", "devlog/"].map((p) => looseRelKey(cwdRel === "" ? p : cwdRel + "/" + p));
   for (const rel of r.buf.toString("utf8").split("\0")) {
     if (!rel) continue;
-    rels.add(looseRelKey(rel));
+    const key = looseRelKey(rel);
+    if (!prefixes.some((p) => key.startsWith(p))) continue;
+    rels.add(key);
     const id = fileIdentity(join(top.stdout, ...rel.split("/")));
     if (id) ids.add(id);
   }

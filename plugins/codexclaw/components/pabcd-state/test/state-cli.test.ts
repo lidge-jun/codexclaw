@@ -450,3 +450,19 @@ test("#299 r1: tracked files survive migrate across case, NFC/NFD and literal-ba
     assert.equal((readdirSync(join(co, "devlog")) as string[]).length, 1, indexName + ": tracked file left in place");
   }
 });
+
+test("#299 r2: a tracked directory spelled with different case (Devlog/, .Codexclaw/) is never moved", () => {
+  if (process.platform !== "darwin") return; // needs a case-insensitive filesystem
+  const env = envFor(join(scratch, "base"));
+  for (const [dir, file] of [["Devlog", "tracked.md"], [".Codexclaw", "ledger.jsonl"]]) {
+    const co = checkout("https://github.com/acme/app.git");
+    mkdirSync(join(co, dir), { recursive: true });
+    writeFileSync(join(co, dir, file), '{"n":1}\n');
+    git(co, "add", "-f", dir);
+    git(co, "commit", "-q", "-m", "tracked " + dir);
+    const r = runStateCli(["migrate", "--apply"], co, env);
+    assert.equal(r.code, 0, r.output);
+    assert.ok(existsSync(join(co, dir, file)), dir + "/" + file + " left in place");
+    assert.equal(git(co, "status", "--porcelain"), "", dir);
+  }
+});
