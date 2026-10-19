@@ -138,7 +138,7 @@ test("worktrees of one repository share the external root, and it survives remov
   clearStateRootCache();
   const a = resolveStateRoot(main);
   const b = resolveStateRoot(wt);
-  assert.equal(readGitInfo(wt)!.commonDir, join(main, ".git"));
+  assert.equal(realpathSync.native(readGitInfo(wt)!.commonDir), realpathSync.native(join(main, ".git")));
   assert.equal(a.projectId, b.projectId);
   assert.equal(a.durableDir, b.durableDir);
   appendLedger(wt, { ts: "t", sessionId: "s1", from: "IDLE", to: "P", reason: "test" } as never);
