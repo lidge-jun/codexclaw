@@ -397,3 +397,32 @@ test("review r5: a remote update to a binary file is never mistaken for 'same co
   assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v1), "local copy untouched");
   assert.equal(git(m.remote, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/db.sqlite").length > 0, true);
 });
+
+test("#299: migrate skips tracked files even when the checkout is reached through another spelling of its path", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  mkdirSync(join(co, "devlog"), { recursive: true });
+  writeFileSync(join(co, "devlog", "tracked.md"), "t\n");
+  writeFileSync(join(co, "devlog", "free.md"), "f\n");
+  git(co, "add", "devlog/tracked.md");
+  git(co, "commit", "-q", "-m", "tracked");
+  let via = co;
+  if (process.platform !== "win32") {
+    via = join(scratch, "alias");
+    symlinkSync(co, via);
+  }
+  const env = envFor(join(scratch, "base"));
+  const r = runStateCli(["migrate", "--apply"], via + (process.platform === "win32" ? "\\" : "/"), env);
+  assert.equal(r.code, 0, r.output);
+  assert.ok(existsSync(join(co, "devlog", "tracked.md")), "tracked file untouched");
+  assert.equal(existsSync(join(co, "devlog", "free.md")), false, "untracked file moved");
+  assert.match(r.output, /skipped tracked 1/);
+});
+
+test("#299: comparablePath folds case and separators on win32 only", async () => {
+  const { comparablePath } = await import("../src/state-cli.ts");
+  const p = join(scratch, "MixedCase");
+  mkdirSync(p);
+  assert.equal(comparablePath(p, "win32"), comparablePath(p, "linux").toLowerCase());
+  assert.ok(!comparablePath(p, "win32").includes("\\"));
+  assert.equal(comparablePath(p + "/", "linux"), comparablePath(p, "linux"));
+});
