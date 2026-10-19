@@ -315,3 +315,30 @@ test("review r2: sync refuses a symlinked .gitignore or .gitattributes in the ba
   assert.equal(readFileSync(victim, "utf8"), "keep\n");
   assert.equal(existsSync(join(m.a, ".cxc-sync.lock")), false);
 });
+
+test("review r2: CRLF checkouts of a ledger do not duplicate events, and scratch files are never staged", () => {
+  const m = twoMachines();
+  git(m.b, "config", "core.autocrlf", "true");
+  mkdirSync(m.dirA, { recursive: true });
+  appendFileSync(join(m.dirA, "ledger.jsonl"), '{"n":1}\n');
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.b)).code, 0);
+  appendFileSync(join(m.dirB, "ledger.jsonl"), '{"n":3}\n');
+  appendFileSync(join(m.dirA, "ledger.jsonl"), '{"n":2}\n');
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  const r = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(r.code, 0, r.output);
+  const lines = readFileSync(join(m.dirB, "ledger.jsonl"), "utf8").split(/\r?\n/).filter(Boolean).sort();
+  assert.deepEqual(lines, ['{"n":1}', '{"n":2}', '{"n":3}']);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  const linesA = readFileSync(join(m.dirA, "ledger.jsonl"), "utf8").split(/\r?\n/).filter(Boolean).sort();
+  assert.deepEqual(linesA, ['{"n":1}', '{"n":2}', '{"n":3}']);
+
+  writeFileSync(join(m.a, ".gitignore"), "");
+  mkdirSync(join(m.dirA, ".probe-x"), { recursive: true });
+  writeFileSync(join(m.dirA, ".probe-x", "f"), "x");
+  writeFileSync(join(m.dirA, "x.json.123.tmp"), "x");
+  const s = runStateCli(["sync"], m.co, envFor(m.a));
+  assert.equal(s.code, 0, s.output);
+  assert.equal(git(m.a, "ls-files", "--", "*.tmp", "*.probe-x*", ".cxc-sync.lock"), "");
+});
