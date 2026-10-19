@@ -29,9 +29,11 @@ const SYNC_LOCK = ".cxc-sync.lock";
 const MIGRATE_LOCK = ".migrate.lock";
 const GOALPLAN_LOCK_DIR = ".goalplan.lock";
 const BASE_GITIGNORE = [SYNC_LOCK, MIGRATE_LOCK, "*.tmp", GOALPLAN_LOCK_DIR + "/", ".probe-*"];
-// Text is stored with LF whatever a machine's core.autocrlf says, so a CRLF checkout never
-// commits a line-ending-only change (which union merge would turn into duplicate events).
-const BASE_GITATTRIBUTES = ["* text=auto eol=lf", "*.jsonl merge=union"];
+// Bytes are stored exactly as written ("* -text": evidence such as screenshots or PDFs must never
+// be rewritten). Only the files codexclaw itself writes as LF text are normalized, so a checkout
+// with core.autocrlf never commits a line-ending-only change to a ledger (which union merge would
+// turn into duplicate events) or a goalplan.
+const BASE_GITATTRIBUTES = ["* -text", "*.jsonl text eol=lf merge=union", "goalplan.json text eol=lf"];
 
 /** Lock and scratch paths that must never be committed, merged in, or applied. */
 export function isScratchPath(rel        )          {
