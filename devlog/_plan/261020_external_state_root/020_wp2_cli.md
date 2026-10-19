@@ -38,3 +38,17 @@ Drafted during the wp1 review wait and re-checked against 020 + 006/007:
 - `scripts/gate.mjs`: devlog root via the built resolver (fallback `<root>/devlog`).
 - Deviation: the hook P directive's example `planUnit` text stays static (`devlog/_plan/YYMMDD_slug`); in external mode the P>A refusal names the resolved path and `plan init` prints the exact planUnit.
 - Tests: `test/state-cli.test.ts` (8): path/devlog output, plan init → P>A with the absolute unit and a clean `git status`, repo-mode warning, sync no-op cases (non-external, non-git base, base nested in another repo), two-clone divergent sync with union merge and create-only arrival, goalplan lock stops the sync without moving the branch, migrate dry-run/apply/rerun/conflict/tracked/symlink/mid-cycle, migrate refused in repo mode.
+
+
+## B notes (2026-10-20)
+
+- Rebased onto origin/dev 94eb2ec6 after PR #295 was squash-merged; the CLI commit was cherry-picked, nothing from the pre-squash history is reused.
+- Windows CI on #295 (after merge) showed two worktrees of one repo resolving to different ids when the temp path used an 8.3 short name; `realpathLoose` and the config/exclude realpaths now use `realpathSync.native`. Shipped in this PR.
+- `gate.mjs` exports `devlogRootFor`/`mvpHardPathFor`; `test/gate-state-root.test.mjs` proves the gate reads an external devlog and the checkout stays clean.
+- Review round 1 (code + data-integrity, gpt-6.1-sol) found 4 + 9 issues; all folded: migrate checks symlinks on source and destination paths and refuses when `git ls-files` fails; sync refuses a disabled root, checks `git add`, keeps the temp worktree path for cleanup on failure, applies only regular-file modes (`--raw`), never applies lock/scratch paths or ledger deletions, writes goalplan tmp files `wx`, refuses any tracked lock/scratch file, and redacts URL credentials in git errors. Regression tests in `state-cli.test.ts`.
+
+User-facing migration for an existing enterprise checkout (README and structure/80):
+
+    cxc state path              # expect "mode: external"
+    cxc state migrate           # dry run
+    cxc state migrate --apply

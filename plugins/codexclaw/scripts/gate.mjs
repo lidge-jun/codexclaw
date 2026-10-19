@@ -42,6 +42,16 @@ try {
   // dist not built yet: keep <root>/devlog
 }
 
+/** The devlog root the gate reads for a repository (exported for the external-mode test). */
+export function devlogRootFor(repoRoot) {
+  return resolveDevlogRoot(repoRoot);
+}
+
+/** The mvp_hard dir the gate validates, as an absolute path. */
+export function mvpHardPathFor(repoRoot) {
+  return join(repoRoot, mvpHardDir(repoRoot));
+}
+
 /**
  * Resolve the mvp_hard plan dir. It originally lived under `devlog/_plan/mvp_hard`, but
  * finished tracks may be archived to `devlog/_fin/mvp_hard`. Prefer the live `_plan`
