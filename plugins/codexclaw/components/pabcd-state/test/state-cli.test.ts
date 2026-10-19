@@ -389,7 +389,7 @@ test("review r4: evidence bytes (CRLF inside a binary without NUL) survive a syn
   assert.ok(Buffer.from(git(m.a, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/shot.pdf"), "latin1").length > 0);
 });
 
-test("review r5: a remote update to a binary file is never mistaken for 'same content'", () => {
+test("review r5 / #302: a remote binary update is applied when the local copy is untouched, and conflicts when it was edited", () => {
   const m = twoMachines();
   mkdirSync(join(m.dirA, "evidence", "s1"), { recursive: true });
   const v1 = Buffer.from([0x53, 0x51, 0xff, 0x0d, 0x0a, 0x01]);
@@ -400,10 +400,18 @@ test("review r5: a remote update to a binary file is never mistaken for 'same co
   writeFileSync(join(m.dirA, "evidence", "s1", "db.sqlite"), v2);
   assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
   const r = runStateCli(["sync"], m.co, envFor(m.b));
-  assert.equal(r.code, 1, r.output);
-  assert.match(r.output, /db\.sqlite \(modified on the other side/);
-  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v1), "local copy untouched");
-  assert.equal(git(m.remote, "cat-file", "-p", "HEAD:" + m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/db.sqlite").length > 0, true);
+  assert.equal(r.code, 0, r.output);
+  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v2), "remote edit applied byte-exact");
+
+  // Now both sides edit: B's local edit must survive and be reported.
+  const v3 = Buffer.from([0x53, 0x51, 0xfd, 0x0d, 0x0a, 0x01]);
+  const v4 = Buffer.from([0x53, 0x51, 0xfc, 0x0d, 0x0a, 0x01]);
+  writeFileSync(join(m.dirA, "evidence", "s1", "db.sqlite"), v3);
+  assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
+  writeFileSync(join(m.dirB, "evidence", "s1", "db.sqlite"), v4);
+  const c = runStateCli(["sync"], m.co, envFor(m.b));
+  assert.equal(c.code, 1, c.output);
+  assert.ok(readFileSync(join(m.dirB, "evidence", "s1", "db.sqlite")).equals(v4), "local edit kept");
 });
 
 test("#299: migrate skips tracked files even when the checkout is reached through another spelling of its path", () => {
@@ -508,17 +516,22 @@ test("#302 review: real CR edits (partial insertion, binary) are committed, neve
     const bin = Buffer.from([0x00, 0x41, 0x0a, 0x42, 0x0a]);
     writeFileSync(join(m.dirA, "evidence", "s1", "t.txt"), text);
     writeFileSync(join(m.dirA, "evidence", "s1", "b.bin"), bin);
+    writeFileSync(join(m.dirA, "evidence", "s1", "full.txt"), text);
     assert.equal(runStateCli(["sync"], m.co, envFor(m.a)).code, 0);
     const partial = Buffer.from("a\r\nb\nc\n");
     const binEdit = Buffer.from([0x00, 0x41, 0x0d, 0x0a, 0x42, 0x0a]);
+    // Every LF turned into CRLF by a tool, not by a git checkout: still a real edit.
+    const full = Buffer.from("a\r\nb\r\nc\r\n");
     writeFileSync(join(m.dirA, "evidence", "s1", "t.txt"), partial);
     writeFileSync(join(m.dirA, "evidence", "s1", "b.bin"), binEdit);
+    writeFileSync(join(m.dirA, "evidence", "s1", "full.txt"), full);
     const r = runStateCli(["sync"], m.co, envFor(m.a));
     assert.equal(r.code, 0, r.output);
     const rel = m.dirA.slice(m.a.length + 1).split("\\").join("/") + "/evidence/s1/";
     const show = (f: string) => spawnSync("git", ["-C", m.remote, "cat-file", "blob", "HEAD:" + rel + f]).stdout as Buffer;
     assert.ok(show("t.txt").equals(partial), "partial CR edit committed (autocrlf=" + autocrlf + ")");
     assert.ok(show("b.bin").equals(binEdit), "binary CR edit committed (autocrlf=" + autocrlf + ")");
+    assert.ok(show("full.txt").equals(full), "whole-file CRLF rewrite committed (autocrlf=" + autocrlf + ")");
   }
 });
 }

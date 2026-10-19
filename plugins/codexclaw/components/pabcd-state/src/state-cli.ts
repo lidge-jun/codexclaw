@@ -256,36 +256,14 @@ function stripCrlf(buf: Buffer): Buffer {
   return out.subarray(0, n);
 }
 
-/**
- * Set per sync run: true only when the base's own git config has core.autocrlf=true, i.e. a
- * checkout could have written CRLF copies of LF blobs. Everywhere else comparisons are exact.
- */
-let autocrlfCheckouts = false;
-
-/**
- * Live bytes that are exactly what git's core.autocrlf=true checkout writes for the blob:
- * the blob looks like text to git (no NUL in its first 8000 bytes, no CR at all) and EVERY
- * LF became CRLF. A partial CR insertion, a binary, or a base without autocrlf never matches,
- * so a real edit is never folded away (#302 review).
- */
-function isCheckoutEolArtifact(live: Buffer, blob: Buffer): boolean {
-  if (!autocrlfCheckouts) return false;
-  if (blob.includes(0x0d) || blob.subarray(0, 8000).includes(0x00)) return false;
-  let lf = 0;
-  for (const b of blob) if (b === 0x0a) lf += 1;
-  let cr = 0;
-  for (const b of live) if (b === 0x0d) cr += 1;
-  return lf > 0 && cr === lf && live.length === blob.length + lf && stripCrlf(live).equals(blob);
-}
-
 function sameBytes(path: string, data: Buffer | null, lfText = false): boolean {
   if (!existsSync(path)) return data === null;
   if (data === null) return false;
   const live = readFileSync(path);
   if (live.equals(data)) return true;
   // Ledgers and goalplans that differ only by CRLF (an autocrlf checkout) are the same
-  // content; any other file only when the live copy is the blob's autocrlf checkout.
-  return (lfText && stripCrlf(live).equals(stripCrlf(data))) || isCheckoutEolArtifact(live, data);
+  // content; every other file is compared byte for byte.
+  return lfText && stripCrlf(live).equals(stripCrlf(data));
 }
 
 function blobAt(base: string, env: NodeJS.ProcessEnv, rev: string, rel: string): Buffer | null {
@@ -375,7 +353,35 @@ function applyMerge(base: string, env: NodeJS.ProcessEnv, snapshot: string, merg
       else if (!sameBytes(live, mergedBlob)) out.conflicts.push(rel + " (appeared here during the sync)");
       continue;
     }
-    out.conflicts.push(rel + " (" + (status === "D" ? "deleted" : "modified") + " on the other side; only jsonl ledgers, new files and goalplans are applied automatically)");
+    // A file edited or deleted on the other machine (a devlog doc, a re-recorded receipt, or a
+    // line-ending-only commit from an autocrlf checkout) is applied only when this copy is still
+    // byte-for-byte the snapshot, re-checked immediately before the swap; any local difference
+    // is a conflict and nothing is written (#302).
+    if (!sameBytes(live, snapBlob)) {
+      out.conflicts.push(rel + " (" + (status === "D" ? "deleted" : "modified") + " on the other side and changed here too)");
+      continue;
+    }
+    if (mergedBlob === null) {
+      if (sameBytes(live, snapBlob)) {
+        unlinkSync(live);
+        out.removed += 1;
+      } else {
+        out.conflicts.push(rel + " (changed here during the sync)");
+      }
+      continue;
+    }
+    const tmp = live + "." + process.pid + "." + Date.now() + ".sync.tmp";
+    try {
+      writeFileSync(tmp, mergedBlob, { mode: 0o600, flag: "wx" });
+      if (sameBytes(live, snapBlob)) {
+        renameSync(tmp, live);
+        out.replaced += 1;
+      } else {
+        out.conflicts.push(rel + " (changed here during the sync)");
+      }
+    } finally {
+      rmSync(tmp, { force: true });
+    }
   }
   return out;
 }
@@ -416,7 +422,6 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
   }
   let tmpWorktree: string | null = null;
   const lines: string[] = ["state sync in " + base];
-  autocrlfCheckouts = gitIn(base, env, ["config", "--get", "core.autocrlf"]).stdout.toLowerCase() === "true";
   try {
     try {
       if (ensureLines(join(base, ".gitignore"), BASE_GITIGNORE, "# codexclaw state sync: never commit locks or scratch files")) lines.push("wrote .gitignore entries");
@@ -443,20 +448,10 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
       // Belt and braces: whatever the ignore files say, a lock or scratch path never
       // gets committed. Unstaging touches only the index, never history or files.
       const names = gitIn(base, env, ["diff", "--cached", "--name-only", "-z"]);
-      const staged = names.buf.toString("utf8").split("\0").filter((p) => p.length > 0);
-      const scratch = staged.filter((p) => isScratchPath(p));
-      // A file whose only change is the CRLF an autocrlf checkout wrote (seen once "* -text"
-      // takes effect in a base cloned before it) is not a change; committing it would make
-      // the next merge report the file as modified on the other side.
-      for (const p of staged) {
-        if (isScratchPath(p)) continue;
-        const blob = blobAt(base, env, "HEAD", p);
-        const livePath = join(base, ...p.split("/"));
-        if (blob && existsSync(livePath) && isCheckoutEolArtifact(readFileSync(livePath), blob)) scratch.push(p);
-      }
+      const scratch = names.buf.toString("utf8").split("\0").filter((p) => p && isScratchPath(p));
       if (scratch.length > 0) {
         const reset = gitIn(base, env, ["reset", "-q", "--", ...scratch]);
-        if (reset.status !== 0) return "could not unstage lock/scratch or line-ending-only files: " + reset.stderr;
+        if (reset.status !== 0) return "could not unstage lock/scratch files: " + reset.stderr;
       }
       return null;
     };
@@ -491,7 +486,7 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
       }
       const merged = gitIn(tmpWorktree, env, ["rev-parse", "HEAD"]).stdout;
       const applied = applyMerge(base, env, snapshot, merged);
-      lines.push("applied remote changes: " + applied.appended + " ledger line(s) appended, " + applied.created + " file(s) created, " + applied.replaced + " goalplan file(s) replaced, " + applied.removed + " removed");
+      lines.push("applied remote changes: " + applied.appended + " ledger line(s) appended, " + applied.created + " file(s) created, " + applied.replaced + " file(s) replaced, " + applied.removed + " removed");
       if (applied.conflicts.length > 0) {
         return { code: 1, output: [...lines, "stopped before moving the branch; conflicts:", ...applied.conflicts.map((c) => "  - " + c), "Nothing was overwritten. Resolve these paths by hand, then rerun."].join("\n") };
       }
@@ -512,7 +507,6 @@ export function runStateSync(cwd: string, env: NodeJS.ProcessEnv, dryRun: boolea
     }
     return { code: 0, output: lines.join("\n") };
   } finally {
-    autocrlfCheckouts = false;
     if (tmpWorktree) {
       gitIn(base, env, ["worktree", "remove", "--force", tmpWorktree]);
       gitIn(base, env, ["worktree", "prune"]);
