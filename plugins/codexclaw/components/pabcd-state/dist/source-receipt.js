@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { hasSymlinkComponent, hasValidReceipt } from "./subagent-evidence.js";
-import { durableLabel, evidenceDir } from "./state-root.js";
+import { durableLabel, evidenceDir, resolveStateRoot } from "./state-root.js";
 
 
 
@@ -99,6 +99,8 @@ function criterionIdsValid(ids         )                  {
 
 function parseArtifactManifest(raw         , receiptPath        , cwd        )                                  {
   if (!Array.isArray(raw) || raw.length === 0) return { error: "artifactManifest must be a non-empty array" };
+  const stateRoot = resolveStateRoot(cwd);
+  if (stateRoot.disabledReason) return { error: `artifactManifest evidence root is disabled: ${stateRoot.disabledReason}` };
   const root = resolve(evidenceDir(cwd));
   let rootReal        ;
   try { rootReal = realpathSync(root); }

@@ -175,6 +175,9 @@ export function hasSymlinkComponent(root        , file        )          {
  */
 export function hasValidReceipt(cwd        , receiptPath        )          {
   try {
+    // 261020: a disabled durable root (mode none, symlinked or in-checkout external root)
+    // has no trustworthy evidence directory at all.
+    if (resolveStateRoot(cwd).disabledReason !== null) return false;
     const root = evidenceRoot(cwd);
     const resolved = isAbsolute(receiptPath) ? resolve(receiptPath) : resolve(cwd, receiptPath);
     if (!isPathInsideDirectory(resolved, root)) return false;

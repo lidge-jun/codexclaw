@@ -1,6 +1,6 @@
-import { lstatSync, mkdirSync, rmdirSync, writeFileSync } from "node:fs";
+import { closeSync, constants as fsConstants, lstatSync, mkdirSync, openSync, rmdirSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
-import { DurableStateDisabledError, ensurePrivacyExcludes, resolveStateRoot } from "./state-root.js";
+import { DurableStateDisabledError, ensurePrivacyExcludes, isInside, realpathLoose, resolveStateRoot } from "./state-root.js";
 
 export const GITIGNORE_TEXT = "# CodexClaw wrote this when it created .codexclaw; everything here is local runtime state.\n*\n!.gitignore\n!rules/\n!rules/*.md\n";
 /** Written instead of GITIGNORE_TEXT when the state mode keeps codexclaw out of git (local/external/none). */
@@ -50,18 +50,33 @@ export function ensureDurableDir(cwd        , env                    = process.e
     return root.durableDir;
   }
   mkdirSync(root.durableDir, { recursive: true, mode: 0o700 });
-  for (const p of [root.projectDir, root.durableDir]) {
-    if (lstatSync(p).isSymbolicLink()) throw new DurableStateDisabledError("external state path " + p + " is a symlink");
-  }
+  const verify = ()       => {
+    for (const p of [root.projectDir          , root.durableDir]) {
+      if (lstatSync(p).isSymbolicLink()) throw new DurableStateDisabledError("external state path " + p + " is a symlink");
+      if (isInside(realpathLoose(p), realpathLoose(root.checkoutRoot))) {
+        throw new DurableStateDisabledError("external state path " + p + " resolves inside the checkout");
+      }
+    }
+  };
+  verify();
   try {
-    writeFileSync(
+    const noFollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
+    const fd = openSync(
       join(root.projectDir, "project.json"),
-      JSON.stringify({ schema: 1, projectId: root.projectId, origin: root.originKey }, null, 2) + "\n",
-      { flag: "wx", mode: 0o600 },
+      fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY | noFollow,
+      0o600,
     );
+    try {
+      writeSync(fd, JSON.stringify({ schema: 1, projectId: root.projectId, origin: root.originKey }, null, 2) + "\n");
+    } finally {
+      closeSync(fd);
+    }
   } catch (err) {
     if ((err                         )?.code !== "EEXIST") throw err;
   }
+  // Re-check after the writes: a directory swapped for a link between the first check and
+  // here is reported instead of trusted (same-user race; residual documented in 010).
+  verify();
   ensurePrivacyExcludes(cwd, env);
   return root.durableDir;
 }
