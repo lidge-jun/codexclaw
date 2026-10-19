@@ -6,6 +6,8 @@
 - `.codexclaw/ledger.jsonl` — append-only audit trail of transitions.
 - `.codexclaw/interviews/<sessionId>.jsonl` — shipped append-only Interview Q/A capture (and scan-evidence) ledger, written by the PostToolUse `request_user_input` hook.
 
+Sessions stay in the checkout. Ledger, interviews, goalplans and evidence use the durable directory shown by `cxc state path`; plan units use `cxc devlog path`. Durable writes are disabled in none mode.
+
 ### Chat Surface
 
 The chat command grammar is:
@@ -63,7 +65,7 @@ edge — including ungated entry edges — before `did`, `planUnit`, or
 |------|---------------------|-------|
 | IDLE->P | none — pass no `--attest` at all | If you pass one anyway it is still parsed, so it still needs `from`/`to` |
 | I->P | none — unless overriding an unready interview, which needs `from`, `to`, `did`, `override` | |
-| P->A | `from`, `to`, `did` with plan pointer, `planUnit` | `planUnit` must be a real `devlog/_plan/YYMMDD_slug/` holding numbered docs |
+| P->A | `from`, `to`, `did` with plan pointer, `planUnit` | `planUnit` must be a real `<cxc devlog path>/_plan/YYMMDD_slug/` holding numbered docs (`devlog/_plan/...` in repo/local mode; the absolute path printed by `cxc plan init` in external mode) |
 | A->B | `from`, `to`, `did`, `auditOutput`, `auditVerdict` (`pass`/`near-pass`/`fail`); near-pass adds `auditResidual` | FAIL never advances |
 | B->C | `from`, `to`, `did` with implementation delta | |
 | C->D | `from`, `to`, `did`, `checkOutput`, `exitCode` (required, must be 0) | a goalplan-bound session also needs `testReceiptPath` from `cxc receipt test` |
@@ -74,10 +76,10 @@ bound to the session** — it must equal the active work-phase (LOOP-UNIT-CHAIN-
 Copy-paste objects. Replace the values; keep every key:
 
 ```json
-{"from":"P","to":"A","did":"wrote the diff-level plan at <path>","planUnit":"devlog/_plan/260825_slug","workPhaseId":"wp1"}
+{"from":"P","to":"A","did":"wrote the diff-level plan at <path>","planUnit":"<resolved-devlog>/_plan/260825_slug","workPhaseId":"wp1"}
 {"from":"A","to":"B","did":"folded 2 blockers, rebutted 1","auditOutput":"<pasted reviewer verdict tail>","auditVerdict":"near-pass","auditResidual":"GO-WITH-FIXES; blocker 1 folded, blocker 2 rebutted because ...","workPhaseId":"wp1"}
 {"from":"B","to":"C","did":"implemented <files>; <n> tests added","workPhaseId":"wp1"}
-{"from":"C","to":"D","did":"verified at <sha>","checkOutput":"<pasted tail of the command>","exitCode":0,"testReceiptPath":".codexclaw/evidence/<session>/test-receipt.json","workPhaseId":"wp1"}
+{"from":"C","to":"D","did":"verified at <sha>","checkOutput":"<pasted tail of the command>","exitCode":0,"testReceiptPath":"<receipt-path-printed-by-cxc-receipt-test>","workPhaseId":"wp1"}
 ```
 
 Omit `workPhaseId` when no goalplan is bound, and `testReceiptPath` when the
