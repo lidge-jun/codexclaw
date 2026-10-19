@@ -29,8 +29,9 @@ const SYNC_LOCK = ".cxc-sync.lock";
 const MIGRATE_LOCK = ".migrate.lock";
 const GOALPLAN_LOCK_DIR = ".goalplan.lock";
 const BASE_GITIGNORE = [SYNC_LOCK, MIGRATE_LOCK, "*.tmp", GOALPLAN_LOCK_DIR + "/", ".probe-*"];
-// "* -text": the state repo stores bytes as written (no CRLF conversion on any machine).
-const BASE_GITATTRIBUTES = ["* -text", "*.jsonl merge=union"];
+// Text is stored with LF whatever a machine's core.autocrlf says, so a CRLF checkout never
+// commits a line-ending-only change (which union merge would turn into duplicate events).
+const BASE_GITATTRIBUTES = ["* text=auto eol=lf", "*.jsonl merge=union"];
 
 /** Lock and scratch paths that must never be committed, merged in, or applied. */
 export function isScratchPath(rel: string): boolean {

@@ -342,3 +342,28 @@ test("review r2: CRLF checkouts of a ledger do not duplicate events, and scratch
   assert.equal(s.code, 0, s.output);
   assert.equal(git(m.a, "ls-files", "--", "*.tmp", "*.probe-x*", ".cxc-sync.lock"), "");
 });
+
+test("review r3: a base cloned with core.autocrlf before the attributes existed does not duplicate events", () => {
+  const remote = join(scratch, "remote2.git");
+  git(scratch, "init", "-q", "--bare", remote);
+  const a = join(scratch, "A2");
+  git(scratch, "clone", "-q", remote, a);
+  const co = checkout("https://github.com/acme/app.git");
+  const id = resolveStateRoot(co, envFor(a)).projectId!;
+  mkdirSync(join(a, id, "state"), { recursive: true });
+  writeFileSync(join(a, id, "state", "ledger.jsonl"), '{"n":1}\n');
+  git(a, "add", "-A");
+  git(a, "commit", "-q", "-m", "legacy");
+  git(a, "push", "-q", "-u", "origin", "main");
+  const b = join(scratch, "B2");
+  git(scratch, "-c", "core.autocrlf=true", "clone", "-q", remote, b);
+  git(b, "config", "core.autocrlf", "true");
+  assert.equal(readFileSync(join(b, id, "state", "ledger.jsonl"), "utf8"), '{"n":1}\r\n');
+  appendFileSync(join(a, id, "state", "ledger.jsonl"), '{"n":2}\n');
+  assert.equal(runStateCli(["sync"], co, envFor(a)).code, 0);
+  const r = runStateCli(["sync"], co, envFor(b));
+  assert.equal(r.code, 0, r.output);
+  assert.equal(readFileSync(join(b, id, "state", "ledger.jsonl"), "utf8").split(/\r?\n/).filter(Boolean).length, 2);
+  assert.equal(runStateCli(["sync"], co, envFor(a)).code, 0);
+  assert.equal(git(a, "show", "HEAD:" + id + "/state/ledger.jsonl").split(/\r?\n/).filter(Boolean).length, 2);
+});
