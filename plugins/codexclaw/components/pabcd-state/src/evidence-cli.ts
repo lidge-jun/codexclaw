@@ -20,6 +20,7 @@
  * allows.
 */
 import { clearAttempts, hasValidReceipt } from "./subagent-evidence.ts";
+import { durableLabel } from "./state-root.ts";
 import { appendLedger, isCanonicalSessionId, readState, withSessionLock, writeState } from "./state.ts";
 
 export interface EvidenceResolveArgs {
@@ -66,7 +67,7 @@ export function runEvidenceCli(args: EvidenceResolveArgs): { output: string; cod
   const receipt = args.receipt ?? "";
   if (!hasValidReceipt(args.cwd, receipt)) {
     return {
-      output: `evidence resolve: receipt failed the evidence-root guard (must be a real, non-empty, non-symlink file inside .codexclaw/evidence): ${receipt}`,
+      output: `evidence resolve: receipt failed the evidence-root guard (must be a real, non-empty, non-symlink file inside ${durableLabel(args.cwd, "evidence")}): ${receipt}`,
       code: 1,
     };
   }

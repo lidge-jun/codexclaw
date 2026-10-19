@@ -22,6 +22,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Phase } from "./fsm.ts";
+import { ensureCodexclawDir } from "./codexclaw-dir.ts";
+import { ensurePrivacyExcludes, resolveStateRoot } from "./state-root.ts";
 
 /** Where the setting lives: committed, at the repo root. */
 export const CONFIG_FILENAME = "codexclaw.json";
@@ -39,7 +41,28 @@ export function isInterviewPolicy(value: unknown): value is InterviewPolicy {
   return typeof value === "string" && (INTERVIEW_POLICIES as readonly string[]).includes(value);
 }
 
+/**
+ * 261020: in a checkout whose state mode keeps codexclaw out of git (local/external/none)
+ * the setting is written to <cwd>/.codexclaw/codexclaw.json instead of the committable root
+ * file. Readers prefer that checkout-local file and fall back to the root one.
+ */
+function localConfigPath(cwd: string): string {
+  return join(cwd, ".codexclaw", CONFIG_FILENAME);
+}
+
 export function configPath(cwd: string): string {
+  const local = localConfigPath(cwd);
+  return existsSync(local) ? local : join(cwd, CONFIG_FILENAME);
+}
+
+function configWritePath(cwd: string): string {
+  const local = localConfigPath(cwd);
+  if (existsSync(local)) return local;
+  try {
+    if (resolveStateRoot(cwd).mode !== "repo") return local;
+  } catch {
+    // fall through to the historical location
+  }
   return join(cwd, CONFIG_FILENAME);
 }
 
@@ -86,12 +109,21 @@ export function writeInterviewPolicy(
   cwd: string,
   policy: InterviewPolicy,
 ): { ok: true; path: string; replacedMalformed: boolean } | { ok: false; reason: string } {
-  const path = configPath(cwd);
+  const path = configWritePath(cwd);
+  const seed = path === localConfigPath(cwd) && !existsSync(path) ? join(cwd, CONFIG_FILENAME) : path;
+  if (path === localConfigPath(cwd)) {
+    try {
+      ensureCodexclawDir(cwd);
+      ensurePrivacyExcludes(cwd);
+    } catch (err) {
+      return { ok: false, reason: `could not prepare ${path}: ${(err as Error).message}` };
+    }
+  }
   let existing: Record<string, unknown> = {};
   let replacedMalformed = false;
-  if (existsSync(path)) {
+  if (existsSync(seed)) {
     try {
-      const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+      const raw: unknown = JSON.parse(readFileSync(seed, "utf8"));
       if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
         existing = raw as Record<string, unknown>;
       } else {

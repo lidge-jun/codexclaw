@@ -1,4 +1,5 @@
-import { ensureCodexclawDir } from "./codexclaw-dir.ts";
+import { ensureCodexclawDir, ensureDurableDir } from "./codexclaw-dir.ts";
+import { DurableStateDisabledError, durableDir, ensurePrivacyExcludes } from "./state-root.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join, resolve } from "node:path";
@@ -382,6 +383,8 @@ export function ensureState(
   }
   const dir = sessionsDir(cwd);
   ensureCodexclawDir(cwd);
+  // 261020: local/external/none keep the checkout's .codexclaw and codexclaw.json out of git.
+  ensurePrivacyExcludes(cwd);
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, sessionId);
   const tmp = `${finalPath}.${process.pid}.${randomUUID()}.tmp`;
@@ -694,10 +697,22 @@ export function withSessionLock<T>(cwd: string, sessionId: string, fn: () => T):
 }
 
 export function appendLedger(cwd: string, entry: LedgerEntry): void {
-  const dir = join(cwd, STATE_DIR);
-  ensureCodexclawDir(cwd);
+  // The transition ledger is DURABLE (state-root.ts). Mode none skips it rather than
+  // failing the transition that is being recorded.
+  let dir: string;
+  try {
+    dir = ensureDurableDir(cwd);
+  } catch (err) {
+    if (err instanceof DurableStateDisabledError) return;
+    throw err;
+  }
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, LEDGER_FILE), `${JSON.stringify(entry)}\n`);
+}
+
+/** The durable transition ledger path for cwd (state-root.ts). */
+export function ledgerPath(cwd: string): string {
+  return join(durableDir(cwd), LEDGER_FILE);
 }
 
 /** 131/D2': a recorded interview scan event (durable scan-evidence). */
@@ -740,7 +755,7 @@ export interface InterviewEvent {
 }
 
 function interviewsDir(cwd: string): string {
-  return join(cwd, STATE_DIR, INTERVIEWS_SUBDIR);
+  return join(durableDir(cwd), INTERVIEWS_SUBDIR);
 }
 
 function interviewLedgerPath(cwd: string, sessionId: string): string {
@@ -753,7 +768,12 @@ function interviewLedgerPath(cwd: string, sessionId: string): string {
  */
 export function appendInterviewEvent(cwd: string, entry: InterviewEvent): void {
   const dir = interviewsDir(cwd);
-  ensureCodexclawDir(cwd);
+  try {
+    ensureDurableDir(cwd);
+  } catch (err) {
+    if (err instanceof DurableStateDisabledError) return;
+    throw err;
+  }
   mkdirSync(dir, { recursive: true });
   appendFileSync(interviewLedgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
 }

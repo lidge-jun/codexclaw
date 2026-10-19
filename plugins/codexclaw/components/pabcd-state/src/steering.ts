@@ -17,6 +17,7 @@
 // 060 wp6: applyOps()가 두 integrity helper를 부르므로 두 이름을 함께 import한다. 뒤 이름을
 // 빼면 TS2304 두 건이고, 타입을 지운 런타임에서는 steering.test.ts 두 건이 ReferenceError로
 // 죽는다. 감사 라운드 2에서 감사관 두 기가 각자 사본에서 22개 중 2 fail을 재현했다.
+import { durableLabel } from "./state-root.ts";
 import {
   appendGoalplanLedger,
   goalplanDefinitionIntegrityReasons,
@@ -311,7 +312,7 @@ export function applySteeringBatch(
         entry,
         warning:
           `the batch was applied but its ledger entry could not be written to `
-          + `.codexclaw/goalplans/${slug}/ledger.jsonl `
+          + `${durableLabel(cwd, "goalplans", slug, "ledger.jsonl")} `
           + `(${err instanceof Error ? err.message : String(err)}). `
           + `Re-running is a no-op because the key is recorded.`,
       };
