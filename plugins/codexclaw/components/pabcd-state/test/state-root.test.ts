@@ -321,3 +321,13 @@ test("review r2: origin url split by a backslash continuation reads like git", (
   assert.equal(readGitInfo(dir)!.originUrl, r.stdout.trim());
   assert.equal(resolveStateRoot(dir).originKey, "github.com/acme/app");
 });
+
+test("review r3: a comment ending in a backslash does not swallow the url line", () => {
+  const dir = repo(null);
+  const cfg = join(dir, ".git", "config");
+  writeFileSync(cfg, readFileSync(cfg, "utf8") + '[remote "origin"]\n\t# mirror path C:\\\n\turl = https://github.com/acme/app.git\n');
+  clearStateRootCache();
+  const r = spawnSync("git", ["-C", dir, "config", "--get", "remote.origin.url"], { encoding: "utf8" });
+  assert.equal(readGitInfo(dir)!.originUrl, r.stdout.trim());
+  assert.equal(resolveStateRoot(dir).originKey, "github.com/acme/app");
+});

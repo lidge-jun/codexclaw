@@ -199,6 +199,27 @@ export function parseGitConfigValue(raw: string): string {
   return out;
 }
 
+/**
+ * True when a config line continues onto the next physical line: a backslash ends the line
+ * outside quotes and outside a comment. Comment and section lines never continue.
+ */
+function continuesLine(text: string): boolean {
+  if (/^\s*[#;[]/.test(text)) return false;
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "\\") {
+      if (i === text.length - 1) return true;
+      i += 1;
+    } else if (c === '"') {
+      quoted = !quoted;
+    } else if (!quoted && (c === "#" || c === ";")) {
+      return false;
+    }
+  }
+  return false;
+}
+
 /** First url of [remote "origin"] in a git config file (no include/includeIf/insteadOf). */
 export function parseOriginUrl(configText: string): string | null {
   let inOrigin = false;
@@ -206,8 +227,7 @@ export function parseOriginUrl(configText: string): string | null {
   const logical: string[] = [];
   let carry = "";
   for (const physical of configText.split(/\r?\n/)) {
-    const trailing = /\\+$/.exec(physical)?.[0].length ?? 0;
-    if (trailing % 2 === 1) {
+    if (continuesLine(carry + physical)) {
       carry += physical.slice(0, -1);
       continue;
     }
