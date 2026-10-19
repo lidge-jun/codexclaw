@@ -202,7 +202,20 @@ export function parseGitConfigValue(raw        )         {
 /** First url of [remote "origin"] in a git config file (no include/includeIf/insteadOf). */
 export function parseOriginUrl(configText        )                {
   let inOrigin = false;
-  for (const line of configText.split(/\r?\n/)) {
+  // Join git's backslash line continuations into logical lines first.
+  const logical           = [];
+  let carry = "";
+  for (const physical of configText.split(/\r?\n/)) {
+    const trailing = /\\+$/.exec(physical)?.[0].length ?? 0;
+    if (trailing % 2 === 1) {
+      carry += physical.slice(0, -1);
+      continue;
+    }
+    logical.push(carry + physical);
+    carry = "";
+  }
+  if (carry) logical.push(carry);
+  for (const line of logical) {
     const section = /^\s*\[\s*([^\]]+?)\s*\]/.exec(line);
     if (section) {
       inOrigin = /^remote\s+"origin"$/i.test(section[1].trim());
