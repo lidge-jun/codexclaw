@@ -17,6 +17,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 
 
 
+import { devlogLabel } from "./state-root.js";
 
 /**
  * REVIEW-BINDING-01 (060): success carries the normalized unit path, so P>A can
@@ -35,12 +36,12 @@ export function validatePlanArtifacts(att                    , cwd        )     
     return {
       ok: false,
       reason:
-        'P -> A requires "planUnit": the devlog/_plan/YYMMDD_slug/ unit this plan lives in ' +
+        `P -> A requires "planUnit": the ${devlogLabel(cwd, "_plan", "YYMMDD_slug")}/ unit this plan lives in ` +
         "(DIFFLEVEL-ROADMAP-01 — the plan must exist as numbered files, not chat). " +
         "Scaffold one with `cxc plan init <slug>` if missing, write the docs, then re-attest. " +
         "Put the JSON in a file and pass --attest-file <path> (required on Windows, where " +
         "inline JSON cannot survive shell argument parsing): " +
-        '{"from":"P","to":"A","did":"...","planUnit":"devlog/_plan/..."}',
+        `{"from":"P","to":"A","did":"...","planUnit":"${devlogLabel(cwd, "_plan", "...")}"}`,
     };
   }
   const unit = isAbsolute(att.planUnit) ? att.planUnit : resolve(cwd, att.planUnit);

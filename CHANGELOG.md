@@ -16,6 +16,17 @@ All notable changes to codexclaw are documented here. The format follows
 - `cxc loop init` publishes the plan create-only, so two checkouts of one project cannot overwrite each other's new plan.
 - In `local`, `external` and `none` modes `cxc config interview` writes `.codexclaw/codexclaw.json` instead of the committable root file, and a new `.codexclaw/` gets a self-ignoring `.gitignore`.
 - `cxc reset` leaves shared external state alone and lists it.
+- `cxc plan init` scaffolds units under the resolved devlog (`cxc devlog path`) and prints the absolute `planUnit` to attest when the devlog is outside the checkout; in an explicitly repo-mode repository whose owner is not allowlisted it warns before writing `devlog/`.
+
+### Added (CLI)
+
+- `cxc state path [--json]` and `cxc devlog path [--explain|--json]` print the resolved mode, the reason, and the durable, devlog and volatile directories.
+- `cxc state sync [--dry-run]` syncs an external state base that is its own private git repository: snapshot commit, fetch, merge in a temporary worktree (`*.jsonl merge=union`), apply to the live files additively (missing ledger lines appended, new files created exclusively, goalplan files swapped under the goalplan write lock), then push. It never forces, and any other difference stops it before the branch moves.
+- `cxc state migrate [--apply]` moves a checkout's legacy `.codexclaw` durable state and `devlog/` into the external layout: dry run by default, identical files count as done, ledgers union-merge, other differences are kept as conflicts, symlinks and git-tracked files are skipped, and it refuses while a session in the checkout is mid-cycle.
+
+### Fixed
+
+- On Windows the state resolver resolved the same repository to two project ids when one path used an 8.3 short name (`RUNNER~1`); it now uses the native realpath.
 
 ## [0.2.42] - 2026-10-09
 
