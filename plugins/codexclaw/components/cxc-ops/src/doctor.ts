@@ -33,9 +33,29 @@ try {
 } catch {
   footprintModule = null;
 }
+type BudgetModule = { resolveIndexBudget: (env?: Record<string, string | undefined>) => { maxBytes: number } };
+let budgetModule: BudgetModule | null = null;
+try {
+  budgetModule = (await import("../../recall/dist/index-budget.js")) as BudgetModule;
+} catch {
+  budgetModule = null;
+}
 
-/** Recall index ceiling the footprint check holds the recall area to (48 MiB default + WAL slack). */
-const RECALL_AREA_WARN_BYTES = 56 * 1024 * 1024;
+/** WAL and shm may legitimately sit on top of the index budget between checkpoints. */
+const RECALL_AREA_SLACK_BYTES = 8 * 1024 * 1024;
+
+/** The recall area ceiling: the configured index budget (CODEXCLAW_RECALL_MAX_MB) plus slack. */
+function recallAreaLimit(): number {
+  const max = budgetModule ? budgetModule.resolveIndexBudget().maxBytes : 48 * 1024 * 1024;
+  return max + RECALL_AREA_SLACK_BYTES;
+}
+
+/** A repair that can actually clear the warning, chosen by the area that caused it. */
+function footprintRepair(root: string, area: string): string {
+  if (area === "recall") return "cxc chat index --compact";
+  if (area === "projects") return "review external project state: cxc state path; " + join(root, "projects");
+  return "review and remove what is no longer needed under " + join(root, area === "other" ? "" : area);
+}
 
 /**
  * memory-footprint (261022): what codexclaw keeps under $CODEXCLAW_HOME ?? ~/.codexclaw,
@@ -45,14 +65,23 @@ const RECALL_AREA_WARN_BYTES = 56 * 1024 * 1024;
 export function checkMemoryFootprint(
   root: string = process.env["CODEXCLAW_HOME"]?.trim() ? process.env["CODEXCLAW_HOME"]!.trim() : join(homedir(), ".codexclaw"),
   mod: FootprintModule | null = footprintModule,
+  recallLimitBytes: number = recallAreaLimit(),
 ): CheckResult {
   if (!mod) return { name: "memory-footprint", severity: "PASS", evidence: "recall component not present; footprint not measured" };
   try {
     const fp = mod.measureFootprint(root);
     const line = mod.formatFootprint(fp) + " under " + root;
     const recall = fp.areas["recall"] ?? 0;
-    if (fp.totalBytes > mod.FOOTPRINT_WARN_BYTES || recall > RECALL_AREA_WARN_BYTES) {
-      return { name: "memory-footprint", severity: "WARN", evidence: line, repair: "cxc chat index --compact" };
+    if (recall > recallLimitBytes) {
+      return { name: "memory-footprint", severity: "WARN", evidence: line + "; recall is over its budget", repair: footprintRepair(root, "recall") };
+    }
+    if (fp.totalBytes > mod.FOOTPRINT_WARN_BYTES) {
+      const largest = Object.entries(fp.areas).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "other";
+      return { name: "memory-footprint", severity: "WARN", evidence: line + "; largest area: " + largest, repair: footprintRepair(root, largest) };
+    }
+    // Totals from a capped walk are lower bounds, so they cannot certify a healthy store.
+    if (fp.truncated) {
+      return { name: "memory-footprint", severity: "WARN", evidence: line + "; walk stopped at its entry cap, so the totals are incomplete", repair: "inspect " + root };
     }
     return { name: "memory-footprint", severity: "PASS", evidence: line };
   } catch (err) {

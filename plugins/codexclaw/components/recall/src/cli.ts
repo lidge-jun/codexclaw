@@ -280,7 +280,8 @@ function runChatIndex(args: string[]): number {
   try {
     // --status alone is a pure read: open read-only so it works on read-only
     // filesystems and never touches WAL/schema (evaluator round-1 gap #1).
-    const statusOnly = values.status === true && values.rebuild !== true;
+    // --rebuild and --compact are actions; --status alongside them only adds the report.
+    const statusOnly = values.status === true && values.rebuild !== true && values.compact !== true;
     if (values.rebuild === true) resetIndex(path);
     const db = statusOnly ? openIndexReadOnly(path) : openIndex(path);
     try {
