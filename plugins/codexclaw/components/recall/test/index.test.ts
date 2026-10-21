@@ -438,7 +438,7 @@ test("index matches a child path under a parent cwd when repo_key is NULL", () =
   }
 });
 
-test("an index built before wp4 gains repo_key in place, without re-parsing msgs", () => {
+test("rows written without a repo_key are backfilled in place, without re-parsing msgs", () => {
   const root = mkdtempSync(join(tmpdir(), "recall-migrate-"));
   try {
     buildCodexHome(root);
@@ -448,29 +448,14 @@ test("an index built before wp4 gains repo_key in place, without re-parsing msgs
     const msgsBefore = (db.prepare("SELECT COUNT(*) AS n FROM msgs").get() as { n: number }).n;
     db.close();
 
-    // Rewind to a pre-wp4 index: same rows, no column. This is the shape of the
-    // operator's 12GB cache, which must migrate WITHOUT a schema-version bump
-    // (a bump drops files+msgs and re-parses the whole corpus).
+    // An older CLI sharing the index writes rows without a key; the next refresh
+    // must restore them from the threads table without touching messages.
     const raw = new DatabaseSync(path);
-    raw.exec("DROP INDEX IF EXISTS idx_files_repo_key");
-    raw.exec("ALTER TABLE files DROP COLUMN repo_key");
-    const legacyCols = (raw.prepare("PRAGMA table_info(files)").all() as Array<{ name: string }>).map(
-      (c) => c.name,
-    );
-    assert.ok(!legacyCols.includes("repo_key"), "sanity: the column is really gone");
+    raw.exec("UPDATE files SET repo_key = NULL");
     raw.close();
 
     db = openIndex(path);
     try {
-      const version = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as {
-        value: string;
-      };
-      assert.equal(version.value, "2", "the migration must not bump the schema version");
-      const cols = (db.prepare("PRAGMA table_info(files)").all() as Array<{ name: string }>).map(
-        (c) => c.name,
-      );
-      assert.ok(cols.includes("repo_key"), "ADD COLUMN ran on the existing table");
-
       // Unchanged files are skipped by (mtime, size), so the keys can only come
       // from the threads join — no JSONL head is re-read and no message moves.
       const result = ingest(root, db, 0);

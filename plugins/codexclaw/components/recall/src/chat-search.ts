@@ -25,7 +25,7 @@ import {
 } from "./rollout.ts";
 import { loadThreadMeta } from "./threads-db.ts";
 import { repoKeyForCwd, repoKeysEqual, readOriginUrl, type ReadOriginUrl } from "./repo-key.ts";
-import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.ts";
+import { openIndex, openIndexReadOnly, indexPath, indexStatus, filesHasColumn } from "./index-db.ts";
 import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET } from "./ingest.ts";
 import { queryIndex, type ChatOrder } from "./index-search.ts";
 import { expandQueryWords } from "./synonyms.ts";
@@ -248,6 +248,8 @@ function searchViaIndex(
       nowMs: opts.nowMs,
     });
     if (roWarning) result.warnings.push(roWarning);
+    const trimmed = trimmedHistoryWarning(db, shared.cutoffIso);
+    if (trimmed) result.warnings.push(trimmed);
     // Freshness metadata (evaluator round-1 gap #7): how stale is what you just read?
     const status = indexStatus(db, path);
     const fresh = measureIndexFreshness(shared.home, db, 0, { budget: BANNER_FRESHNESS_BUDGET });
@@ -387,4 +389,21 @@ function contextWindow(
     out.push({ ts: entries[i].ts, role: entries[i].role, text: entries[i].text, isMatch: i === index });
   }
   return out;
+}
+
+/**
+ * Say when the size budget trimmed sessions inside the query window. The index
+ * then answers only for newer sessions, and --scan reads the raw rollouts.
+ */
+function trimmedHistoryWarning(db: ReturnType<typeof openIndexReadOnly>, cutoffIso: string | null): string | null {
+  try {
+    if (!filesHasColumn(db, "evicted")) return null;
+    const row = db.prepare("SELECT COUNT(*) AS n, MAX(date) AS newest FROM files WHERE evicted = 1").get() as { n: number; newest: string | null };
+    const n = Number(row.n);
+    if (n === 0 || row.newest === null) return null;
+    if (cutoffIso !== null && String(row.newest) < cutoffIso.slice(0, 10)) return null;
+    return `${n} older sessions were trimmed from the index by its size budget; --scan searches them`;
+  } catch {
+    return null;
+  }
 }

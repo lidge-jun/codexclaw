@@ -94,7 +94,11 @@ for (const scenario of observationCases) {
           const output = JSON.parse(child.stdout);
           assert.equal(output.state, scenario.state);
           assertObservationLimits(output);
-          assert.deepEqual(output, status);
+          // The CLI adds the recall index size metric next to the host snapshot.
+          const { recallIndex, ...snapshot } = output;
+          assert.deepEqual(snapshot, status);
+          assert.equal(typeof recallIndex.diskBytes, "number");
+          assert.equal(typeof recallIndex.budgetBytes, "number");
         } else {
           assert.match(child.stdout, /observation: jobs-db; effective extraction route: unknown; startup guard decision: unknown/);
           assert.match(child.stdout, /job history does not establish the current route or guard decision/);
@@ -140,11 +144,51 @@ test("#187: only retry_remaining=0 errors count as exhausted, bucketed by cause"
     { kind: "memory_stage1", job_key: "c", status: "error", finished_at: 12, retry_remaining: 2, last_error: "transient" },
   ]);
   try {
-    const status = collectMemoryStatus(home);
+    const status = collectMemoryStatus(home, 12);
     assert.equal(status.exhausted, 2, "the retryable error must not be counted");
     assert.deepEqual(status.exhaustedByCause, { "context-window": 1, capacity: 1 });
     assert.match(formatMemoryStatus(status), /exhausted \(host will not retry\): 2/);
-    assert.match(memoryStatusNotice(status, 99999999), /2 job\(s\) exhausted their retries/);
+    assert.equal(status.exhaustedRecent, 2);
+    assert.match(memoryStatusNotice(status, 12), /2 job\(s\) exhausted their retries in the last 7 days/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a standing exhausted pile stays out of SessionStart but stays visible in status", () => {
+  const day = 86_400;
+  const now = 200 * day;
+  const rows = [];
+  for (let i = 0; i < 298; i += 1) {
+    // Most of the pile is months old; three jobs failed this week.
+    const finished = i < 3 ? now - day : now - (100 + (i % 50)) * day;
+    rows.push({ kind: "memory_stage1", job_key: "t" + i, status: "error", finished_at: finished, retry_remaining: 0, last_error: "context window exceeded" });
+  }
+  rows.push({ kind: "memory_stage1", job_key: "ok", status: "done", finished_at: now - 3600, retry_remaining: 3, last_error: null });
+  const home = makeHome(rows);
+  try {
+    const status = collectMemoryStatus(home, now);
+    assert.equal(status.exhausted, 298);
+    assert.equal(status.exhaustedRecent, 3);
+    assert.equal(status.exhaustedInert, 295);
+    assert.match(memoryStatusNotice(status, now), /3 job\(s\) exhausted their retries in the last 7 days/);
+    assert.doesNotMatch(memoryStatusNotice(status, now), /298/);
+    const text = formatMemoryStatus(status, now);
+    assert.match(text, /exhausted \(host will not retry\): 298/);
+    assert.match(text, /inert \(stage-1, finished over 90 days ago\): 295/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("an old pile alone produces no SessionStart notice", () => {
+  const now = 200 * 86_400;
+  const home = makeHome([
+    { kind: "memory_stage1", job_key: "old", status: "error", finished_at: now - 120 * 86_400, retry_remaining: 0, last_error: "context window exceeded" },
+    { kind: "memory_stage1", job_key: "ok", status: "done", finished_at: now - 3600, retry_remaining: 3, last_error: null },
+  ]);
+  try {
+    assert.equal(memoryStatusNotice(collectMemoryStatus(home, now), now), "");
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
