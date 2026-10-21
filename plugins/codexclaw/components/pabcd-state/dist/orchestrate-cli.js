@@ -128,6 +128,7 @@ import { dimensionsBackedByAnswers } from "./interview-ledger.js";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.js";
 import { resetRenderLedger } from "./render-observations.js";
 
+import { prRecordSince, readPrRecord } from "./pr-record.js";
 import {
   appendLedger,
   findForeignSessionCopies,
@@ -709,10 +710,12 @@ export function runOrchestrateCli(args                                          
       return { code: 1, output: "orchestrate C: SOURCE-ROOT: source binding changed since B began. Re-plan and capture a new baseline; nothing was written." };
     }
     const cmp = compareSource(state.phaseEntrySource, now);
-    if (cmp.kind === "same") {
+    // A merged/green PR recorded during this B is the implementation record even
+    // when the checkout no longer differs (the change already landed).
+    if (cmp.kind === "same" && !prRecordSince(readPrRecord(args.cwd, sessionId), state.phaseEntrySource.capturedAt)) {
       return {
         code: 1,
-        output: `orchestrate C: ${renderPhaseContext(state, sessionId)}; the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). Implement inside B rather than carrying earlier work across the edge. Nothing was written.`,
+        output: `orchestrate C: ${renderPhaseContext(state, sessionId)}; the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). Implement inside B rather than carrying earlier work across the edge, or, if this B delivered a merged or green PR, record it: \`cxc loop pr-record --session ${sessionId} --pr <url>\`. Nothing was written.`,
       };
     }
   }

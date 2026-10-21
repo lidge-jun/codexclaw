@@ -133,6 +133,7 @@ import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./frictio
 import { discardStreak, readDivergenceCandidates } from "./divergence.ts";
 import { hasNativeObservation, hasRenderArtifactModified, hasRenderObservation, nativeObservationLedgerMalformed, renderGroundingAdvisory } from "./render-observations.ts";
 import { detectMemoryWriteRequest } from "./memory-write-gate.ts";
+import { prRecordSince, readPrRecord } from "./pr-record.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -776,10 +777,11 @@ function handleOrchestrateCommand(
     if (state.phaseEntrySource.sourceRoot !== now.sourceRoot) {
       return buildContextOutput("UserPromptSubmit", "[codexclaw — refused: SOURCE-ROOT: source binding changed since B began. Re-plan and capture a new baseline; nothing was written.]");
     }
-    if (compareSource(state.phaseEntrySource, now).kind === "same") {
+    if (compareSource(state.phaseEntrySource, now).kind === "same"
+      && !prRecordSince(readPrRecord(payload.cwd, payload.session_id), state.phaseEntrySource.capturedAt)) {
       return buildContextOutput(
         "UserPromptSubmit",
-        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). Nothing was written.]`,
+        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). A merged or green PR from this B counts: \`cxc loop pr-record --session ${payload.session_id} --pr <url>\`. Nothing was written.]`,
       );
     }
   }

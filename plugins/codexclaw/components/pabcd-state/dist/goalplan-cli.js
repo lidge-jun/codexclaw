@@ -52,6 +52,10 @@ import { resolveSessionSource } from "./session-source.js";
 import { parseSourceBoundReceipt } from "./source-receipt.js";
 import { applySteeringBatch } from "./steering.js";
 import { DurableStateDisabledError } from "./state-root.js";
+import { runPrRecord } from "./pr-record.js";
+
+
+
 
 
 
@@ -139,6 +143,7 @@ const VERBS                      = new Set              ([
   "meet-criterion",
   "ask",
   "decide",
+  "pr-record",
 ]);
 
 
@@ -166,6 +171,7 @@ const VERB_RULES                                           = {
   "meet-criterion": { allowed: new Set(["--session", "--id", "--evidence", "--cwd"]), repeatable: new Set(), usage: "meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]" },
   ask: { allowed: new Set(["--session", "--id", "--question", "--recommendation", "--option", "--work-phase", "--cwd"]), repeatable: new Set(["--option", "--work-phase"]), usage: "ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]" },
   decide: { allowed: new Set(["--session", "--id", "--answer", "--cwd"]), repeatable: new Set(), usage: "decide --session <id> --id <id> --answer <text> [--cwd <path>]" },
+  "pr-record": { allowed: new Set(["--session", "--pr", "--cwd"]), repeatable: new Set(), usage: "pr-record --session <id> --pr <url|number> [--cwd <path>]" },
   help: { allowed: new Set(), repeatable: new Set(), usage: "--help" },
 };
 
@@ -181,7 +187,7 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
   }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide); run cxc loop --help`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|pr-record); run cxc loop --help`,
     };
   }
   const selected = verb                ;
@@ -250,6 +256,7 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
         break;
       }
       case "--answer": out.answer = value; break;
+      case "--pr": out.pr = value; break;
       case "--outcome": out.outcome = value; break;
       case "--schema-version": {
         const parsed = Number(value);
@@ -730,7 +737,7 @@ export function renderGoalplanHelp()         {
     "cxc loop — durable goalplan for a multi-cycle PABCD loop",
     "",
     "Usage:",
-    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "ask", "decide", "help"]         )
+    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "ask", "decide", "pr-record", "help"]         )
       .map((verb) => `  cxc loop ${VERB_RULES[verb].usage}`),
     "",
     "Notes:",
@@ -750,6 +757,9 @@ export function renderGoalplanHelp()         {
     "  Send the question through the host first, then record it with ask; ask never sends a message.",
     "  Record the user's reply with decide. It changes only the decision record.",
     "  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text.",
+    "  pr-record checks the PR once with gh (merged, or open with every check passing) and stores it as",
+    "  this session's completion record. The goal gate then accepts completion without a closed cycle or",
+    "  a fully ticked plan; unverified subagent work and a structurally broken plan still block it.",
     "",
     "steer --batch-json expects an object with:",
     '  { "idempotencyKey": "<unique>", "rationale": "<why>", "evidence": "<proof>",',
@@ -838,6 +848,10 @@ function runGoalplanCliInner(args                 )                    {
 
   if (args.verb === "steer") return runSteer(args);
   if (args.verb === "ask" || args.verb === "decide") return runDecision(args);
+  if (args.verb === "pr-record") {
+    const result = runPrRecord(args.cwd, (args.session ?? "").trim(), args.pr ?? "");
+    return { output: result.output, code: result.code };
+  }
 
   if (args.verb === "add-criterion" || args.verb === "add-work-phase") return runAddOp(args);
 
