@@ -14,11 +14,13 @@ import { existsSync, realpathSync } from "node:fs";
 import { searchChat, DEFAULT_DAYS, DEFAULT_LIMIT, type ChatSearchOptions } from "./chat-search.ts";
 import { searchMemory, DEFAULT_MEMORY_LIMIT, type MemorySearchOptions } from "./memory-search.ts";
 import { formatChatResult, formatMemoryResult, clipChatResultForJson } from "./format.ts";
-import { openIndex, openIndexReadOnly, indexPath, indexStatus, type IndexStatus } from "./index-db.ts";
+import { openIndex, openIndexReadOnly, indexPath, indexStatus, resetIndex, type IndexStatus } from "./index-db.ts";
+import { compactIndex, evictToBudget, formatMb, recallIndexHealth, recallIndexNotice, resolveIndexBudget } from "./index-budget.ts";
 import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET, type IndexFreshness } from "./ingest.ts";
 import { codexHome } from "./paths.ts";
 import { collectMemoryStatus, formatMemoryStatus, memoryStatusNotice } from "./memory-status.ts";
 import { requeueExhaustedMemoryJobs, formatRequeue } from "./memory-requeue.ts";
+import { pruneInertMemoryJobs, formatPrune, MIN_PRUNE_AGE_DAYS } from "./memory-prune.ts";
 import {
   handleUserPromptSubmit,
   handleSessionStart,
@@ -30,12 +32,13 @@ const USAGE = [
   "cxc chat search \"<query>\" [--days N] [--cwd PATH] [--role r] [--source main|subagent|all]",
   "                           [--limit N] [--context N] [--any] [--all] [--no-tools]",
   "                           [--recent] [--scan] [--no-refresh] [--synonyms] [--json]",
-  "cxc chat index [--rebuild] [--status] [--json]",
+  "cxc chat index [--rebuild] [--compact] [--status] [--json]",
   "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms]",
   "                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]",
   "cxc memory status [--json] [--home PATH]",
   "cxc memory requeue [--apply] [--include-context-window] [--kind K] [--limit N]",
   "                   [--retries N] [--json] [--home PATH]",
+  "cxc memory prune [--apply] [--older-than-days N] [--json] [--home PATH]",
   "",
   `  --days N     restrict to the last N days (chat default ${DEFAULT_DAYS}, 0 = full history)`,
   "  --cwd PATH   scope to PATH and to other checkouts of the same git origin",
@@ -126,6 +129,7 @@ function parseFlags(args: string[]): ParsedFlags {
       "no-chat": { type: "boolean", default: false },
       full: { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
+      compact: { type: "boolean", default: false },
       status: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
       home: { type: "string" },
@@ -255,7 +259,12 @@ function staleCountLabel(n: number, truncated: boolean): string {
 }
 
 function formatStatusText(report: ReturnType<typeof statusReport>): string {
-  return `index: ${report.path}\nfiles: ${report.files}, messages: ${report.msgs}, source files: ${report.sourceFiles}, stale: ${staleCountLabel(report.staleFiles, report.truncated)}, last ingest: ${report.lastIngestAt ?? "never"}\n`;
+  const budget = resolveIndexBudget();
+  const trimmed = report.evictedFiles > 0 ? `, ${report.evictedFiles} older sessions trimmed (--scan searches them)` : "";
+  return (
+    `index: ${report.path}\nfiles: ${report.files}, messages: ${report.msgs}, source files: ${report.sourceFiles}, stale: ${staleCountLabel(report.staleFiles, report.truncated)}, last ingest: ${report.lastIngestAt ?? "never"}\n` +
+    `size: ${formatMb(report.diskBytes)} on disk, budget ${formatMb(budget.maxBytes)}${trimmed}\n`
+  );
 }
 
 function runChatIndex(args: string[]): number {
@@ -270,16 +279,18 @@ function runChatIndex(args: string[]): number {
     // --status alone is a pure read: open read-only so it works on read-only
     // filesystems and never touches WAL/schema (evaluator round-1 gap #1).
     const statusOnly = values.status === true && values.rebuild !== true;
+    if (values.rebuild === true) resetIndex(path);
     const db = statusOnly ? openIndexReadOnly(path) : openIndex(path);
     try {
-      if (values.rebuild === true) {
-        db.exec("DELETE FROM msgs; DELETE FROM files;");
-      }
       if (!statusOnly) {
         const r = ingest(home, db, 0);
+        if (values.compact === true) {
+          evictToBudget(db, resolveIndexBudget());
+          compactIndex(db);
+        }
         if (values.json !== true) {
           process.stdout.write(
-            `ingested ${r.ingested}/${r.scanned} files, ${r.appended} appended (${r.msgs} messages, ${r.pruned} pruned, ${r.elapsedMs}ms)\n`,
+            `ingested ${r.ingested}/${r.scanned} files, ${r.appended} appended (${r.msgs} messages, ${r.pruned} pruned, ${r.evicted} trimmed by the size budget, ${r.elapsedMs}ms)\n`,
           );
         }
       }
@@ -312,10 +323,16 @@ export function runMemoryStatus(argv: string[]): number {
   });
   const home = typeof values.home === "string" && values.home ? resolve(values.home) : codexHome();
   const status = collectMemoryStatus(home);
+  const health = recallIndexHealth(indexPath());
   if (values.json === true) {
-    process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ...status, recallIndex: health }, null, 2)}\n`);
   } else {
     process.stdout.write(formatMemoryStatus(status));
+    process.stdout.write(
+      health.exists
+        ? `recall index: ${formatMb(health.diskBytes)} on disk, budget ${formatMb(health.budgetBytes)}${health.overBudget ? " — over budget, run cxc chat index" : ""}\n`
+        : "recall index: not built\n",
+    );
   }
   return status.state === "unavailable" ? 1 : 0;
 }
@@ -365,11 +382,47 @@ export function runMemoryRequeue(argv: string[]): number {
  * problem yields "" and the session starts unchanged.
  */
 export function memoryPipelineNotice(home = codexHome()): string {
+  const parts: string[] = [];
   try {
-    return memoryStatusNotice(collectMemoryStatus(home));
+    const notice = memoryStatusNotice(collectMemoryStatus(home));
+    if (notice) parts.push(notice);
   } catch {
-    return "";
+    /* fail-soft */
   }
+  try {
+    const notice = recallIndexNotice(recallIndexHealth(indexPath()));
+    if (notice) parts.push(notice);
+  } catch {
+    /* fail-soft */
+  }
+  return parts.join("\n");
+}
+
+/**
+ * `cxc memory prune` — delete exhausted stage-1 jobs the host can never claim again
+ * (finished over 90 days ago). Dry run unless `--apply`.
+ */
+export function runMemoryPrune(argv: string[]): number {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      apply: { type: "boolean" },
+      "older-than-days": { type: "string" },
+      json: { type: "boolean" },
+      home: { type: "string" },
+    },
+    allowPositionals: true,
+    strict: false,
+  });
+  const home = typeof values.home === "string" && values.home ? resolve(values.home) : codexHome();
+  const days = Number.parseInt(String(values["older-than-days"] ?? ""), 10);
+  const result = pruneInertMemoryJobs(home, {
+    apply: values.apply === true,
+    olderThanDays: Number.isFinite(days) ? days : MIN_PRUNE_AGE_DAYS,
+  });
+  if (values.json === true) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  else process.stdout.write(formatPrune(result));
+  return result.state === "ok" ? 0 : 1;
 }
 
 /** Read-only one-line index status for hook injection ("" when unavailable). */
@@ -430,6 +483,9 @@ export function main(argv: string[]): number | Promise<number> {
   }
   if (kind === "memory" && sub === "requeue") {
     return runMemoryRequeue(argv.slice(2));
+  }
+  if (kind === "memory" && sub === "prune") {
+    return runMemoryPrune(argv.slice(2));
   }
   if (kind === "chat" && sub === "index") {
     if (argv.slice(2).some((a) => a === "help" || a === "/?")) {

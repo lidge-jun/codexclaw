@@ -174,9 +174,10 @@ source is unavailable.
 cxc chat search "<query>" [--days N] [--cwd PATH] [--role user|assistant|tool] [--source main|subagent|all]
                          [--limit N] [--context N] [--any] [--all] [--no-tools]
                          [--recent] [--rank] [--scan] [--no-refresh] [--json] [--full] [--home PATH]
-cxc chat index [--rebuild] [--status] [--json] [--home PATH] [--index-path PATH]
+cxc chat index [--rebuild] [--compact] [--status] [--json] [--home PATH] [--index-path PATH]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
                           [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json] [--home PATH]
+cxc memory prune [--apply] [--older-than-days N] [--json] [--home PATH]
 cxc memory allow-write --session <id>
 ```
 
@@ -187,7 +188,10 @@ history); chat `--days` defaults to 7. `cxc enable` turns on
 request or `cxc memory allow-write`.
 
 Recall commands are read-only against Codex data. `cxc chat index` writes only the derived
-codexclaw sidecar index.
+codexclaw sidecar index, which stays under a 48 MB budget (`CODEXCLAW_RECALL_MAX_MB`) by
+trimming the least recently active sessions; `--scan` still searches those. `cxc memory prune`
+is the one recall command that writes the Codex memory store: dry run unless `--apply`, it
+deletes only exhausted extraction jobs older than 90 days, which the host can never run again.
 
 `cxc chat search` ranks by relevance: a BM25 lane and a trigram lane are fused with
 reciprocal rank fusion, and freshness breaks ties among comparable matches. `--recent`

@@ -8,7 +8,16 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Fixed
 
+- The recall index (`~/.codexclaw/recall/index.sqlite`) no longer grows without bound. One machine's index had reached 410 MB for 84 MB of text, and another 12 GB. It now stays under a byte budget, 48 MB by default (`CODEXCLAW_RECALL_MAX_MB`, minimum 4): stored messages are capped at 4 KB (tool output 1 KB, was 8 KB), a full index records older new sessions as metadata only, and above the budget the least recently active sessions lose their message text until the index is under 80 % of the budget. Freed pages go back to the filesystem (`auto_vacuum=INCREMENTAL`) and the WAL is truncated after each changing refresh. Trimmed sessions stay in the session list, `--scan` still searches them, and a search that reaches them says so. A refresh with nothing new writes nothing. Built from this machine's 844 MB of rollouts the index is 41 MB.
+- Schema v3: the first `cxc chat search` or `cxc chat index` after upgrading replaces an older index by deleting and recreating the file under a lock (O(1); the injection history carries over). Hooks never migrate. `cxc chat index --rebuild` now deletes the file instead of leaving deleted rows inside it.
+- SessionStart reports exhausted memory extraction jobs only when they failed in the last 7 days, so a standing pile (298 on one machine) no longer repeats into every session. `cxc memory status` still shows the whole pile, how much is recent, and how much is inert.
+- The recall SessionStart envelope has a total cap of 2,400 characters (1,400 after compaction); optional status lines are clipped and dropped first, and the recall pointer always stays.
 - `cxc state sync` applies a file another machine edited or deleted (a devlog doc, a re-recorded receipt) when the local copy is still byte-for-byte the last synced version, re-checked right before the swap; a locally edited copy is a reported conflict and is never written. This also ends the stops a `core.autocrlf=true` clone caused by committing line-ending-only changes (#302).
+
+### Added (memory)
+
+- `cxc memory prune [--apply]` deletes exhausted stage-1 extraction jobs that finished over 90 days ago. The host never claims threads older than its `max_rollout_age_days` (at most 90), so these rows can never run again. Dry run by default; never younger than 90 days.
+- `cxc chat index --compact` evicts down to the budget and compacts immediately. `cxc chat index --status` and `cxc memory status` (`recallIndex` in `--json`) report the index size on disk against its budget, and SessionStart says so in one line when an index is over budget.
 
 ### Documentation
 
