@@ -126,16 +126,29 @@ test("footprint reports every area of the codexclaw store and honours its entry 
   }
 });
 
-test("doctor memory-footprint warns over the target and names the compaction", () => {
-  const mod = (total: number, recall: number) => ({
-    measureFootprint: () => ({ totalBytes: total, areas: { recall }, truncated: false }),
+test("doctor memory-footprint follows the configured budget, names the area's repair, and distrusts a truncated walk", () => {
+  const mod = (total: number, recall: number, extra: Record<string, number> = {}, truncated = false) => ({
+    measureFootprint: () => ({ totalBytes: total, areas: { recall, ...extra }, truncated }),
     formatFootprint: () => "fp",
     FOOTPRINT_WARN_BYTES: 100 * MB,
   });
-  assert.equal(checkMemoryFootprint("/r", mod(40 * MB, 30 * MB)).severity, "PASS");
-  const big = checkMemoryFootprint("/r", mod(410 * MB, 400 * MB));
+  const limit48 = 56 * MB;
+  assert.equal(checkMemoryFootprint("/r", mod(40 * MB, 30 * MB), limit48).severity, "PASS");
+  const big = checkMemoryFootprint("/r", mod(410 * MB, 400 * MB), limit48);
   assert.equal(big.severity, "WARN");
   assert.equal(big.repair, "cxc chat index --compact");
-  assert.equal(checkMemoryFootprint("/r", mod(60 * MB, 58 * MB)).severity, "WARN", "recall past its budget");
-  assert.equal(checkMemoryFootprint("/r", null).severity, "PASS");
+  assert.equal(checkMemoryFootprint("/r", mod(60 * MB, 58 * MB), limit48).severity, "WARN", "recall past its budget");
+  // A 96 MiB override makes an 80 MiB recall area healthy; a 4 MiB one makes 20 MiB too big.
+  assert.equal(checkMemoryFootprint("/r", mod(80 * MB, 80 * MB), 104 * MB).severity, "PASS");
+  assert.equal(checkMemoryFootprint("/r", mod(20 * MB, 20 * MB), 12 * MB).severity, "WARN");
+  // Overflow caused by another area points at that area, not at recall compaction.
+  const backups = checkMemoryFootprint("/r", mod(130 * MB, 20 * MB, { backups: 110 * MB }), limit48);
+  assert.equal(backups.severity, "WARN");
+  assert.match(String(backups.repair), /backups/);
+  assert.doesNotMatch(String(backups.repair), /chat index/);
+  // Lower-bound totals never certify a healthy store.
+  const partial = checkMemoryFootprint("/r", mod(10 * MB, 5 * MB, {}, true), limit48);
+  assert.equal(partial.severity, "WARN");
+  assert.match(partial.evidence, /incomplete/);
+  assert.equal(checkMemoryFootprint("/r", null, limit48).severity, "PASS");
 });

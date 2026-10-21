@@ -6,7 +6,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, appendFileSync, utimesSync, truncateSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, appendFileSync, utimesSync, truncateSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -22,6 +22,8 @@ import {
 } from "../src/index-budget.ts";
 import { pruneInertMemoryJobs, MIN_PRUNE_AGE_DAYS } from "../src/memory-prune.ts";
 import { handleSessionStart, SESSION_START_CHAR_BUDGET } from "../src/hook.ts";
+import { searchChat } from "../src/chat-search.ts";
+import { main as cliMain } from "../src/cli.ts";
 
 const MB = 1024 * 1024;
 /** shm is 32KB; the WAL is truncated after every changing ingest. */
@@ -301,5 +303,80 @@ test("memory prune removes only exhausted stage-1 jobs the host can never claim 
     assert.deepEqual(left, ["done", "global", "recent", "retrying", "undated"]);
   } finally {
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("an index already over budget makes room before admitting new sessions (review #306)", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-preevict-"));
+  try {
+    const paths = buildHistory(root, 60, 60, 1200);
+    const idx = join(root, "sidecar", "index.sqlite");
+    const db = openIndex(idx);
+    try {
+      // Build the first 59 sessions unbounded, then lower the budget far below that.
+      const newest = paths[59]!;
+      const keep = readFileSync(newest);
+      rmSync(newest);
+      ingest(root, db, 0, { budget: null });
+      writeFileSync(newest, keep);
+      const later = Date.UTC(2026, 6, 1) / 1000;
+      utimesSync(newest, later, later);
+      const budget: IndexBudget = { maxBytes: Math.floor(indexDiskBytes(idx) / 3), lowWater: 0.8 };
+
+      ingest(root, db, 0, { budget });
+      assert.equal(evictedOf(db, newest), 0, "the newest session is searchable, not parked as metadata");
+      assert.ok(indexDiskBytes(idx) <= budget.maxBytes + DISK_SLACK);
+    } finally {
+      db.close();
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the trimmed-history warning follows last activity, not the rollout's creation date (review #306)", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-trimwarn-"));
+  try {
+    const paths = buildHistory(root, 40, 40, 1200);
+    const idx = join(root, "sidecar", "index.sqlite");
+    const db = openIndex(idx);
+    try {
+      ingest(root, db, 0, { budget: null });
+      // A January rollout appended to yesterday, then evicted.
+      const now = Date.now();
+      db.prepare("UPDATE files SET evicted = 1, mtime_ms = ? WHERE path = ?").run(now - 86_400_000, paths[0]!);
+      db.prepare("UPDATE files SET evicted = 0, mtime_ms = ? WHERE path != ?").run(Date.UTC(2026, 0, 1), paths[0]!);
+    } finally {
+      db.close();
+    }
+    const recent = searchChat("budget", { home: root, indexPath: idx, days: 7, noRefresh: true });
+    assert.ok(recent.warnings.some((w) => /trimmed from the index/.test(w)), JSON.stringify(recent.warnings));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cxc chat index --compact --status compacts instead of only reporting (review #306)", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-compact-status-"));
+  const previous = process.env["CODEXCLAW_RECALL_MAX_MB"];
+  const write = process.stdout.write.bind(process.stdout);
+  try {
+    buildHistory(root, 60, 60, 1200);
+    const idx = join(root, "sidecar", "index.sqlite");
+    const db = openIndex(idx);
+    ingest(root, db, 0, { budget: null });
+    db.close();
+    assert.ok(indexDiskBytes(idx) > 4 * MB, "sanity: the index starts over a 4 MB budget");
+    process.env["CODEXCLAW_RECALL_MAX_MB"] = "4";
+    (process.stdout as unknown as { write: (s: string) => boolean }).write = () => true;
+    const code = cliMain(["chat", "index", "--compact", "--status", "--index-path", idx, "--home", root]);
+    (process.stdout as unknown as { write: typeof write }).write = write;
+    assert.equal(code, 0);
+    assert.ok(indexDiskBytes(idx) <= 4 * MB + DISK_SLACK, "compacted to " + indexDiskBytes(idx));
+  } finally {
+    (process.stdout as unknown as { write: typeof write }).write = write;
+    if (previous === undefined) delete process.env["CODEXCLAW_RECALL_MAX_MB"];
+    else process.env["CODEXCLAW_RECALL_MAX_MB"] = previous;
+    rmSync(root, { recursive: true, force: true });
   }
 });

@@ -187,6 +187,13 @@ function readSlice(path: string, from: number, to: number): Buffer {
 export function ingest(home: string, db: RwDb, days = 0, opts: IngestOptions = {}): IngestResult {
   const started = Date.now();
   const budget = opts.budget === undefined ? resolveIndexBudget() : opts.budget;
+  // Make room before admitting anything. An index that is already over budget
+  // (for example right after CODEXCLAW_RECALL_MAX_MB was lowered) would otherwise
+  // record every new session as metadata only, and those rows keep their
+  // fingerprint, so the newest work would stay unsearchable until it changed again.
+  // Runs before the files table is read, so admission sees the evicted rows.
+  let preEvicted = 0;
+  if (budget !== null) preEvicted = evictToBudget(db, budget, opts.nowMs).evictedFiles;
   // Before the skip check below: an unchanged file is never re-read, so rows
   // written by an older CLI would keep repo_key NULL forever otherwise. This
   // is an UPDATE over ~13k file rows joined to the threads table — it never
@@ -213,7 +220,7 @@ export function ingest(home: string, db: RwDb, days = 0, opts: IngestOptions = {
     appended: 0,
     pruned: 0,
     msgs: 0,
-    evicted: 0,
+    evicted: preEvicted,
     elapsedMs: 0,
   };
   const delMsgs = db.prepare("DELETE FROM msgs WHERE path = ?");

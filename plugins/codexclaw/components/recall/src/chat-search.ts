@@ -398,10 +398,12 @@ function contextWindow(
 function trimmedHistoryWarning(db: ReturnType<typeof openIndexReadOnly>, cutoffIso: string | null): string | null {
   try {
     if (!filesHasColumn(db, "evicted")) return null;
-    const row = db.prepare("SELECT COUNT(*) AS n, MAX(date) AS newest FROM files WHERE evicted = 1").get() as { n: number; newest: string | null };
+    // Last activity (mtime), not the rollout's creation date: an old rollout that
+    // was appended to this week and then evicted is inside a 7-day window.
+    const row = db.prepare("SELECT COUNT(*) AS n, MAX(mtime_ms) AS newest FROM files WHERE evicted = 1").get() as { n: number; newest: number | null };
     const n = Number(row.n);
     if (n === 0 || row.newest === null) return null;
-    if (cutoffIso !== null && String(row.newest) < cutoffIso.slice(0, 10)) return null;
+    if (cutoffIso !== null && Number(row.newest) < Date.parse(cutoffIso)) return null;
     return `${n} older sessions were trimmed from the index by its size budget; --scan searches them`;
   } catch {
     return null;
