@@ -18,7 +18,7 @@ import { stateDbPath } from "./paths.js";
 import { normalizeRepoKey } from "./repo-key.js";
 
 import { usedDbBytes } from "./index-db.js";
-import { checkpointIndex, evictToBudget, resolveIndexBudget,                  } from "./index-budget.js";
+import { checkpointIndex, compactIndex, evictToBudget, resolveIndexBudget,                  } from "./index-budget.js";
 
 /**
  * Per-message caps (261022). Every stored character costs roughly five bytes on
@@ -187,6 +187,35 @@ function readSlice(path        , from        , to        )         {
 export function ingest(home        , db      , days = 0, opts                = {})               {
   const started = Date.now();
   const budget = opts.budget === undefined ? resolveIndexBudget() : opts.budget;
+  const onDisk = listRolloutFiles(home, days);
+  // Drop sessions whose rollout vanished before deciding what to evict: the
+  // space they free may be all the budget needs, and a session evicted while a
+  // deleted one still counted would stay metadata-only (its fingerprint is
+  // unchanged). Full scans only — a days-scoped refresh cannot tell an
+  // out-of-window file from a deleted one.
+  let prePruned = 0;
+  if (days === 0) {
+    const present = new Set(onDisk.map((f) => f.path));
+    const gone = (db.prepare("SELECT path FROM files").all()                           ).map((r) => String(r.path)).filter((p) => !present.has(p));
+    if (gone.length > 0) {
+      const delGoneMsgs = db.prepare("DELETE FROM msgs WHERE path = ?");
+      const delGoneFile = db.prepare("DELETE FROM files WHERE path = ?");
+      db.exec("BEGIN");
+      try {
+        for (const path of gone) {
+          delGoneMsgs.run(path);
+          delGoneFile.run(path);
+        }
+        db.exec("COMMIT");
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+      prePruned = gone.length;
+      // FTS deletes only add tombstones; merge them so the freed space is measurable.
+      if (budget !== null && usedDbBytes(db) > budget.maxBytes) compactIndex(db);
+    }
+  }
   // Make room before admitting anything. An index that is already over budget
   // (for example right after CODEXCLAW_RECALL_MAX_MB was lowered) would otherwise
   // record every new session as metadata only, and those rows keep their
@@ -199,7 +228,6 @@ export function ingest(home        , db      , days = 0, opts                = {
   // is an UPDATE over ~13k file rows joined to the threads table — it never
   // touches msgs and never re-parses a JSONL head.
   backfillRepoKeysFromThreads(home, db);
-  const onDisk = listRolloutFiles(home, days);
   const known = new Map                   ();
   for (const row of db
     .prepare("SELECT path, mtime_ms, size, bytes_ingested, last_ord, text_bytes, evicted FROM files")
@@ -218,7 +246,7 @@ export function ingest(home        , db      , days = 0, opts                = {
     scanned: onDisk.length,
     ingested: 0,
     appended: 0,
-    pruned: 0,
+    pruned: prePruned,
     msgs: 0,
     evicted: preEvicted,
     elapsedMs: 0,

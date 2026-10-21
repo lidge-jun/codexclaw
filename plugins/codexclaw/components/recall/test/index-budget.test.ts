@@ -380,3 +380,27 @@ test("cxc chat index --compact --status compacts instead of only reporting (revi
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("vanished sessions are pruned before eviction picks victims (review #309)", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-prune-first-"));
+  try {
+    const paths = buildHistory(root, 60, 60, 1200);
+    const idx = join(root, "sidecar", "index.sqlite");
+    const db = openIndex(idx);
+    try {
+      ingest(root, db, 0, { budget: null });
+      const full = indexDiskBytes(idx);
+      // Delete the 20 newest rollouts; the rest fits comfortably once they are gone.
+      for (const p of paths.slice(40)) rmSync(p);
+      const budget: IndexBudget = { maxBytes: Math.floor(full * 0.85), lowWater: 0.8 };
+      const result = ingest(root, db, 0, { budget });
+      assert.equal(result.pruned, 20);
+      for (const p of paths.slice(0, 40)) assert.equal(evictedOf(db, p), 0, "no surviving session was evicted needlessly");
+      assert.ok(usedDbBytes(db) <= budget.maxBytes);
+    } finally {
+      db.close();
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
