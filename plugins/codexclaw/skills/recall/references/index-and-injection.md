@@ -13,6 +13,16 @@ A search whose window reaches trimmed sessions says so; `--scan` reads the raw
 rollouts and finds them. `--status` and `cxc memory status` show the size on disk
 against the budget; `--compact` evicts down to the budget immediately.
 
+Nobody has to search for the budget to hold. SessionStart launches one detached
+background pass per 12 hours (stamp `recall/maintenance.json`, lock
+`recall/maintenance.lock`) when an index exists; it waits 30 seconds, refreshes,
+evicts and compacts, then records the before/after sizes. A machine where no
+session starts does no memory work. `CODEXCLAW_RECALL_MAINTENANCE=off` disables it.
+Long messages keep a head+tail window (three quarters head, one quarter tail), so a
+tool's final error line survives the cap. `cxc memory status` and `cxc doctor`
+(`memory-footprint`) report the whole `~/.codexclaw` footprint by area and warn
+above 100 MiB.
+
 ## Automatic session-start injection
 
 Separate from these commands, the SessionStart hook injects a short CWD-scoped

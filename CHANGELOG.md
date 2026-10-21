@@ -8,6 +8,8 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Fixed
 
+- The recall index budget is now enforced even when nobody searches. SessionStart launches one detached maintenance pass per 12 hours across all processes (stamp and create-exclusive lock under `recall/`, token handed to the child, stale after 30 minutes), only when an index exists; it waits 30 seconds off the startup path, then refreshes, evicts and compacts, and records before/after sizes. An idle machine does no memory work. `CODEXCLAW_RECALL_MAINTENANCE=off` disables it. On this machine the pass took an index from 15.2 MB to 5.9 MB under an 8 MB budget.
+- Capped messages keep a head+tail window instead of only the head, so the last lines of a long tool output (where errors land) stay searchable.
 - The recall index (`~/.codexclaw/recall/index.sqlite`) no longer grows without bound. One machine's index had reached 410 MB for 84 MB of text, and another 12 GB. It now stays under a byte budget, 48 MB by default (`CODEXCLAW_RECALL_MAX_MB`, minimum 4): stored messages are capped at 4 KB (tool output 1 KB, was 8 KB), a full index records older new sessions as metadata only, and above the budget the least recently active sessions lose their message text until the index is under 80 % of the budget. Freed pages go back to the filesystem (`auto_vacuum=INCREMENTAL`) and the WAL is truncated after each changing refresh. Trimmed sessions stay in the session list, `--scan` still searches them, and a search that reaches them says so. A refresh with nothing new writes nothing. Built from this machine's 844 MB of rollouts the index is 41 MB.
 - Schema v3: the first `cxc chat search` or `cxc chat index` after upgrading replaces an older index by deleting and recreating the file under a lock (O(1); the injection history carries over). Hooks never migrate. `cxc chat index --rebuild` now deletes the file instead of leaving deleted rows inside it.
 - SessionStart reports exhausted memory extraction jobs only when they failed in the last 7 days, so a standing pile (298 on one machine) no longer repeats into every session. `cxc memory status` still shows the whole pile, how much is recent, and how much is inert.
@@ -17,6 +19,7 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Added (memory)
 
+- `cxc doctor` gains a `memory-footprint` check and `cxc memory status` a `codexclaw store` line (`footprint` and `lastMaintenance` in `--json`): bytes per area of `~/.codexclaw` (recall, projects, backups, skill-cache, sessions), warning above 100 MiB in total or when the recall area is past its budget.
 - `cxc memory prune [--apply]` deletes exhausted stage-1 extraction jobs that finished over 90 days ago. The host never claims threads older than its `max_rollout_age_days` (at most 90), so these rows can never run again. Dry run by default; never younger than 90 days.
 - `cxc chat index --compact` evicts down to the budget and compacts immediately. `cxc chat index --status` and `cxc memory status` (`recallIndex` in `--json`) report the index size on disk against its budget, and SessionStart says so in one line when an index is over budget.
 

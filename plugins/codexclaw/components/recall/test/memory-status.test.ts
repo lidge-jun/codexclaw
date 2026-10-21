@@ -95,10 +95,12 @@ for (const scenario of observationCases) {
           assert.equal(output.state, scenario.state);
           assertObservationLimits(output);
           // The CLI adds the recall index size metric next to the host snapshot.
-          const { recallIndex, ...snapshot } = output;
+          const { recallIndex, footprint, lastMaintenance, ...snapshot } = output;
           assert.deepEqual(snapshot, status);
           assert.equal(typeof recallIndex.diskBytes, "number");
           assert.equal(typeof recallIndex.budgetBytes, "number");
+          assert.equal(typeof footprint.totalBytes, "number");
+          assert.ok(lastMaintenance === null || typeof lastMaintenance.at === "string");
         } else {
           assert.match(child.stdout, /observation: jobs-db; effective extraction route: unknown; startup guard decision: unknown/);
           assert.match(child.stdout, /job history does not establish the current route or guard decision/);

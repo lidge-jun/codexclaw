@@ -20,6 +20,46 @@ import { TargetParseError, validateManifestTargets } from "./manifest-targets.ts
 import { commandInvocation } from "./win-exec.ts";
 import { automountRoot, filesystemTier, isWslRuntime, type WslDeps } from "./wsl.ts";
 
+// Cross-component dist import, LAZY + FAIL-OPEN (precedent: recall -> cxc-ops/dist):
+// a payload without the recall component still runs doctor, minus this check.
+type FootprintModule = {
+  measureFootprint: (root: string) => { totalBytes: number; areas: Record<string, number>; truncated: boolean };
+  formatFootprint: (fp: { totalBytes: number; areas: Record<string, number>; truncated: boolean }) => string;
+  FOOTPRINT_WARN_BYTES: number;
+};
+let footprintModule: FootprintModule | null = null;
+try {
+  footprintModule = (await import("../../recall/dist/footprint.js")) as FootprintModule;
+} catch {
+  footprintModule = null;
+}
+
+/** Recall index ceiling the footprint check holds the recall area to (48 MiB default + WAL slack). */
+const RECALL_AREA_WARN_BYTES = 56 * 1024 * 1024;
+
+/**
+ * memory-footprint (261022): what codexclaw keeps under $CODEXCLAW_HOME ?? ~/.codexclaw,
+ * by area. WARN above 100 MiB in total or when the recall area is past its budget; the
+ * repair is the same compaction the background maintenance pass runs.
+ */
+export function checkMemoryFootprint(
+  root: string = process.env["CODEXCLAW_HOME"]?.trim() ? process.env["CODEXCLAW_HOME"]!.trim() : join(homedir(), ".codexclaw"),
+  mod: FootprintModule | null = footprintModule,
+): CheckResult {
+  if (!mod) return { name: "memory-footprint", severity: "PASS", evidence: "recall component not present; footprint not measured" };
+  try {
+    const fp = mod.measureFootprint(root);
+    const line = mod.formatFootprint(fp) + " under " + root;
+    const recall = fp.areas["recall"] ?? 0;
+    if (fp.totalBytes > mod.FOOTPRINT_WARN_BYTES || recall > RECALL_AREA_WARN_BYTES) {
+      return { name: "memory-footprint", severity: "WARN", evidence: line, repair: "cxc chat index --compact" };
+    }
+    return { name: "memory-footprint", severity: "PASS", evidence: line };
+  } catch (err) {
+    return { name: "memory-footprint", severity: "WARN", evidence: "footprint walk failed: " + (err instanceof Error ? err.message : String(err)) };
+  }
+}
+
 export type Severity = "PASS" | "WARN" | "FAIL";
 
 export interface CheckResult {
@@ -357,6 +397,9 @@ export function runDoctor(
 
   // 9. WSL residency and the filesystem tier the state tree actually sits on.
   checks.push(checkWslResidency(process.cwd(), options.wslDeps ?? {}));
+
+  // 10. Size of everything codexclaw keeps on disk (memory size budget).
+  checks.push(checkMemoryFootprint());
 
   // Read plugin version for report metadata.
   let pluginVersion: string | undefined;

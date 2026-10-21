@@ -29,6 +29,22 @@ import { checkpointIndex, evictToBudget, resolveIndexBudget,                  } 
  */
 export const TOOL_TEXT_CAP = 1_024;
 export const CONTENT_TEXT_CAP = 4_096;
+/** Marks the cut where the middle of a capped message was dropped. */
+export const CAP_ELISION = " … ";
+
+/**
+ * Keep a head+tail window of an over-long message: three quarters from the
+ * start, one quarter from the end, never more than `cap` characters in total.
+ * A tool's error line and an answer's conclusion usually sit at the end, which a
+ * head-only cut threw away; the dropped middle is the part recall never shows.
+ */
+export function capTextWindow(text        , cap        )         {
+  if (text.length <= cap) return text;
+  const room = Math.max(0, cap - CAP_ELISION.length);
+  const head = Math.ceil(room * 0.75);
+  const tail = room - head;
+  return text.slice(0, head) + CAP_ELISION + (tail > 0 ? text.slice(text.length - tail) : "");
+}
 
 /** Backfill batch size: one transaction per 1,000 threads, never one for 13k. */
 const BACKFILL_BATCH = 1_000;
@@ -215,7 +231,7 @@ export function ingest(home        , db      , days = 0, opts                = {
     let ord = startOrd;
     for (const e of entries) {
       const cap = e.matchField === "tool_log" ? TOOL_TEXT_CAP : CONTENT_TEXT_CAP;
-      const text = e.text.length > cap ? e.text.slice(0, cap) : e.text;
+      const text = capTextWindow(e.text, cap);
       insMsg.run(path, ord, e.ts, e.role, e.matchField, e.synthetic ? 1 : 0, text);
       textBytes += Buffer.byteLength(text, "utf8");
       ord += 1;
