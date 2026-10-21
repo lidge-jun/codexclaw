@@ -492,7 +492,7 @@ test("help lists repeated dependency syntax and required outcome", () => {
   // unknown-verb 거부 문구가 새 동사 넷을 포함하고 기존 여섯을 순서대로 남긴다.
   // 다음 verb 추가가 이 문구를 다시 빠뜨리면 여기서 RED가 난다.
   assert.deepEqual(parseGoalplanCliArgs(["redy"], "/tmp"), {
-    error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide); run cxc loop --help",
+    error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|pr-record); run cxc loop --help",
   });
 });
 

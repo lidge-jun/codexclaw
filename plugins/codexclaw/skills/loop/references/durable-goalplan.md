@@ -102,6 +102,7 @@ This is the on-disk shape under `<durable root>/goalplans/<slug>/goalplan.json`
 - `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]`
 - `cxc loop ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]` — record a question after sending it through the host. It never sends a message. Name each dependent phase.
 - `cxc loop decide --session <id> --id <id> --answer <text> [--cwd <path>]` — record the user reply. This changes only the decision record; phase status and blockedReason stay as they were.
+- `cxc loop pr-record --session <id> --pr <url|number> [--cwd <path>]` — record a merged or green PR as this session's completion record ([runtime lifecycle](runtime-lifecycle.md#completion-gate-goal-complete-gate-01-shipped)).
 - `cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]` — `--id` takes
   a generated `c-N` id; read it from `cxc loop show` or the goalplan file.
 - `cxc goalplan *` — deprecated alias for the same behavior during migration.
