@@ -14,13 +14,15 @@ import { existsSync, realpathSync } from "node:fs";
 import { searchChat, DEFAULT_DAYS, DEFAULT_LIMIT, type ChatSearchOptions } from "./chat-search.ts";
 import { searchMemory, DEFAULT_MEMORY_LIMIT, type MemorySearchOptions } from "./memory-search.ts";
 import { formatChatResult, formatMemoryResult, clipChatResultForJson } from "./format.ts";
-import { openIndex, openIndexReadOnly, indexPath, indexStatus, resetIndex, type IndexStatus } from "./index-db.ts";
+import { codexclawHome, openIndex, openIndexReadOnly, indexPath, indexStatus, resetIndex, type IndexStatus } from "./index-db.ts";
 import { compactIndex, evictToBudget, formatMb, recallIndexHealth, recallIndexNotice, resolveIndexBudget } from "./index-budget.ts";
 import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET, type IndexFreshness } from "./ingest.ts";
 import { codexHome } from "./paths.ts";
 import { collectMemoryStatus, formatMemoryStatus, memoryStatusNotice } from "./memory-status.ts";
 import { requeueExhaustedMemoryJobs, formatRequeue } from "./memory-requeue.ts";
 import { pruneInertMemoryJobs, formatPrune, MIN_PRUNE_AGE_DAYS } from "./memory-prune.ts";
+import { maintenancePaths, readStamp, runScheduledMaintenance, scheduleMaintenance, DEFAULT_DELAY_MS } from "./maintenance.ts";
+import { FOOTPRINT_WARN_BYTES, formatFootprint, measureFootprint } from "./footprint.ts";
 import {
   handleUserPromptSubmit,
   handleSessionStart,
@@ -324,8 +326,10 @@ export function runMemoryStatus(argv: string[]): number {
   const home = typeof values.home === "string" && values.home ? resolve(values.home) : codexHome();
   const status = collectMemoryStatus(home);
   const health = recallIndexHealth(indexPath());
+  const footprint = measureFootprint(codexclawHome());
+  const lastMaintenance = readStamp(maintenancePaths(indexPath()));
   if (values.json === true) {
-    process.stdout.write(`${JSON.stringify({ ...status, recallIndex: health }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ...status, recallIndex: health, footprint, lastMaintenance }, null, 2)}\n`);
   } else {
     process.stdout.write(formatMemoryStatus(status));
     process.stdout.write(
@@ -333,8 +337,43 @@ export function runMemoryStatus(argv: string[]): number {
         ? `recall index: ${formatMb(health.diskBytes)} on disk, budget ${formatMb(health.budgetBytes)}${health.overBudget ? " — over budget, run cxc chat index" : ""}\n`
         : "recall index: not built\n",
     );
+    process.stdout.write(
+      `codexclaw store: ${formatFootprint(footprint)}${footprint.totalBytes > FOOTPRINT_WARN_BYTES ? " — over the 100 MiB target" : ""}\n`,
+    );
+    if (lastMaintenance) {
+      process.stdout.write(
+        `last maintenance: ${lastMaintenance.at} ${lastMaintenance.ok ? "ok" : "failed: " + lastMaintenance.detail}, index ${formatMb(lastMaintenance.beforeBytes)} -> ${formatMb(lastMaintenance.afterBytes)}, ${lastMaintenance.evicted} trimmed\n`,
+      );
+    }
   }
   return status.state === "unavailable" ? 1 : 0;
+}
+
+/**
+ * `cxc chat maintain` — internal child entry the SessionStart hook spawns. Waits
+ * off the startup path, then runs one maintenance pass (maintenance.ts).
+ */
+function runChatMaintain(argv: string[]): Promise<number> {
+  const { values } = parseArgs({
+    args: argv,
+    options: { "lock-token": { type: "string" }, "delay-ms": { type: "string" }, home: { type: "string" } },
+    allowPositionals: true,
+    strict: false,
+  });
+  const home = typeof values.home === "string" && values.home ? resolve(values.home) : codexHome();
+  const delay = Number.parseInt(String(values["delay-ms"] ?? ""), 10);
+  const token = typeof values["lock-token"] === "string" ? values["lock-token"] : undefined;
+  return runScheduledMaintenance(maintenancePaths(indexPath()), home, token, Number.isFinite(delay) ? delay : DEFAULT_DELAY_MS);
+}
+
+/** SessionStart: launch at most one background pass per interval. Never throws. */
+function scheduleRecallMaintenance(): void {
+  try {
+    if ((process.env["CODEXCLAW_RECALL_MAINTENANCE"] ?? "").toLowerCase() === "off") return;
+    scheduleMaintenance(maintenancePaths(indexPath()), fileURLToPath(import.meta.url));
+  } catch {
+    /* fail-soft: maintenance is never worth a broken session start */
+  }
 }
 
 /**
@@ -457,6 +496,7 @@ async function runHook(event: string): Promise<number> {
       out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd(), payload.source, {
         memoryNotice: memoryPipelineNotice(),
       });
+      scheduleRecallMaintenance();
     } else if (event === "post-compact") {
       const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
       // Always "" — PostCompact output is universal-only (see handlePostCompact).
@@ -486,6 +526,9 @@ export function main(argv: string[]): number | Promise<number> {
   }
   if (kind === "memory" && sub === "prune") {
     return runMemoryPrune(argv.slice(2));
+  }
+  if (kind === "chat" && sub === "maintain") {
+    return runChatMaintain(argv.slice(2));
   }
   if (kind === "chat" && sub === "index") {
     if (argv.slice(2).some((a) => a === "help" || a === "/?")) {

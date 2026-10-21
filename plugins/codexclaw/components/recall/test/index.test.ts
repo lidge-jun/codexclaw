@@ -199,10 +199,12 @@ test("refresh-on-query picks up newly appended session lines", () => {
   assert.equal(fresh.hits.length, 1, "refresh-on-query must ingest the change");
 });
 
-test("tool outputs are capped at TOOL_TEXT_CAP in the index", () => {
+test("tool outputs are capped to a head+tail window of TOOL_TEXT_CAP in the index", () => {
   const today = dateParts(0);
   const dir = join(home, "sessions", today.y, today.m, today.d);
-  const big = "y".repeat(TOOL_TEXT_CAP + 500) + " needleinbigoutput";
+  // The middle of an oversized output is dropped; its last lines (where errors
+  // land) are kept.
+  const big = "y".repeat(TOOL_TEXT_CAP) + " needleinmiddle " + "z".repeat(TOOL_TEXT_CAP) + " needleinbigoutput";
   writeFileSync(
     join(dir, `rollout-${today.y}-${today.m}-${today.d}T03-00-00-019f0000-0000-7000-8000-00000000dddd.jsonl`),
     JSON.stringify({ timestamp: today.iso, type: "session_meta", payload: { id: "019f0000-0000-7000-8000-00000000dddd", cwd: "/proj/alpha", originator: "codex-tui" } }) +
@@ -210,9 +212,12 @@ test("tool outputs are capped at TOOL_TEXT_CAP in the index", () => {
       JSON.stringify({ timestamp: today.iso, type: "response_item", payload: { type: "function_call_output", call_id: "t", output: big } }) +
       "\n",
   );
-  const capped = viaIndex("needleinbigoutput", {});
-  assert.equal(capped.hits.length, 0, "text beyond the cap is not indexed");
-  const scan = viaScan("needleinbigoutput");
+  const middle = viaIndex("needleinmiddle", {});
+  assert.equal(middle.hits.length, 0, "the dropped middle is not indexed");
+  const tail = viaIndex("needleinbigoutput", {});
+  assert.equal(tail.hits.length, 1, "the tail of the output is indexed");
+  assert.ok(tail.hits[0]!.text.length <= TOOL_TEXT_CAP);
+  const scan = viaScan("needleinmiddle");
   assert.equal(scan.hits.length, 1, "scan path still sees the full output");
 });
 

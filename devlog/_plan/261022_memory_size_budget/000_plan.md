@@ -157,3 +157,21 @@ O(1) and leaves no free pages.
 - Real data, scratch `CODEXCLAW_HOME`: default budget 41.3 MB in 3.9 s; a
   20 MB budget settles at 15.3 MB with 181 sessions trimmed; an idle refresh
   takes 21 ms.
+
+## Follow-up: patterns ported from oh-my-openagent
+
+The omo lane (`lidge-jun/oh-my-openagent` `feat/small-memory-store`,
+`docs/reference/memory-storage-budget.md`) bounded its store with four
+mechanisms. How each maps here:
+
+| omo | codexclaw |
+|---|---|
+| Reasoning and tool results capped at capture to a 2,048-char head+tail window | Reasoning is never indexed. Chat (4 KB) and tool (1 KB) caps now keep a head+tail window (3/4 head, 1/4 tail) instead of only the head, so a tool's final error line survives. |
+| Consumed transcripts retired; `retired.ids` keeps 16-hex keys so replays dedupe; markers expire after 90 days | The rollouts belong to Codex and stay read-only, so codexclaw has no transcripts to retire. The equivalent is the evicted `files` row: its (mtime, size) fingerprint is the dedupe marker that stops an unchanged session from being parsed again. It expires when the rollout disappears (pruned on the next full refresh). |
+| Budget enforced in a maintenance pass: once per 12 h per identity across processes, 30 s after a session binds, lock-held, no work on a host without a session | `maintenance.ts`: SessionStart claims `recall/maintenance.lock` create-exclusively and spawns one detached child (token passed on argv and verified) when the `recall/maintenance.json` stamp is older than 12 h and an index exists. The child waits 30 s, migrates/refreshes/evicts/compacts, writes the stamp, releases the lock. Stale locks are taken over after 30 min, judged by the claim time inside the lock. |
+| `measureMemoryFootprint` per area, `/doctor` warns above 64 MiB | `footprint.ts`: capped `lstat` walk of `~/.codexclaw` by area (recall, projects, backups, skill-cache, sessions, other). `cxc memory status` prints it with the last pass; `cxc doctor` `memory-footprint` warns above 100 MiB total or when the recall area passes its budget. |
+
+Measured on this machine (read-only): the live store is 401.6 MiB, of which
+391.2 MiB is the pre-v3 index. A scratch store built from the same rollouts was
+taken from 15.2 MB to 5.9 MB by one scheduled pass under an 8 MB budget, with
+the hook itself returning immediately.
