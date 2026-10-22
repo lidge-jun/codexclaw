@@ -64,3 +64,15 @@ a pointer to the downstream; it does not depend on it.
 2. check.mjs and sync --check pass locally; "Check skills" CI green on main head.
 3. Sync is mechanical (rules.mjs), pinned in upstream.json, runnable by the weekly workflow (manual dispatch proves it).
 4. CodexClaw README/NOTICE point at noslopdesign, as a draft PR, unmerged.
+
+## D record (2026-10-23)
+
+Conclusion: noslopdesign is published. github.com/lidge-jun/noslopdesign is public at main 02760c2 with release v0.1.0; `npx skills add https://github.com/lidge-jun/noslopdesign --list` reads noslop-frontend and noslop-uiux from GitHub. CodexClaw PR #312 (base dev, head e88fd5fe) adds the downstream pointer and is ready for review, unmerged.
+
+Evidence: test receipt `.codexclaw/evidence/01a16583-820c-71a3-a69c-2f9dab0b852e/test-receipt.json` (npm run check, sync --check against a fresh clone of codexclaw main @ 1cbfcbb2, shell parse, pin on origin/main, skill-catalog.test.mjs 4/4, pointers 4/4); probes for orphan, version, leftover and unmapped internal reference each exit 1, a blocked sync leaves the tree clean; install.sh link/relink/uninstall in a temp HOME.
+
+NOT RUN: GitHub Actions (Check skills, Sync from CodexClaw, CodexClaw PR checks). Every run in both repos stayed queued on GitHub's side with nothing in progress; the user directed shipping without CI. The workflow YAML is reviewed but unproven on a runner. Real installs through the Claude Code and Codex plugin marketplaces were not exercised.
+
+What did not improve / open: before/after gallery for the README (the main lever for attention) is not built; upstream drift such as Vite 7 vs 8 in init-artifact.sh and the "adapted for codexclaw" Source lines stays until fixed in CodexClaw; scheduled workflows on public repos pause after 60 days without activity.
+
+Next: watch the first CI and sync runs when GitHub's queue drains; review and merge #312.
