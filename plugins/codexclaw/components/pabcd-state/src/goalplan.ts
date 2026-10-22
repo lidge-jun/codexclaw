@@ -1,4 +1,5 @@
-import { ensureCodexclawDir } from "./codexclaw-dir.ts";
+import { ensureDurableDir } from "./codexclaw-dir.ts";
+import { durableDir } from "./state-root.ts";
 /**
  * goalplan.ts — project-local durable goalplan substrate (lazygap_impl 030).
  *
@@ -31,10 +32,10 @@ import {
   writeFileSync,
   rmSync,
   writeSync,
+  linkSync,
 } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
-import { STATE_DIR } from "./state.ts";
 import { deriveSlug, type PlanFileHash } from "./freeze.ts";
 import type { SourceIdentity } from "./source-identity.ts";
 import type { ArtifactDigest } from "./source-receipt.ts";
@@ -319,8 +320,9 @@ function assertNotSymlink(path: string): void {
  */
 export function goalplanDir(cwd: string, slug: string): string {
   const safeSlug = validateGoalplanSlug(slug);
-  const projectRoot = resolve(cwd);
-  const stateRoot = resolve(projectRoot, STATE_DIR);
+  // 261020: the goalplan substrate is DURABLE and resolves through state-root.ts
+  // (<cwd>/.codexclaw in repo/local mode, the external project state dir otherwise).
+  const stateRoot = resolve(durableDir(cwd));
   const plansRoot = resolve(stateRoot, GOALPLANS_SUBDIR);
   const dir = resolve(plansRoot, safeSlug);
   if (!dir.startsWith(plansRoot + sep)) throw new Error("goalplan path escapes state root");
@@ -913,15 +915,45 @@ function firstInvalidField(parsed: unknown): string {
   return "(unknown)";
 }
 
+/** A create-only publication found an existing plan at the target. */
+export class GoalplanExistsError extends Error {
+  constructor(path: string) {
+    super("a goalplan already exists at " + path);
+    this.name = "GoalplanExistsError";
+  }
+}
+
+/**
+ * Create-only publication: hard-link the complete tmp file to the final name, which fails
+ * with EEXIST instead of replacing. Filesystems without hard links fall back to an
+ * exclusive (wx) copy, which has the same create-only guarantee.
+ */
+function publishExclusive(tmp: string, finalPath: string): void {
+  try {
+    linkSync(tmp, finalPath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "EEXIST") throw new GoalplanExistsError(finalPath);
+    if (code !== "EPERM" && code !== "ENOTSUP" && code !== "EXDEV") throw err;
+    try {
+      writeFileSync(finalPath, readFileSync(tmp), { flag: "wx", mode: 0o600 });
+    } catch (inner) {
+      if ((inner as NodeJS.ErrnoException)?.code === "EEXIST") throw new GoalplanExistsError(finalPath);
+      throw inner;
+    }
+  }
+  rmSync(tmp, { force: true });
+}
+
 /**
  * Low-level atomic publication (tmp + rename), refreshing updatedAt.
  * A new-plan create path may call this directly. A mutation of an existing plan
  * MUST call it inside withGoalplanWriteLock().
  */
-export function writeGoalplan(cwd: string, plan: Goalplan): void {
+export function writeGoalplan(cwd: string, plan: Goalplan, options: { exclusive?: boolean } = {}): void {
   validateGoalplanSlug(plan.slug);
   const dir = goalplanDir(cwd, plan.slug);
-  ensureCodexclawDir(cwd);
+  ensureDurableDir(cwd);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   // Recheck after creation to close the ordinary pre-existing symlink case.
   goalplanDir(cwd, plan.slug);
@@ -930,7 +962,13 @@ export function writeGoalplan(cwd: string, plan: Goalplan): void {
   const normalized: Goalplan = { ...plan, updatedAt: new Date().toISOString() };
   try {
     writeFileSync(tmp, JSON.stringify(normalized, null, 2), { mode: 0o600 });
-    renameWithRetry(tmp, finalPath);
+    if (options.exclusive) {
+      // 261020 (005 #7): a create must never replace a plan another checkout of the same
+      // project (or a state sync) published first. linkSync fails with EEXIST instead.
+      publishExclusive(tmp, finalPath);
+    } else {
+      renameWithRetry(tmp, finalPath);
+    }
   } catch (err) {
     try {
       rmSync(tmp, { force: true });
@@ -946,7 +984,7 @@ export function appendGoalplanLedger(cwd: string, slug: string, entry: GoalplanL
   validateGoalplanSlug(slug);
   if (entry.slug !== slug) throw new Error("goalplan ledger entry slug does not match target slug");
   const dir = goalplanDir(cwd, slug);
-  ensureCodexclawDir(cwd);
+  ensureDurableDir(cwd);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   goalplanDir(cwd, slug);
   const path = goalplanLedgerPath(cwd, slug);

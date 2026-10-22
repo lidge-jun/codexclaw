@@ -27,6 +27,7 @@ import {
   readyTasks,
   readyWorkPhases,
   withGoalplanWriteLock,
+  GoalplanExistsError,
   writeGoalplan,
   appendGoalplanLedger,
   validateGoalplan,
@@ -50,6 +51,8 @@ import { checkBoundSourceIdentity } from "./source-gate.ts";
 import { resolveSessionSource } from "./session-source.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
 import { applySteeringBatch } from "./steering.ts";
+import { DurableStateDisabledError } from "./state-root.ts";
+import { runPrRecord } from "./pr-record.ts";
 
 export type GoalplanVerb =
   | "init"
@@ -64,6 +67,7 @@ export type GoalplanVerb =
   | "meet-criterion"
   | "ask"
   | "decide"
+  | "pr-record"
   | "help";
 
 export interface GoalplanCliArgs {
@@ -113,6 +117,8 @@ export interface GoalplanCliArgs {
   outcome?: string;
   /** `meet-criterion`: the captured evidence a met criterion must carry. */
   evidence?: string;
+  /** `pr-record`: the pull request URL or number. */
+  pr?: string;
   /**
    * `ready` only. Optional so the `--help` early return, which builds
    * `{ verb: "help", cwd, criteria: [] }`, still type-checks.
@@ -137,13 +143,14 @@ const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>([
   "meet-criterion",
   "ask",
   "decide",
+  "pr-record",
 ]);
 
 type GoalplanFlag =
   | "--objective" | "--slug" | "--criterion" | "--cwd" | "--session"
   | "--batch-json" | "--surface" | "--presented" | "--id" | "--title" | "--work-phase"
   | "--outcome" | "--schema-version" | "--evidence" | "--json" | "--depends-on"
-  | "--question" | "--recommendation" | "--option" | "--answer";
+  | "--question" | "--recommendation" | "--option" | "--answer" | "--pr";
 
 type VerbRule = {
   allowed: ReadonlySet<GoalplanFlag>;
@@ -164,6 +171,7 @@ const VERB_RULES: Readonly<Record<GoalplanVerb, VerbRule>> = {
   "meet-criterion": { allowed: new Set(["--session", "--id", "--evidence", "--cwd"]), repeatable: new Set(), usage: "meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]" },
   ask: { allowed: new Set(["--session", "--id", "--question", "--recommendation", "--option", "--work-phase", "--cwd"]), repeatable: new Set(["--option", "--work-phase"]), usage: "ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]" },
   decide: { allowed: new Set(["--session", "--id", "--answer", "--cwd"]), repeatable: new Set(), usage: "decide --session <id> --id <id> --answer <text> [--cwd <path>]" },
+  "pr-record": { allowed: new Set(["--session", "--pr", "--cwd"]), repeatable: new Set(), usage: "pr-record --session <id> --pr <url|number> [--cwd <path>]" },
   help: { allowed: new Set(), repeatable: new Set(), usage: "--help" },
 };
 
@@ -179,7 +187,7 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
   }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide); run cxc loop --help`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|pr-record); run cxc loop --help`,
     };
   }
   const selected = verb as GoalplanVerb;
@@ -248,6 +256,7 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
         break;
       }
       case "--answer": out.answer = value; break;
+      case "--pr": out.pr = value; break;
       case "--outcome": out.outcome = value; break;
       case "--schema-version": {
         const parsed = Number(value);
@@ -728,15 +737,16 @@ export function renderGoalplanHelp(): string {
     "cxc loop — durable goalplan for a multi-cycle PABCD loop",
     "",
     "Usage:",
-    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "ask", "decide", "help"] as const)
+    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "ask", "decide", "pr-record", "help"] as const)
       .map((verb) => `  cxc loop ${VERB_RULES[verb].usage}`),
     "",
     "Notes:",
     "  Mutating verbs require --session <id>; show, validate, and ready are read-only.",
     "  Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch.",
     "  Every value flag also accepts --flag=value; use it for a value that starts with --.",
-    "  The goalplan lives at <cwd>/.codexclaw/goalplans/<slug>/goalplan.json, so --cwd",
-    "  matters when the process cwd is not the workspace you are planning in.",
+    "  The goalplan lives at <durable root>/goalplans/<slug>/goalplan.json (<cwd>/.codexclaw in",
+    "  repo mode; `cxc state path` prints it), so --cwd matters when the process cwd is not",
+    "  the workspace you are planning in.",
     "  Repeat --depends-on once per prerequisite; add-task accepts only existing task ids",
     "  from the same work phase; comma-separated values are one id.",
     "  complete-task requires non-empty outcome evidence and never replaces a stored outcome.",
@@ -747,6 +757,9 @@ export function renderGoalplanHelp(): string {
     "  Send the question through the host first, then record it with ask; ask never sends a message.",
     "  Record the user's reply with decide. It changes only the decision record.",
     "  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text.",
+    "  pr-record checks the PR once with gh (merged, or open with every check passing) and stores it as",
+    "  this session's completion record. The goal gate then accepts completion without a closed cycle or",
+    "  a fully ticked plan; unverified subagent work and a structurally broken plan still block it.",
     "",
     "steer --batch-json expects an object with:",
     '  { "idempotencyKey": "<unique>", "rationale": "<why>", "evidence": "<proof>",',
@@ -757,6 +770,15 @@ export function renderGoalplanHelp(): string {
 }
 
 export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
+  try {
+    return runGoalplanCliInner(args);
+  } catch (err) {
+    if (err instanceof DurableStateDisabledError) return { output: `loop: ${err.message}`, code: 1 };
+    throw err;
+  }
+}
+
+function runGoalplanCliInner(args: GoalplanCliArgs): GoalplanCliResult {
   if (args.verb === "help") return { output: renderGoalplanHelp(), code: 0 };
   if (args.verb === "init") {
     const objective = (args.objective ?? "").trim();
@@ -791,7 +813,14 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
       criteria: args.criteria.map((scenario) => ({ scenario })),
       schemaVersion: args.schemaVersion,
     });
-    writeGoalplan(args.cwd, plan);
+    try {
+      writeGoalplan(args.cwd, plan, { exclusive: true });
+    } catch (err) {
+      if (err instanceof GoalplanExistsError) {
+        return { output: `loop init: a plan already exists at slug '${slug}' (use show/validate)`, code: 1 };
+      }
+      throw err;
+    }
     appendGoalplanLedger(args.cwd, slug, {
       ts: new Date().toISOString(),
       slug,
@@ -819,6 +848,10 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
 
   if (args.verb === "steer") return runSteer(args);
   if (args.verb === "ask" || args.verb === "decide") return runDecision(args);
+  if (args.verb === "pr-record") {
+    const result = runPrRecord(args.cwd, (args.session ?? "").trim(), args.pr ?? "");
+    return { output: result.output, code: result.code };
+  }
 
   if (args.verb === "add-criterion" || args.verb === "add-work-phase") return runAddOp(args);
 

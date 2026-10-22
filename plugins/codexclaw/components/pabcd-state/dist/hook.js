@@ -91,6 +91,7 @@ import { validateCheckReceipt } from "./check-gate.js";
 import { validatePlanArtifacts } from "./plan-gate.js";
 import { validateWorkPhaseBinding,                  } from "./attest.js";
 import { randomBytes } from "node:crypto";
+import { durableDir, durableLabel } from "./state-root.js";
 
 
 /**
@@ -132,6 +133,7 @@ import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./frictio
 import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 import { hasNativeObservation, hasRenderArtifactModified, hasRenderObservation, nativeObservationLedgerMalformed, renderGroundingAdvisory } from "./render-observations.js";
 import { detectMemoryWriteRequest } from "./memory-write-gate.js";
+import { prRecordSince, readPrRecord } from "./pr-record.js";
 
 
 
@@ -498,7 +500,7 @@ function hasPabcdCloseRow(
   checkEpoch               ,
   closedWorkPhaseId               ,
 )          {
-  return readJsonlObjects(join(cwd, STATE_DIR, LEDGER_FILE)).some(
+  return readJsonlObjects(join(durableDir(cwd), LEDGER_FILE)).some(
     (row) => row.sessionId === sessionId && row.from === "C"
       && row.to === "IDLE" && row.reason === "done"
       && row.checkEpoch === checkEpoch
@@ -775,10 +777,11 @@ function handleOrchestrateCommand(
     if (state.phaseEntrySource.sourceRoot !== now.sourceRoot) {
       return buildContextOutput("UserPromptSubmit", "[codexclaw — refused: SOURCE-ROOT: source binding changed since B began. Re-plan and capture a new baseline; nothing was written.]");
     }
-    if (compareSource(state.phaseEntrySource, now).kind === "same") {
+    if (compareSource(state.phaseEntrySource, now).kind === "same"
+      && !prRecordSince(readPrRecord(payload.cwd, payload.session_id), state.phaseEntrySource.capturedAt)) {
       return buildContextOutput(
         "UserPromptSubmit",
-        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). Nothing was written.]`,
+        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). A merged or green PR from this B counts: \`cxc loop pr-record --session ${payload.session_id} --pr <url>\`. Nothing was written.]`,
       );
     }
   }
@@ -1518,7 +1521,7 @@ export function readStopWorkContext(cwd        , state       )                  
       readyTasks: [],
       expectedEvidence: null,
       waitingOn: [`the plan is not a valid graph: ${integrity.join("; ")}`],
-      ledgerPath: `.codexclaw/goalplans/${slug}/ledger.jsonl`,
+      ledgerPath: durableLabel(cwd, "goalplans", slug, "ledger.jsonl"),
     };
   }
 
@@ -1542,7 +1545,7 @@ export function readStopWorkContext(cwd        , state       )                  
     })),
     expectedEvidence: unmet[0]?.expectedEvidence ?? null,
     waitingOn,
-    ledgerPath: `.codexclaw/goalplans/${slug}/ledger.jsonl`,
+    ledgerPath: durableLabel(cwd, "goalplans", slug, "ledger.jsonl"),
   };
 }
 
@@ -1586,7 +1589,7 @@ export function buildGoalIdleBlock(
     if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
   } else if (plan && plan.workPhases.length === 0 && plan.criteria.length === 0) {
     lines.push(
-      `The bound goalplan '${state.slug}' is EMPTY: register workPhases[]/criteria[] in .codexclaw/goalplans/${state.slug}/goalplan.json (schema in $cxc-loop) so remaining work is durable and the E8 gate can pass.`,
+      `The bound goalplan '${state.slug}' is EMPTY: register workPhases[]/criteria[] in ${durableLabel(cwd, "goalplans", state.slug, "goalplan.json")} (schema in $cxc-loop) so remaining work is durable and the E8 gate can pass.`,
     );
   } else if (!state.slug) {
     lines.push(

@@ -203,6 +203,15 @@ async function main(): Promise<void> {
   // `plan` command path (260714 wp2): scaffold the devlog/_plan unit the P>A
   // plan-gate verifies. Without this branch the bin's `case "plan"` would
   // fall through to the silent `kind !== "hook"` exit-0 (audit round 2 High #1).
+  // `state` / `devlog` (261020): inspect, sync and migrate the resolved state root.
+  if (kind === "state" || kind === "devlog") {
+    const { runDevlogCli, runStateCli } = await import("./state-cli.ts");
+    const argv = process.argv.slice(3);
+    const result = kind === "state" ? runStateCli(argv, process.cwd()) : runDevlogCli(argv, process.cwd());
+    (result.code === 0 ? process.stdout : process.stderr).write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
   if (kind === "plan") {
     const { parsePlanCliArgs, runPlanCli } = await import("./plan-cli.ts");
     const parsed = parsePlanCliArgs(process.argv.slice(3), process.cwd());

@@ -5,13 +5,14 @@ cxc chat search "<query>" [--days N] [--cwd PATH] [--role r] [--source main|suba
                           [--limit N] [--context N] [--any] [--all] [--no-tools]
                           [--recent] [--rank] [--scan] [--no-refresh] [--synonyms] [--json] [--full]
                           [--home PATH]
-cxc chat index [--rebuild] [--status] [--json]
+cxc chat index [--rebuild] [--compact] [--status] [--json]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]
                             [--home PATH]
 cxc memory status [--json] [--home PATH]
 cxc memory requeue [--apply] [--include-context-window] [--kind K] [--limit N]
                    [--retries N] [--json] [--home PATH]
+cxc memory prune [--apply] [--older-than-days N] [--json] [--home PATH]
 ```
 
 `cxc chat search` and `cxc memory search` do not write Codex session files or the
@@ -46,6 +47,13 @@ blocks startup, while an absent flag permits a numeric 100% window at threshold 
 By default it selects only transient causes; `--include-context-window` is opt-in and
 usually a bad idea, since an input that did not fit the context window will not fit on a
 retry either — it just spends quota failing again.
+
+`cxc memory prune` deletes exhausted stage-1 jobs that finished more than 90 days ago.
+The host never claims a thread older than its `max_rollout_age_days` (at most 90), so
+those rows can never run again; they only inflate the exhausted count. Dry run unless
+`--apply`; `--older-than-days` cannot go below 90. SessionStart mentions exhausted jobs
+only when they finished in the last 7 days; `cxc memory status` shows the whole pile,
+how much of it is recent, and how much is inert.
 - `--json` on `cxc chat index` prints index status as JSON.
 
 Defaults that matter:

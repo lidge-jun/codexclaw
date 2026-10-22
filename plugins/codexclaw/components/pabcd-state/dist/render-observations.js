@@ -24,6 +24,7 @@ import { dirname, extname, join, resolve } from "node:path";
 
 import { fileEditShapes } from "./edit-shape.js";
 import { splitLines } from "./text-lines.js";
+import { evidenceDir } from "./state-root.js";
 
 export const STATE_DIR = ".codexclaw";
 export const RENDER_OBS_FILE = "render-observations.jsonl";
@@ -190,7 +191,7 @@ function structuredField(value         , names          )                {
 /** A viewed screenshot counts only when a verdict in this session declared its exact path. */
 function declaredScreenshot(cwd        , sessionId        , path        )                {
   if (!/^[A-Za-z0-9._-]+$/.test(sessionId) || sessionId === "." || sessionId === "..") return null;
-  const qaRoot = join(cwd, STATE_DIR, "evidence", sessionId, "qa");
+  const qaRoot = join(evidenceDir(cwd), sessionId, "qa");
   const viewed = resolve(cwd, path);
   const visit = (dir        )          => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

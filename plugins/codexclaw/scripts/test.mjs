@@ -65,6 +65,14 @@ export function splitArgs(argv) {
   return { patterns, shard };
 }
 
+/** 261020: an operator's CODEXCLAW_STATE_ROOT/MODE must not steer fixtures into real state. */
+export function withoutStateEnv(env) {
+  const out = { ...env };
+  delete out.CODEXCLAW_STATE_ROOT;
+  delete out.CODEXCLAW_STATE_MODE;
+  return out;
+}
+
 function main() {
   const { patterns, shard } = splitArgs(process.argv.slice(2));
   const targets = shard ? shardFiles(expandPatterns(patterns), shard.index, shard.total) : patterns;
@@ -74,7 +82,7 @@ function main() {
   const home = mkdtempSync(join(tmpdir(), 'cxc-test-home-'));
   try {
     const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', ...targets], {
-      stdio: 'inherit', env: { ...process.env, CODEXCLAW_HOME: home,
+      stdio: 'inherit', env: { ...withoutStateEnv(process.env), CODEXCLAW_HOME: home,
         CODEX_HOME: join(home, 'codex'), CODEX_SQLITE_HOME: join(home, 'codex') },
     });
     if (result.error) throw result.error;

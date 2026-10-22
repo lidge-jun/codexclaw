@@ -43,6 +43,15 @@ The guard leaves blocked status available, subject to the host's own conditions.
 Unexpected guard errors fail open; absent delivery or an allowed call proves
 neither completion nor fresh verification.
 
+When the work already shipped as a pull request that merged, or that is open with
+every check passing, record it: `cxc loop pr-record --session <id> --pr <url>`.
+The command checks the PR once with `gh` and stores it as this session's
+completion record. The gate then accepts completion with a cycle still open or a
+plan not fully ticked, and B>C accepts an unchanged source when the record was
+made during that B (SOURCE-DELTA-01). The record never covers unverified
+subagent work or a structurally broken plan. A PR that is closed, still running
+checks, or failing any check is refused and nothing is written.
+
 Before waiting on dispatched work or long external processes, read
 [Waiting on work](waiting.md), the mode-neutral owner of wait and retirement rules.
 It also owns the cross-turn preflight: the Stop-continuation bounds below mean a

@@ -19,6 +19,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { createRequire } from "node:module";
+import { durableDir, durableLabel } from "./state-root.js";
 const nodeRequire = createRequire(import.meta.url);
 
 export const FINAL_GATE_MARKER = "[CXC-FINAL-GATE]";
@@ -120,7 +121,7 @@ export function checkFinalGatePrereqs(
     const slug = typeof state?.slug === "string" ? state.slug : "";
     if (!slug) return { ok: true };
 
-    const plan = readJson(join(cwd, ".codexclaw", "goalplans", slug, "goalplan.json"));
+    const plan = readJson(join(durableDir(cwd), "goalplans", slug, "goalplan.json"));
     if (!plan) return { ok: true };
     const gate = typeof plan.finalGate === "object" && plan.finalGate !== null
       ? (plan.finalGate                           )
@@ -180,7 +181,7 @@ export function checkFinalGatePrereqs(
         "[codexclaw — final gate] This spawn is marked as the final gate, but its prerequisites are not in place:",
         ...missing.map((m) => `  - ${m}`),
         ...stale.map((s) => `  - ${s}`),
-        "Run the checks, record their receipts under .codexclaw/evidence/, then dispatch the gate reviewer.",
+        `Run the checks, record their receipts under ${durableLabel(cwd, "evidence")}/, then dispatch the gate reviewer.`,
       ].join("\n"),
     };
   } catch {

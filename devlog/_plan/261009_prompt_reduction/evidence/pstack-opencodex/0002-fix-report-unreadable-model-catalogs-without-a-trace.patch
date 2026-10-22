@@ -1,0 +1,162 @@
+From 1f6db410bea0027df08a71a71dd8c43530434ec2 Mon Sep 17 00:00:00 2001
+From: bitkyc08-arch <bitkyc08@gmail.com>
+Date: Fri, 9 Oct 2026 15:12:55 +0900
+Subject: [PATCH 2/2] fix: report unreadable model catalogs without a traceback
+
+check-models read the catalog with a bare json.loads and indexed model["slug"],
+so a missing file, malformed JSON or an unexpected shape ended in a Python
+traceback. check-runtime already reports the same inputs as a BLOCKED
+diagnostic.
+
+catalog_models() now shape-checks every entry in file order (duplicates are
+kept, so a disabled or malformed earlier entry is still seen), catalog_efforts()
+projects reasoning efforts, and load_catalog() keeps its return shape.
+check-models reads the catalog once inside one error boundary and exits 1 with
+"cannot read model catalog <path>: <reason>".
+---
+ tests/test_runtime.py     | 60 +++++++++++++++++++++++++++++++++++++++
+ tools/pstack_opencodex.py | 33 +++++++++++++++++----
+ 2 files changed, 88 insertions(+), 5 deletions(-)
+
+diff --git a/tests/test_runtime.py b/tests/test_runtime.py
+index 484a1b4..ef6d822 100644
+--- a/tests/test_runtime.py
++++ b/tests/test_runtime.py
+@@ -198,5 +198,65 @@ class RuntimeCLI(unittest.TestCase):
+         self.assertIn("catalog path must be absolute", result.stdout)
+ 
+ 
++class CheckModelsCLI(unittest.TestCase):
++    def setUp(self):
++        self.temporary = tempfile.TemporaryDirectory(prefix="pstack-models-test-")
++        self.addCleanup(self.temporary.cleanup)
++        self.root = Path(self.temporary.name).resolve()
++        self.catalog = self.root / "catalog.json"
++        self.roles = self.root / "models.md"
++        self.roles.write_text("how explainer: anthropic/claude-opus-5-5-xhigh\n")
++
++    def run_models(self):
++        return subprocess.run([sys.executable, str(ROOT / "tools/pstack_opencodex.py"), "check-models", "--file", str(self.roles), "--catalog", str(self.catalog)], text=True, capture_output=True, timeout=10)
++
++    def test_unreadable_catalogs_fail_with_a_message_instead_of_a_traceback(self):
++        bad_effort = models()
++        bad_effort["gpt-6.1-sol"]["supported_reasoning_levels"] = [{}]
++        cases = {
++            "missing file": None,
++            "malformed JSON": "not-json",
++            "non-object document": "[]",
++            "non-array models": '{"models": {}}',
++            "non-object entry": '{"models": [null]}',
++            "missing slug": '{"models": [{}]}',
++            "non-string slug": '{"models": [{"slug": 7}]}',
++            "malformed effort": json.dumps({"models": list(bad_effort.values())}),
++        }
++        for name, contents in cases.items():
++            with self.subTest(name):
++                if contents is None:
++                    self.catalog.unlink(missing_ok=True)
++                else:
++                    self.catalog.write_text(contents)
++                before = self.catalog.read_bytes() if self.catalog.exists() else None
++                result = self.run_models()
++                self.assertEqual(result.returncode, 1, result.stderr)
++                self.assertTrue(result.stderr.startswith("cannot read model catalog " + str(self.catalog)), result.stderr)
++                self.assertNotIn("Traceback", result.stderr)
++                self.assertNotIn("checking names", result.stdout)
++                after = self.catalog.read_bytes() if self.catalog.exists() else None
++                self.assertEqual(before, after)
++
++    def test_every_duplicate_slug_entry_is_still_checked(self):
++        disabled_first = [{"slug": "demo", "multi_agent_version": "disabled"}, {"slug": "demo", "multi_agent_version": "v1"}]
++        self.roles.write_text("how explainer: demo\n")
++        self.catalog.write_text(json.dumps({"models": disabled_first}))
++        result = self.run_models()
++        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
++        self.assertIn("disabled for collaboration", result.stdout)
++        bad_first = [{"slug": "demo", "supported_reasoning_levels": [{}]}, {"slug": "demo", "supported_reasoning_levels": [{"effort": "high"}]}]
++        self.catalog.write_text(json.dumps({"models": bad_first}))
++        result = self.run_models()
++        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
++        self.assertTrue(result.stderr.startswith("cannot read model catalog"), result.stderr)
++
++    def test_a_valid_catalog_still_resolves_and_clamps(self):
++        self.catalog.write_text(json.dumps({"models": list(models().values())}))
++        result = self.run_models()
++        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
++        self.assertIn("anthropic/claude-opus-5-5", result.stdout)
++        self.assertIn("clamped from xhigh", result.stdout)
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/tools/pstack_opencodex.py b/tools/pstack_opencodex.py
+index d34dfef..b18a49c 100644
+--- a/tools/pstack_opencodex.py
++++ b/tools/pstack_opencodex.py
+@@ -148,20 +148,39 @@ def cmd_build(args: argparse.Namespace) -> None:
+     print(f"built {len(skills)} skills into {dist} ({explicit} explicit-only)")
+ 
+ 
+-def load_catalog(path: Path) -> dict[str, list[str]]:
++def catalog_models(path: Path) -> list[dict]:
++    """Read and shape-check every model entry, keeping duplicates in file order."""
+     data = json.loads(path.read_text())
++    if not isinstance(data, dict):
++        raise ValueError("expected an object")
++    models = data.get("models", [])
++    if not isinstance(models, list):
++        raise ValueError("expected a models array")
++    for model in models:
++        if not isinstance(model, dict) or not isinstance(model.get("slug"), str):
++            raise ValueError("expected model objects with string slugs")
++    return models
++
++
++def catalog_efforts(models: list[dict]) -> dict[str, list[str]]:
++    """Map each catalog slug to the reasoning efforts pstack understands."""
+     catalog = {}
+-    for model in data.get("models", []):
++    for model in models:
++        slug = model["slug"]
+         raw_levels = model.get("supported_reasoning_levels") or []
+         if not isinstance(raw_levels, list):
+             raise ValueError("supported_reasoning_levels must be an array")
+         levels = [lvl.get("effort") if isinstance(lvl, dict) else lvl for lvl in raw_levels]
+         if any(not isinstance(lvl, str) for lvl in levels):
+             raise ValueError("reasoning levels must be strings or objects with string efforts")
+-        catalog[model["slug"]] = [lvl for lvl in levels if lvl in EFFORTS]
++        catalog[slug] = [lvl for lvl in levels if lvl in EFFORTS]
+     return catalog
+ 
+ 
++def load_catalog(path: Path) -> dict[str, list[str]]:
++    return catalog_efforts(catalog_models(path))
++
++
+ def split_effort(value: str) -> tuple[str, str | None]:
+     tokens = value.split("-")
+     if tokens[-1] == "fast":
+@@ -222,7 +241,12 @@ def upstream_roles() -> dict[str, list[str]]:
+ 
+ 
+ def cmd_check_models(args: argparse.Namespace) -> None:
+-    catalog = load_catalog(Path(args.catalog))
++    catalog_path = Path(args.catalog)
++    try:
++        records = catalog_models(catalog_path)
++        catalog = catalog_efforts(records)
++    except (OSError, ValueError) as error:
++        raise SystemExit(f"cannot read model catalog {catalog_path}: {error}")
+     defaults = upstream_roles()
+     if args.defaults:
+         roles, source = defaults, "upstream defaults"
+@@ -233,7 +257,6 @@ def cmd_check_models(args: argparse.Namespace) -> None:
+         roles, source = parse_roles(path.read_text()), str(path)
+     print(f"checking names and reasoning efforts in {source} against {args.catalog}")
+     print("This does not verify collaboration transport or live provider availability; run check-runtime before delegation.")
+-    records = json.loads(Path(args.catalog).read_text()).get("models", [])
+     disabled = {model["slug"] for model in records if model.get("multi_agent_version") == "disabled"}
+     failures = 0
+     for label, values in roles.items():
+-- 
+2.50.1
+

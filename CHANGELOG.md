@@ -6,6 +6,56 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.43] - 2026-10-22
+
+### Fixed
+
+- Review follow-ups to the recall budget (#306, #308): an index that is already over budget now evicts before admitting new sessions, so the newest work is searchable right after `CODEXCLAW_RECALL_MAX_MB` is lowered; the trimmed-history search warning uses a session's last activity instead of its rollout creation date; `cxc chat index --compact --status` compacts instead of only reporting; the doctor `memory-footprint` check follows the configured recall budget, warns when its walk was cut off at the entry cap, and names a repair for the area that actually overflowed. (#309)
+- The recall index budget is now enforced even when nobody searches. SessionStart launches one detached maintenance pass per 12 hours across all processes (stamp and create-exclusive lock under `recall/`, token handed to the child, stale after 30 minutes), only when an index exists; it waits 30 seconds off the startup path, then refreshes, evicts and compacts, and records before/after sizes. An idle machine does no memory work. `CODEXCLAW_RECALL_MAINTENANCE=off` disables it. On this machine the pass took an index from 15.2 MB to 5.9 MB under an 8 MB budget. (#308)
+- Capped messages keep a head+tail window instead of only the head, so the last lines of a long tool output (where errors land) stay searchable. (#308)
+- The recall index (`~/.codexclaw/recall/index.sqlite`) no longer grows without bound. One machine's index had reached 410 MB for 84 MB of text, and another 12 GB. It now stays under a byte budget, 48 MB by default (`CODEXCLAW_RECALL_MAX_MB`, minimum 4): stored messages are capped at 4 KB (tool output 1 KB, was 8 KB), a full index records older new sessions as metadata only, and above the budget the least recently active sessions lose their message text until the index is under 80 % of the budget. Freed pages go back to the filesystem (`auto_vacuum=INCREMENTAL`) and the WAL is truncated after each changing refresh. Trimmed sessions stay in the session list, `--scan` still searches them, and a search that reaches them says so. A refresh with nothing new writes nothing. Built from this machine's 844 MB of rollouts the index is 41 MB. (#306)
+- Schema v3: the first `cxc chat search` or `cxc chat index` after upgrading replaces an older index by deleting and recreating the file under a lock (O(1); the injection history carries over). Hooks never migrate. `cxc chat index --rebuild` now deletes the file instead of leaving deleted rows inside it. (#306)
+- SessionStart reports exhausted memory extraction jobs only when they failed in the last 7 days, so a standing pile (298 on one machine) no longer repeats into every session. `cxc memory status` still shows the whole pile, how much is recent, and how much is inert. (#306)
+- The recall SessionStart envelope has a total cap of 2,400 characters (1,400 after compaction); optional status lines are clipped and dropped first, and the recall pointer always stays. (#306)
+- A merged or green pull request now counts as the completion record. Work that had already merged with CI green could not complete its goal: SOURCE-DELTA-01 refused B>C because the checkout no longer differed, and GOAL-COMPLETE-GATE-01 then denied completion for the open cycle and the plan's stale receipts. `cxc loop pr-record --session <id> --pr <url>` checks the PR once with `gh` (merged, or open with every check finished and passing) and stores a session-scoped record. With it, the gate accepts completion despite an open cycle, unfinished work phases, unmet criteria or receipt checks, and B>C accepts an unchanged source when the record was made during that B. Unverified subagent work, unreadable state and a structurally broken plan still deny. Hooks read only the local record and never call the network. (#307)
+- `cxc state sync` applies a file another machine edited or deleted (a devlog doc, a re-recorded receipt) when the local copy is still byte-for-byte the last synced version, re-checked right before the swap; a locally edited copy is a reported conflict and is never written. This also ends the stops a `core.autocrlf=true` clone caused by committing line-ending-only changes (#302).
+
+### Added (memory)
+
+- `cxc doctor` gains a `memory-footprint` check and `cxc memory status` a `codexclaw store` line (`footprint` and `lastMaintenance` in `--json`): bytes per area of `~/.codexclaw` (recall, projects, backups, skill-cache, sessions), warning above 100 MiB in total or when the recall area is past its budget. (#308)
+- `cxc memory prune [--apply]` deletes exhausted stage-1 extraction jobs that finished over 90 days ago. The host never claims threads older than its `max_rollout_age_days` (at most 90), so these rows can never run again. Dry run by default; never younger than 90 days. (#306)
+- `cxc chat index --compact` evicts down to the budget and compacts immediately. `cxc chat index --status` and `cxc memory status` (`recallIndex` in `--json`) report the index size on disk against its budget, and SessionStart says so in one line when an index is over budget. (#306)
+
+### Documentation
+
+- Skills, references and the new `structure/80_state_layout.md` describe where codexclaw keeps durable state: plan units under `cxc devlog path`, ledgers/goalplans/evidence under the durable directory `cxc state path` prints, the four modes, the project id, the evidence guard, and the enterprise migration commands (migration is manual). Copy-paste attest examples and the QA receipt command use placeholders for the resolved paths.
+
+### Added
+
+- State root resolver (`state-root.ts`). Durable codexclaw state — the transition ledger, goalplans, evidence, evidence attempts/markers and interview ledgers — now resolves per checkout to one of four modes: `repo` (today's `<cwd>/.codexclaw` and `devlog/`), `local` (same paths, hidden through `.git/info/exclude`), `external` (`~/.codexclaw/projects/<host__owner__repo-hash>/state` and `.../devlog`, shared by every worktree of the repository and kept when a worktree is removed) and `none` (durable writes skipped). `CODEXCLAW_STATE_MODE` and `CODEXCLAW_STATE_ROOT` override; the user config `~/.codexclaw/config.json` takes `state.mode`, `state.root`, `state.ownerAllowlist` and per-repository `state.projects`. Without configuration, repositories owned by `lidge-jun`, `goat-si` or `lidge-ai` stay in `repo` mode, other owners go `external`, git checkouts without an origin go `local`, and plain directories keep `repo`. Volatile state (sessions, caches, friction and render logs, bridge db) stays in the checkout.
+
+### Changed
+
+- The subagent evidence guard and test/QA receipts use the resolved evidence root. A receipt must still be a real, non-empty file inside that root, and the guard now also refuses a symlinked root or any symlinked directory between the root and the receipt.
+- `cxc loop init` publishes the plan create-only, so two checkouts of one project cannot overwrite each other's new plan.
+- In `local`, `external` and `none` modes `cxc config interview` writes `.codexclaw/codexclaw.json` instead of the committable root file, and a new `.codexclaw/` gets a self-ignoring `.gitignore`.
+- `cxc reset` leaves shared external state alone and lists it.
+- `cxc plan init` scaffolds units under the resolved devlog (`cxc devlog path`) and prints the absolute `planUnit` to attest when the devlog is outside the checkout; in an explicitly repo-mode repository whose owner is not allowlisted it warns before writing `devlog/`.
+
+### Added (CLI)
+
+- `cxc state path [--json]` and `cxc devlog path [--explain|--json]` print the resolved mode, the reason, and the durable, devlog and volatile directories.
+- `cxc state sync [--dry-run]` syncs an external state base that is its own private git repository: snapshot commit, fetch, merge in a temporary worktree (`*.jsonl merge=union`), apply to the live files additively (missing ledger lines appended, new files created exclusively, goalplan files swapped under the goalplan write lock), then push. It never forces, and any other difference stops it before the branch moves.
+- `cxc state migrate [--apply]` moves a checkout's legacy `.codexclaw` durable state and `devlog/` into the external layout: dry run by default, identical files count as done, ledgers union-merge, other differences are kept as conflicts, symlinks and git-tracked files are skipped, and it refuses while a session in the checkout is mid-cycle.
+
+### Fixed
+
+- On Windows the state resolver resolved the same repository to two project ids when one path used an 8.3 short name (`RUNNER~1`); it now uses the native realpath.
+
+### Compatibility
+
+- No hook declaration changed, so no hook retrust is needed beyond the usual install. The first `cxc chat search` or `cxc chat index` after upgrading recreates the recall index once (schema v3); after that, SessionStart may start the detached maintenance pass described above, which `CODEXCLAW_RECALL_MAINTENANCE=off` disables. Repositories owned outside the allowlist resolve durable state to `external` mode; `cxc state migrate` moves legacy state and is never run automatically.
+
 ## [0.2.42] - 2026-10-09
 
 ### Added

@@ -17,7 +17,8 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { hasValidReceipt } from "./subagent-evidence.ts";
+import { hasSymlinkComponent, hasValidReceipt } from "./subagent-evidence.ts";
+import { durableLabel, evidenceDir, resolveStateRoot } from "./state-root.ts";
 import type { SourceIdentity } from "./source-identity.ts";
 
 export type ReceiptKind = "test" | "qa";
@@ -98,7 +99,9 @@ function criterionIdsValid(ids: unknown): ids is string[] {
 
 function parseArtifactManifest(raw: unknown, receiptPath: string, cwd: string): ArtifactDigest[] | ReceiptError {
   if (!Array.isArray(raw) || raw.length === 0) return { error: "artifactManifest must be a non-empty array" };
-  const root = resolve(cwd, ".codexclaw", "evidence");
+  const stateRoot = resolveStateRoot(cwd);
+  if (stateRoot.disabledReason) return { error: `artifactManifest evidence root is disabled: ${stateRoot.disabledReason}` };
+  const root = resolve(evidenceDir(cwd));
   let rootReal: string;
   try { rootReal = realpathSync(root); }
   catch (err) { return { error: `artifactManifest evidence root cannot be read: ${String(err)}` }; }
@@ -124,6 +127,8 @@ function parseArtifactManifest(raw: unknown, receiptPath: string, cwd: string): 
       const real = realpathSync(abs);
       const realRel = relative(rootReal, real);
       if (!realRel || realRel.startsWith(`..${sep}`) || realRel === ".." || isAbsolute(realRel)) return { error: `${label} resolves outside the evidence root` };
+      // 261020: no symlink between the root and the leaf either, even one that stays inside.
+      if (hasSymlinkComponent(root, abs)) return { error: `${label} passes through a symlink` };
       const st = statSync(abs);
       if (!st.isFile() || st.size === 0) return { error: `${label} is empty or not a regular file` };
       const actual = createHash("sha256").update(readFileSync(abs)).digest("hex");
@@ -187,7 +192,7 @@ export function parseSourceBoundReceipt(
   if (!path) return { error: "receipt path is empty" };
   if (!hasValidReceipt(cwd, path)) {
     return {
-      error: `receipt failed the evidence-root guard (outside .codexclaw/evidence, symlink, not a regular file, or empty): ${path}`,
+      error: `receipt failed the evidence-root guard (outside ${durableLabel(cwd, "evidence")}, symlink, not a regular file, or empty): ${path}`,
     };
   }
   const abs = isAbsolute(path) ? resolve(path) : resolve(cwd, path);

@@ -17,12 +17,45 @@ import { loadThreadMeta } from "./threads-db.js";
 import { stateDbPath } from "./paths.js";
 import { normalizeRepoKey } from "./repo-key.js";
 
+import { usedDbBytes } from "./index-db.js";
+import { checkpointIndex, compactIndex, evictToBudget, resolveIndexBudget,                  } from "./index-budget.js";
 
-/** Tool outputs dominate corpus bytes; cap them to bound index size. */
-export const TOOL_TEXT_CAP = 8_192;
+/**
+ * Per-message caps (261022). Every stored character costs roughly five bytes on
+ * disk once both FTS indexes are counted, and recall only ever shows a snippet,
+ * so the head of a message is what pays for itself. Measured on 10k real
+ * messages: 8KB tool / uncapped chat stored 21.2M characters in a 94MB index;
+ * these caps store 6.9M characters in 37MB with identical FTS settings.
+ */
+export const TOOL_TEXT_CAP = 1_024;
+export const CONTENT_TEXT_CAP = 4_096;
+/** Marks the cut where the middle of a capped message was dropped. */
+export const CAP_ELISION = " … ";
+
+/**
+ * Keep a head+tail window of an over-long message: three quarters from the
+ * start, one quarter from the end, never more than `cap` characters in total.
+ * A tool's error line and an answer's conclusion usually sit at the end, which a
+ * head-only cut threw away; the dropped middle is the part recall never shows.
+ */
+export function capTextWindow(text        , cap        )         {
+  if (text.length <= cap) return text;
+  const room = Math.max(0, cap - CAP_ELISION.length);
+  const head = Math.ceil(room * 0.75);
+  const tail = room - head;
+  return text.slice(0, head) + CAP_ELISION + (tail > 0 ? text.slice(text.length - tail) : "");
+}
 
 /** Backfill batch size: one transaction per 1,000 threads, never one for 13k. */
 const BACKFILL_BATCH = 1_000;
+
+
+
+
+
+
+
+
 
 
 
@@ -151,23 +184,61 @@ function readSlice(path        , from        , to        )         {
   }
 }
 
-export function ingest(home        , db      , days = 0)               {
+export function ingest(home        , db      , days = 0, opts                = {})               {
   const started = Date.now();
+  const budget = opts.budget === undefined ? resolveIndexBudget() : opts.budget;
+  const onDisk = listRolloutFiles(home, days);
+  // Drop sessions whose rollout vanished before deciding what to evict: the
+  // space they free may be all the budget needs, and a session evicted while a
+  // deleted one still counted would stay metadata-only (its fingerprint is
+  // unchanged). Full scans only — a days-scoped refresh cannot tell an
+  // out-of-window file from a deleted one.
+  let prePruned = 0;
+  if (days === 0) {
+    const present = new Set(onDisk.map((f) => f.path));
+    const gone = (db.prepare("SELECT path FROM files").all()                           ).map((r) => String(r.path)).filter((p) => !present.has(p));
+    if (gone.length > 0) {
+      const delGoneMsgs = db.prepare("DELETE FROM msgs WHERE path = ?");
+      const delGoneFile = db.prepare("DELETE FROM files WHERE path = ?");
+      db.exec("BEGIN");
+      try {
+        for (const path of gone) {
+          delGoneMsgs.run(path);
+          delGoneFile.run(path);
+        }
+        db.exec("COMMIT");
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+      prePruned = gone.length;
+      // FTS deletes only add tombstones; merge them so the freed space is measurable.
+      if (budget !== null && usedDbBytes(db) > budget.maxBytes) compactIndex(db);
+    }
+  }
+  // Make room before admitting anything. An index that is already over budget
+  // (for example right after CODEXCLAW_RECALL_MAX_MB was lowered) would otherwise
+  // record every new session as metadata only, and those rows keep their
+  // fingerprint, so the newest work would stay unsearchable until it changed again.
+  // Runs before the files table is read, so admission sees the evicted rows.
+  let preEvicted = 0;
+  if (budget !== null) preEvicted = evictToBudget(db, budget, opts.nowMs).evictedFiles;
   // Before the skip check below: an unchanged file is never re-read, so rows
   // written by an older CLI would keep repo_key NULL forever otherwise. This
   // is an UPDATE over ~13k file rows joined to the threads table — it never
   // touches msgs and never re-parses a JSONL head.
   backfillRepoKeysFromThreads(home, db);
-  const onDisk = listRolloutFiles(home, days);
   const known = new Map                   ();
   for (const row of db
-    .prepare("SELECT path, mtime_ms, size, bytes_ingested, last_ord FROM files")
+    .prepare("SELECT path, mtime_ms, size, bytes_ingested, last_ord, text_bytes, evicted FROM files")
     .all()                                  ) {
     known.set(String(row.path), {
       mtime_ms: Number(row.mtime_ms),
       size: Number(row.size),
       bytes_ingested: Number(row.bytes_ingested),
       last_ord: Number(row.last_ord),
+      text_bytes: Number(row.text_bytes),
+      evicted: Number(row.evicted) === 1,
     });
   }
 
@@ -175,31 +246,38 @@ export function ingest(home        , db      , days = 0)               {
     scanned: onDisk.length,
     ingested: 0,
     appended: 0,
-    pruned: 0,
+    pruned: prePruned,
     msgs: 0,
+    evicted: preEvicted,
     elapsedMs: 0,
   };
   const delMsgs = db.prepare("DELETE FROM msgs WHERE path = ?");
   const delFile = db.prepare("DELETE FROM files WHERE path = ?");
   const insFile = db.prepare(
-    "INSERT OR REPLACE INTO files (path, mtime_ms, size, thread_id, cwd, source, date, bytes_ingested, last_ord, repo_key)" +
-      " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO files (path, mtime_ms, size, thread_id, cwd, source, date, bytes_ingested, last_ord, repo_key, text_bytes, evicted)" +
+      " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const insMsg = db.prepare(
     "INSERT INTO msgs (path, ord, ts, role, match_field, synthetic, text) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
 
+  let textBytes = 0;
   const insertEntries = (path        , entries                                 , startOrd        )         => {
     let ord = startOrd;
     for (const e of entries) {
-      const text =
-        e.matchField === "tool_log" && e.text.length > TOOL_TEXT_CAP ? e.text.slice(0, TOOL_TEXT_CAP) : e.text;
+      const cap = e.matchField === "tool_log" ? TOOL_TEXT_CAP : CONTENT_TEXT_CAP;
+      const text = capTextWindow(e.text, cap);
       insMsg.run(path, ord, e.ts, e.role, e.matchField, e.synthetic ? 1 : 0, text);
+      textBytes += Buffer.byteLength(text, "utf8");
       ord += 1;
       result.msgs += 1;
     }
     return ord;
   };
+  // Once the index is at its budget, a session that was never indexed is
+  // recorded as metadata only. Files arrive newest first, so a first build
+  // fills the budget with recent sessions and never parses the long tail.
+  const isFull = ()          => budget !== null && usedDbBytes(db) >= budget.maxBytes;
 
   const seen = new Set        ();
   for (const file of onDisk) {
@@ -219,11 +297,15 @@ export function ingest(home        , db      , days = 0)               {
     // Partial trailing lines are excluded by the complete-line boundary and picked
     // up on the next refresh.
 
-    const canAppend = prev !== undefined && prev.bytes_ingested > 0 && st.size > prev.size;
+    const canAppend = prev !== undefined && !prev.evicted && prev.bytes_ingested > 0 && st.size > prev.size;
     db.exec("BEGIN");
     try {
       const meta = readRolloutMeta(file.path);
-      if (canAppend) {
+      textBytes = 0;
+      if (prev === undefined && isFull()) {
+        insFile.run(file.path, mtimeMs, st.size, meta.threadId, meta.cwd, meta.source, file.date, 0, 0, meta.repoKey, 0, 1);
+        result.evicted += 1;
+      } else if (canAppend) {
         // Grown file: parse only the appended complete lines.
         const slice = readSlice(file.path, prev.bytes_ingested, st.size);
         const boundary = completeLineBoundary(slice);
@@ -240,6 +322,8 @@ export function ingest(home        , db      , days = 0)               {
           prev.bytes_ingested + boundary,
           lastOrd,
           meta.repoKey,
+          prev.text_bytes + textBytes,
+          0,
         );
         result.appended += 1;
       } else {
@@ -261,6 +345,8 @@ export function ingest(home        , db      , days = 0)               {
           boundary,
           lastOrd,
           meta.repoKey,
+          textBytes,
+          0,
         );
         result.ingested += 1;
       }
@@ -289,10 +375,17 @@ export function ingest(home        , db      , days = 0)               {
     }
   }
 
-  if (result.ingested + result.appended + result.pruned > 0) {
+  const changed = result.ingested + result.appended + result.pruned + result.evicted > 0;
+  if (budget !== null) {
+    // One cheap measurement when nothing changed; real work only above budget.
+    result.evicted += evictToBudget(db, budget, opts.nowMs).evictedFiles;
+  }
+  if (changed) {
     db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_ingest_at', ?)").run(
       new Date().toISOString(),
     );
+    db.exec("PRAGMA incremental_vacuum");
+    checkpointIndex(db);
   }
   result.elapsedMs = Date.now() - started;
   return result;

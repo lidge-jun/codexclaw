@@ -47,3 +47,37 @@ Dispositions: W1, W3, W5 accepted as planned. W2 accepted: the collision test li
 
 Gap P1 (delivery dependency) resolved: PR B is stacked on PR A's branch (base `main` in the PR, with a note that it contains A's commit until A merges), so its fresh macOS proof runs on a tree where A's rename exists. If A merges first, B is rebased onto `main`. Gap P2 and P3 folded above.
 
+
+## wp6 P revalidation and A residuals (2026-10-09)
+
+Continuity, quoting the wp5 D summary: "Next: wp6 (pstack-opencodex PRs) per 050." Upstream `main` is still `2dd2800` with no PRs, so both defects and the plan stand. Fork: `lidge-jun/pstack-opencodex` (created during wp5 wait, no branches pushed).
+
+Residual 1 (research/09): the delivery line "independent, either order" is replaced. PR A targets `main`. PR B is branched from PR A's branch and also targets `main`; its description says it contains A's commit until A merges, links A, and names its own review range (the last commit). After A merges, B is rebased onto `main` and re-verified.
+
+Residual 2: tests are labeled by role. RED regression tests must fail on `2dd2800` and pass after the fix: the case-collision test against the real index (A); the eight catalog error-contract cases (B: missing file, malformed JSON, non-object document, non-array `models`, non-object entry, missing slug, non-string slug, malformed effort). Compatibility tests pass before and after: the collision helper's shared-parent fixture (A) and the successful `check-models` run with a clamped effort (B). C records the RED run on `2dd2800` and the GREEN run on each branch, plus `git diff --exit-code 2dd2800 HEAD -- upstream/`.
+
+
+## wp6 B record
+
+Implemented in a clone of foxytanuki/pstack-opencodex (`/tmp/pso.EjTe/repo`, base `2dd2800`); the exact patches are in `evidence/pstack-opencodex/` (`0001-…` = PR A, `0002-…` = PR B, stacked).
+
+- PR A, branch `fix/upstream-lock-case` (`1ee7f61`): `UPSTREAM` → `UPSTREAM.lock` (bytes unchanged, renamed through the index), readers updated (`LOCK_FILE`, module docstring, README layout row, CONTRIBUTING), NEW `tests/test_repository.py` (case-collision helper over tracked paths and their directory prefixes; real-index test), `.github/workflows/ci.yml` adds a `macos-15` job that first checks the checkout is complete. The macOS run exposed an existing failure on `2dd2800`: `test_explicit_catalog_override_wins_over_config` compares an unresolved temp path with the CLI's resolved one (`/var` → `/private/var`); the test now resolves its temp root (one line).
+- PR B, branch `fix/check-models-catalog-errors` (`80ea77c`, on top of A): `catalog_efforts(records)` split out of `load_catalog`, which now validates through `pstack_runtime.catalog_records` and keeps its return shape; `check-models` reads the catalog once inside one `(OSError, ValueError)` boundary and exits 1 with `cannot read model catalog <path>: <reason>`; the disabled-model set reuses the validated records.
+- RED on `2dd2800` (this Mac): the real-index collision test fails with `[['UPSTREAM', 'upstream']]` (both helper fixtures pass); the eight catalog cases fail (tracebacks or wrong exit/prefix); the clamp compatibility case passes. GREEN: A 25/25, B 27/27; build (46 skills), both license `cmp`, `git diff --check` and `git diff --exit-code 2dd2800 -- upstream/` pass on both branches.
+
+
+## wp6 C round 1 (research/19_review_wp6.md, GO-WITH-FIXES)
+
+Finding 1 (duplicate slugs): routing validation through `catalog_records` (a slug-keyed dict) dropped earlier entries for a repeated slug, so a disabled first entry or a malformed first entry stopped failing. Fixed by `catalog_models(path)`, which shape-checks every entry in file order and keeps duplicates; `catalog_efforts` walks that list; `load_catalog` keeps its return shape and its original per-entry validation, so `check-runtime` behaves as on `2dd2800`. New regression `test_every_duplicate_slug_entry_is_still_checked` (both cases). PR B is now 28/28 locally; the patch in `evidence/pstack-opencodex/0002-…` is refreshed.
+
+
+## wp6 delivery and D summary (2026-10-09)
+
+- PR A: https://github.com/foxytanuki/pstack-opencodex/pull/1 (`fix/upstream-lock-case` `1ee7f61`).
+- PR B: https://github.com/foxytanuki/pstack-opencodex/pull/2 (`fix/check-models-catalog-errors` `1f6db41`, on top of A, disclosed in the body).
+- Checks: GitGuardian SUCCESS on both heads. The repository's CI workflow runs are `action_required` (GitHub's approval gate for a first-time contributor's fork PR); only the maintainer can approve them, so hosted CI on these heads is approval-blocked, not failed. Local proof: fresh macOS clones of both branches pass the repository's four CI steps (`WP6_VERIFIED` under `cxc receipt test`). Review: research/19 GO-WITH-FIXES (duplicate slugs) → fixed → research/20 PASS.
+
+Conclusion: two small fixes for defects reproduced on macOS went to pstack-opencodex; nothing went to Cursor's pstack (no external change has been merged there). Three ideas from the comparison landed in codexclaw itself through #289 (neutral review packets, failure classes for delegated calls, compact routing).
+
+What did not go well: the first PR B routed validation through a slug-keyed helper and silently dropped duplicate entries, a behavior change only an independent probe caught; the FSM's source-delta rule cannot see work in another repository, so the B evidence had to be the recorded patches. Evidence the direction is wrong: the maintainer rejecting the lock rename in favor of renaming `upstream/`, or the macOS job being unwanted CI cost.
+

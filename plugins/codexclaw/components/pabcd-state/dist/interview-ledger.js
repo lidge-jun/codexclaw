@@ -1,4 +1,5 @@
-import { ensureCodexclawDir } from "./codexclaw-dir.js";
+import { ensureDurableDir } from "./codexclaw-dir.js";
+import { DurableStateDisabledError, durableDir } from "./state-root.js";
 /**
  * interview-ledger.ts — durable interview question/answer capture (L12 / 120, WP4).
  *
@@ -113,7 +114,7 @@ export function deriveEventId(turnId        , questionId        , kind          
 }
 
 function ledgerPath(cwd        , sessionId        )         {
-  return join(cwd, STATE_DIR, INTERVIEWS_SUBDIR, `${sanitizeKey(sessionId)}.jsonl`);
+  return join(durableDir(cwd), INTERVIEWS_SUBDIR, `${sanitizeKey(sessionId)}.jsonl`);
 }
 
 /** Read all QA events for a session (best-effort; missing file or bad lines -> skipped). */
@@ -217,8 +218,14 @@ function alreadyRecorded(cwd        , sessionId        , eventId        )       
 }
 
 function appendEvent(cwd        , entry                  )       {
-  const dir = join(cwd, STATE_DIR, INTERVIEWS_SUBDIR);
-  ensureCodexclawDir(cwd);
+  let root        ;
+  try {
+    root = ensureDurableDir(cwd);
+  } catch (err) {
+    if (err instanceof DurableStateDisabledError) return; // state mode none: capture is skipped
+    throw err;
+  }
+  const dir = join(root, INTERVIEWS_SUBDIR);
   mkdirSync(dir, { recursive: true });
   appendFileSync(ledgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
 }

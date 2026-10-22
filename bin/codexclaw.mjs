@@ -279,7 +279,9 @@ const TOP_LEVEL_HELP = [
   "  freeze                         freeze the interview plan and show goal handoff",
   "  loop <verb>                     manage the full project-local goalplan verb set",
   "  goalplan <verb>                 deprecated alias for loop <verb>",
-  "  plan init <slug> [--phases N]   scaffold the devlog/_plan unit the P>A gate verifies",
+  "  plan init <slug> [--phases N]   scaffold a plan unit under the resolved devlog (cxc devlog path)",
+  "  state path|sync|migrate         where durable state lives; sync/migrate the external root",
+  "  devlog path                     print the resolved devlog directory",
   "  receipt test -- <command>       produce the test receipt a bound C>D requires",
   "  evidence resolve               settle an unverified subagent verdict (needs --receipt)",
   "  review-round open|show|abort    the opt-in A-gate plan-audit round",
@@ -517,6 +519,12 @@ if (isMain) switch (cmd) {
   case "plan":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "plan".
     // Scaffolds devlog/_plan/YYMMDD_slug/ for the P>A plan-artifact gate (260714 wp2).
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
+  case "state":
+  case "devlog":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "state" or "devlog".
+    // Resolved durable state root: path / sync / migrate (261020 external state root).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
   case "release":

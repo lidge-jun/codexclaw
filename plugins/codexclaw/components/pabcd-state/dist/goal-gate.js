@@ -33,13 +33,15 @@ const CREATE_GOAL_WARNING =
 
 import { getGoalActiveStatus, suppressesInterview,                                            } from "./goal-active.js";
 import { readStateStrict } from "./state.js";
-import { readGoalplan, validateGoalplan } from "./goalplan.js";
+import { goalplanStructuralReasons, readGoalplan, validateGoalplan } from "./goalplan.js";
+import { readPrRecord } from "./pr-record.js";
 import { compareSource } from "./source-identity.js";
 import { captureSessionSourceIdentity } from "./session-source-identity.js";
 import { resolveSessionSource } from "./session-source.js";
 import { parseSourceBoundReceipt } from "./source-receipt.js";
 import { hasSpentBudget, unrecordableVerdictStatus } from "./subagent-evidence.js";
 import { readPabcdEnabled } from "./interview-policy.js";
+import { durableLabel } from "./state-root.js";
 // Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
 // 260724 WP1: deny remedies name `cxc orchestrate ...`/`cxc loop validate` — on a
 // payload-only install those must render the resolvable invocation. Emit-time only.
@@ -224,9 +226,14 @@ export function applyGoalCompleteGuard(payload                   , pabcdEnabled 
         `GOAL-COMPLETE-GATE-01: session state unreadable; delegated evidence unconfirmed. Restore verified state. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
-    if (pabcdEnabled && state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
+    // A merged or green PR recorded for this session (`cxc loop pr-record`) is the
+    // completion record: it stands in for an open cycle and for the plan's progress
+    // and receipt checks. It never stands in for unverified delegated work or a
+    // structurally broken plan, both checked below regardless (pr-record.ts).
+    const prRecord = readPrRecord(payload.cwd, payload.session_id);
+    if (pabcdEnabled && !prRecord && state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: cycle in flight at phase ${state.phase}, session ${payload.session_id}. Close via D. Owner: $codexclaw:cxc-pabcd phase-control.md.`,
+        `GOAL-COMPLETE-GATE-01: cycle in flight at phase ${state.phase}, session ${payload.session_id}. Close via D or \`cxc loop pr-record\` a merged/green PR. Owner: $codexclaw:cxc-pabcd phase-control.md.`,
       );
     }
     // EVIDENCE-TERMINAL-01 (260826): the SubagentStop gate no longer blocks a child
@@ -245,7 +252,7 @@ export function applyGoalCompleteGuard(payload                   , pabcdEnabled 
     const marker = unrecordableVerdictStatus(payload.cwd, payload.session_id);
     if (marker.present || marker.unreadable) {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: delegated verdict unconfirmed (.codexclaw/evidence-unrecordable/). Re-verify and clear marker. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
+        `GOAL-COMPLETE-GATE-01: delegated verdict unconfirmed (${durableLabel(payload.cwd, "evidence-unrecordable")}/). Re-verify and clear marker. Owner: $codexclaw:cxc-loop runtime-lifecycle.md.`,
       );
     }
     // Independent durable signal: a retry counter still at the cap means an agent
@@ -274,7 +281,14 @@ export function applyGoalCompleteGuard(payload                   , pabcdEnabled 
       try { resolveSessionSource(payload.cwd, payload.session_id); }
       catch (err) { return goalCompleteDenyEnvelope(`SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}`); }
       const plan = readGoalplan(payload.cwd, state.slug);
-      if (plan) {
+      if (plan && prRecord) {
+        const structural = goalplanStructuralReasons(plan);
+        if (structural.length > 0) {
+          return goalCompleteDenyEnvelope(
+            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' is structurally broken (${structural.slice(0, 3).join("; ")}); a PR record does not cover that. Repair ${durableLabel(payload.cwd, "goalplans", state.slug, "goalplan.json")}. Owner: $codexclaw:cxc-loop durable-goalplan.md.`,
+          );
+        }
+      } else if (plan) {
         // Completion must use the same marker/source/receipt-aware validation as
         // `cxc loop validate`; omitting this context turns a removed schemaVersion
         // field into a downgrade path around the v2 final gate.
@@ -287,7 +301,7 @@ export function applyGoalCompleteGuard(payload                   , pabcdEnabled 
         if (!verdict.ok) {
           const reasons = verdict.reasons.slice(0, 4).join("; ");
           return goalCompleteDenyEnvelope(
-            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' fails E8: ${reasons}. Repair .codexclaw/goalplans/${state.slug}/goalplan.json; \`cxc loop validate --session ${payload.session_id}\`. Owner: $codexclaw:cxc-loop durable-goalplan.md (LOOP-CONTINUE-01).`,
+            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' fails E8: ${reasons}. Repair ${durableLabel(payload.cwd, "goalplans", state.slug, "goalplan.json")}; \`cxc loop validate --session ${payload.session_id}\`; shipped PR: \`cxc loop pr-record\`. Owner: $codexclaw:cxc-loop durable-goalplan.md (LOOP-CONTINUE-01).`,
           );
         }
       } else {

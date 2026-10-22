@@ -432,7 +432,7 @@ if (isDirect) {
   }
   const dir = args.find((a) => !a.startsWith("--"));
   if (!dir) {
-    console.error("usage: validate-evidence.mjs <.codexclaw/evidence/<sessionId>/qa/> [--emit-receipt]");
+    console.error("usage: validate-evidence.mjs <evidence-root>/<sessionId>/qa/ [--emit-receipt]  (evidence root: <durable>/evidence from cxc state path)");
     process.exit(2);
   }
   const result = validateEvidence(dir, { emitReceipt: args.includes("--emit-receipt") });
