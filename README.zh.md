@@ -219,6 +219,8 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 
 每个路由器都有独立的模块化参考资料，仅在需要时加载，不会预加载；同时继承父级的验证门、规则分类和安全规则。
 
+**前端 skill 下游。** `dev-frontend` 与 `dev-uiux-design` 的参考资料通过固定的改写规则（[rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs)）镜像到 [noslopdesign](https://github.com/lidge-jun/noslopdesign)。这两个 skill 内引用其他 skill 时只能使用 `dev-frontend`, `dev-uiux-design` (bare, `cxc-`-prefixed or as `../../dev-*/` links), `` `dev-backend` ``, `` `dev-testing` ``, `` `dev-security` ``, `` `dev-devops` ``, and `` `dev` §0.2 `` / `§0.4`；`Source:` 与 `Adapted from` 行须位于行首，两个目录不得改名。其他写法会阻断该仓库的每周同步并在那里开 issue。
+
 **Visualizer 维护 — 先修复 codexclaw，再移植到 Aside。** 共享功能先在 codexclaw 中修复并验证，再移植到 `aside-visualizer`。只有下游移植合并到交付分支且验收条件得到验证后，才能关闭 Aside issue；保留 Aside 适配器、独立安装和无系统 Chrome 的 PDF 路径。详见[移植流程](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)。普通产物请求不授权仓库维护、安装、发布或独立循环；按产物选择 `draft`、`standard` 或 `publication` 验证档位。
 
 ## CLI
@@ -244,6 +246,7 @@ codexclaw 是参考实现。其方法论和 skills 已移植到以下项目中�
 | [pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative) | Methodology spec + docs-site + agent-neutral skill set |
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
+| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-frontend` + `dev-uiux-design` as `noslop-frontend` / `noslop-uiux`, synced weekly from here |
 
 ## 文档
 
