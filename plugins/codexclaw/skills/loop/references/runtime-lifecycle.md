@@ -51,6 +51,16 @@ plan not fully ticked, and B>C accepts an unchanged source when the record was
 made during that B (SOURCE-DELTA-01). The record never covers unverified
 subagent work or a structurally broken plan. A PR that is closed, still running
 checks, or failing any check is refused and nothing is written.
+Run it from the session's checkout (or pass `--cwd`): in repo and local state mode
+the gate reads the record there, so pr-record refuses a directory that holds no
+state for the session. External mode shares the record across the origin's checkouts.
+`pr-record` needs cxc 0.2.43+. If `cxc loop --help` does not list it, the installed
+plugin is older than these skills (`cxc --version`). If the gate still denies after a
+record was written, read the denial first: unverified subagent work, unreadable state,
+a source binding or a broken plan still deny by design, and a denial that names a
+newer record means version skew. For skew, `codex plugin marketplace upgrade codexclaw`,
+re-approve the hooks Codex marks Modified, and open a new thread. Do not record the
+PR with a newer clone's CLI: the installed hooks still cannot read it.
 
 A docs-only roadmap cycle in a repository that forbids committing plans keeps
 its plan units outside the commit (`CODEXCLAW_PLANS_DIR` or `state.plansDir`;

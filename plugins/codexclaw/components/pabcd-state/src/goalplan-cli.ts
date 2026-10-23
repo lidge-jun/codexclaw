@@ -54,6 +54,7 @@ import { parseSourceBoundReceipt } from "./source-receipt.ts";
 import { applySteeringBatch } from "./steering.ts";
 import { DurableStateDisabledError } from "./state-root.ts";
 import { runPrRecord } from "./pr-record.ts";
+import { newerThanInstallHint } from "./install-version.ts";
 
 export type GoalplanVerb =
   | "init"
@@ -191,7 +192,7 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
   }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|link-criterion|pr-record); run cxc loop --help`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|link-criterion|pr-record); run cxc loop --help. If a skill names this verb, ${newerThanInstallHint("that skill")}`,
     };
   }
   const selected = verb as GoalplanVerb;

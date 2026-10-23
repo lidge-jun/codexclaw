@@ -84,6 +84,7 @@ test("classifyPr: merged and fully green PRs qualify; everything else is refused
 test("runPrRecord writes a session-scoped record only for a qualifying PR", () => {
   const cwd = mkdtempSync(join(tmpdir(), "cxc-pr-record-"));
   try {
+    writeState(cwd, defaultState("s-pr"));
     const refused = runPrRecord(cwd, "s-pr", "400", { view: view({ ...OPEN_GREEN, statusCheckRollup: [] }) });
     assert.equal(refused.code, 1);
     assert.match(refused.output, /Nothing was written/);
@@ -136,12 +137,12 @@ test("GOAL-COMPLETE-GATE-01 accepts a merged PR record over an open cycle and an
 test("a PR record never covers unverified subagent work or a structurally broken plan", () => {
   const cwd = mkdtempSync(join(tmpdir(), "cxc-pr-gate-"));
   try {
-    assert.equal(runPrRecord(cwd, "g-sub", "400", { view: view(OPEN_GREEN) }).code, 0);
     writeState(cwd, {
       ...defaultState("g-sub"),
       phase: "IDLE",
       unverifiedSubagents: [{ agentId: "a1", turnId: "t1", agentType: "worker", attempts: 3, receiptClaimed: "", recordedAt: "2026-09-28T00:00:00Z", resolvable: true }],
     });
+    assert.equal(runPrRecord(cwd, "g-sub", "400", { view: view(OPEN_GREEN) }).code, 0);
     assert.match(applyGoalCompleteGuard(ptu(cwd, "g-sub")), /unverified subagents/);
 
     const plan = buildGoalplan({ objective: "Broken plan" });
@@ -151,8 +152,8 @@ test("a PR record never covers unverified subagent work or a structurally broken
       { id: "a", title: "a", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["b"] },
     ];
     writeGoalplan(cwd, plan);
-    assert.equal(runPrRecord(cwd, "g-broken", "400", { view: view(MERGED) }).code, 0);
     writeState(cwd, { ...defaultState("g-broken"), phase: "IDLE", slug: plan.slug });
+    assert.equal(runPrRecord(cwd, "g-broken", "400", { view: view(MERGED) }).code, 0);
     const out = applyGoalCompleteGuard(ptu(cwd, "g-broken"));
     assert.equal(decision(out), "deny");
     assert.match(out, /structurally broken/);

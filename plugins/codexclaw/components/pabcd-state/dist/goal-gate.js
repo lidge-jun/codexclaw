@@ -34,7 +34,7 @@ const CREATE_GOAL_WARNING =
 import { getGoalActiveStatus, suppressesInterview,                                            } from "./goal-active.js";
 import { readStateStrict } from "./state.js";
 import { goalplanStructuralReasons, readGoalplan, validateGoalplan } from "./goalplan.js";
-import { readPrRecord } from "./pr-record.js";
+import { newerPrRecordNote, readNewerPrRecord, readPrRecord } from "./pr-record.js";
 import { compareSource } from "./source-identity.js";
 import { captureSessionSourceIdentity } from "./session-source-identity.js";
 import { resolveSessionSource } from "./session-source.js";
@@ -231,9 +231,11 @@ export function applyGoalCompleteGuard(payload                   , pabcdEnabled 
     // and receipt checks. It never stands in for unverified delegated work or a
     // structurally broken plan, both checked below regardless (pr-record.ts).
     const prRecord = readPrRecord(payload.cwd, payload.session_id);
+    // #316: a record a newer cxc wrote does not count here; say so with the update path.
+    const newerNote = prRecord ? "" : newerPrRecordNote(readNewerPrRecord(payload.cwd, payload.session_id));
     if (pabcdEnabled && !prRecord && state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
       return goalCompleteDenyEnvelope(
-        `GOAL-COMPLETE-GATE-01: cycle in flight at phase ${state.phase}, session ${payload.session_id}. Close via D or \`cxc loop pr-record\` a merged/green PR. Owner: $codexclaw:cxc-pabcd phase-control.md.`,
+        `GOAL-COMPLETE-GATE-01: cycle in flight at phase ${state.phase}, session ${payload.session_id}. Close via D or \`cxc loop pr-record\` a merged/green PR.${newerNote} Owner: $codexclaw:cxc-pabcd phase-control.md.`,
       );
     }
     // EVIDENCE-TERMINAL-01 (260826): the SubagentStop gate no longer blocks a child
@@ -301,7 +303,7 @@ export function applyGoalCompleteGuard(payload                   , pabcdEnabled 
         if (!verdict.ok) {
           const reasons = verdict.reasons.slice(0, 4).join("; ");
           return goalCompleteDenyEnvelope(
-            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' fails E8: ${reasons}. Repair ${durableLabel(payload.cwd, "goalplans", state.slug, "goalplan.json")}; \`cxc loop validate --session ${payload.session_id}\`; shipped PR: \`cxc loop pr-record\`. Owner: $codexclaw:cxc-loop durable-goalplan.md (LOOP-CONTINUE-01).`,
+            `GOAL-COMPLETE-GATE-01: bound goalplan '${state.slug}' fails E8: ${reasons}. Repair ${durableLabel(payload.cwd, "goalplans", state.slug, "goalplan.json")}; \`cxc loop validate --session ${payload.session_id}\`; shipped PR: \`cxc loop pr-record\`.${newerNote} Owner: $codexclaw:cxc-loop durable-goalplan.md (LOOP-CONTINUE-01).`,
           );
         }
       } else {

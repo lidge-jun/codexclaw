@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C855-brightgreen" alt="3,855 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C861-brightgreen" alt="3,861 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -114,6 +114,7 @@ codex plugin remove codexclaw@codexclaw      # uninstall
 
 After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate.
 Upgrading to 0.1.1+ also delivers the payload CLI (`bin/cxc.mjs`); existing installs must upgrade (or re-add) to receive new top-level directories.
+Then open a new thread: skills, hooks and the CLI load when a session starts. `cxc --version` prints the running build. Skills can come from a newer machine than the installed hooks (a GOAT thread started elsewhere), so a skill may name a verb the installed CLI lacks: `cxc loop pr-record` needs 0.2.43+, and a 0.2.42 completion gate ignores the records it writes. Upgrade that host; builds after 0.2.43 name their version and this command when they meet a verb or record newer than themselves.
 
 The CLI has two tiers. Every install ships the payload dispatcher — no PATH setup needed; when `cxc` isn't on PATH, the session-start banner prints this exact invocation:
 
