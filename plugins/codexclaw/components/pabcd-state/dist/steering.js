@@ -143,7 +143,17 @@ if (dependsOn.some((id) => id.length === 0)) {
 if (new Set(dependsOn).size !== dependsOn.length) {
   return { error: `ops[${i}].dependsOn must not contain duplicate ids` };
 }
-ops.push({ kind: "add-work-phase", id: op.id, title: op.title.trim(), dependsOn });
+    // #314: the criteria this phase owns. Without them a criterion can never count as
+    // waiting on the decision this phase awaits, so IDLE Stop could not release.
+    const rawCriteriaIds = op.criteriaIds ?? [];
+    if (!Array.isArray(rawCriteriaIds)) {
+      return { error: `ops[${i}].criteriaIds must be an array of existing criterion ids` };
+    }
+    const criteriaIds = rawCriteriaIds.map((id) => typeof id === "string" ? id.trim() : "");
+    if (criteriaIds.some((id) => id.length === 0) || new Set(criteriaIds).size !== criteriaIds.length) {
+      return { error: `ops[${i}].criteriaIds must be distinct non-empty criterion ids` };
+    }
+    ops.push({ kind: "add-work-phase", id: op.id, title: op.title.trim(), dependsOn, ...(criteriaIds.length > 0 ? { criteriaIds } : {}) });
   }
   return {
     idempotencyKey: b.idempotencyKey          ,
@@ -229,7 +239,7 @@ function applyOps(plan          , ops           )                               
       title: op.title,
       status: "pending",
       tasks: [],
-      criteriaIds: [],
+      criteriaIds: op.criteriaIds ?? [],
       ...(dependsOn.length > 0 ? { dependsOn } : {}),
     }];
     const phaseReasons = integrityReasons({ ...plan, criteria, workPhases: candidateWorkPhases });
