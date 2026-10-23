@@ -43,7 +43,7 @@ function withEnv(env: Partial<Record<(typeof ENV_KEYS)[number], string>>, fn: ()
 }
 
 function gitRepo(): string {
-  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plan-delta-")));
+  const cwd = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plan-delta-")));
   const git = (...args: string[]) => execFileSync("git", args, { cwd, stdio: "ignore" });
   git("init", "-q");
   git("config", "user.email", "t@example.com");
@@ -91,7 +91,7 @@ const TO_C = { from: "B", to: "C", did: "wrote the roadmap docs" };
 
 test("#315 repository that forbids committing plans: a plans directory outside the checkout satisfies B>C", () => {
   const cwd = gitRepo();
-  const plans = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-outside-")));
+  const plans = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-outside-")));
   try {
     withEnv({ CODEXCLAW_STATE_MODE: "repo", CODEXCLAW_PLANS_DIR: plans }, () => {
       const unit = cycleToB(cwd, "forbid");
@@ -146,7 +146,7 @@ test("#315 repository that commits plans: plan edits in devlog/ count as source,
 
 test("#315: state.plansDir in the user config moves plans outside the checkout per project", () => {
   const cwd = gitRepo();
-  const home = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-home-")));
+  const home = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-home-")));
   const plans = join(home, "plans");
   mkdirSync(plans);
   writeFileSync(join(home, "config.json"), JSON.stringify({ state: { plansDir: plans } }));
@@ -182,7 +182,7 @@ test("#315: a plans directory inside the checkout is ignored with a warning", ()
 
 test("#315: the chat B>C path accepts the same plan-unit delta and refuses an idle one", () => {
   const cwd = gitRepo();
-  const plans = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-chat-")));
+  const plans = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-chat-")));
   try {
     withEnv({ CODEXCLAW_STATE_MODE: "repo", CODEXCLAW_PLANS_DIR: plans }, () => {
       const unit = cycleToB(cwd, "chat");
@@ -242,7 +242,7 @@ test("#315 review: codexclaw's own writes and non-plan files never count as plan
     rmSync(cwd, { recursive: true, force: true });
   }
   const repo = gitRepo();
-  const plans = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-noise-")));
+  const plans = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-noise-")));
   try {
     withEnv({ CODEXCLAW_STATE_MODE: "repo", CODEXCLAW_PLANS_DIR: plans }, () => {
       const unit = cycleToB(repo, "noise");
@@ -258,7 +258,7 @@ test("#315 review: codexclaw's own writes and non-plan files never count as plan
 
 test("#315 review: retargeting a symlinked plan unit between unchanged directories is not plan work", { skip: process.platform === "win32" }, () => {
   const cwd = gitRepo();
-  const outside = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-link-")));
+  const outside = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-link-")));
   try {
     withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
       for (const name of ["a", "b"]) {
@@ -283,7 +283,7 @@ test("#315 review: retargeting a symlinked plan unit between unchanged directori
 
 test("#315 review: a project directory under the plans dir that links back into the checkout is refused", { skip: process.platform === "win32" }, () => {
   const cwd = gitRepo();
-  const plans = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-back-")));
+  const plans = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-back-")));
   try {
     withEnv({ CODEXCLAW_STATE_MODE: "repo", CODEXCLAW_PLANS_DIR: plans }, () => {
       const first = runDevlogCli(["path"], cwd).output.trim();
