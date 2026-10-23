@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 process.env.CODEXCLAW_CXC = "cxc";
 
@@ -105,4 +106,48 @@ test("#316: a loop verb this build lacks names the installed version and the upd
   const error = (parsed as { error: string }).error;
   assert.ok(error.includes(INSTALLED), error);
   assert.ok(error.includes(UPDATE), error);
+});
+
+function gitCheckout(origin: string): string {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-316-ext-"));
+  const git = (...args: string[]) => execFileSync("git", args, { cwd, stdio: "ignore" });
+  git("init", "-q");
+  git("remote", "add", "origin", origin);
+  return cwd;
+}
+
+test("#316 review: in external state mode a record from another checkout of the origin still reaches the session's gate", () => {
+  const home = mkdtempSync(join(tmpdir(), "cxc-316-home-"));
+  const a = gitCheckout("https://github.com/acme/app.git");
+  const b = gitCheckout("git@github.com:acme/app.git");
+  const saved = { mode: process.env.CODEXCLAW_STATE_MODE, home: process.env.CODEXCLAW_HOME };
+  process.env.CODEXCLAW_STATE_MODE = "external";
+  process.env.CODEXCLAW_HOME = home;
+  try {
+    issueSession(a, "goat-ext");
+    assert.equal(decision(applyGoalCompleteGuard(ptu(a, "goat-ext"))), "deny");
+    const out = runPrRecord(b, "goat-ext", "831", { view: view(MERGED) });
+    assert.equal(out.code, 0, out.output);
+    assert.equal(decision(applyGoalCompleteGuard(ptu(a, "goat-ext"))), "allow");
+  } finally {
+    if (saved.mode === undefined) delete process.env.CODEXCLAW_STATE_MODE; else process.env.CODEXCLAW_STATE_MODE = saved.mode;
+    if (saved.home === undefined) delete process.env.CODEXCLAW_HOME; else process.env.CODEXCLAW_HOME = saved.home;
+    for (const dir of [home, a, b]) rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("#316 review: a malformed or oversized writer version is not echoed into the denial", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-316-writer-"));
+  try {
+    issueSession(cwd, "goat-w");
+    const path = prRecordPath(cwd, "goat-w");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ schema: 2, sessionId: "goat-w", cxcVersion: "9".repeat(100_000) + "\u0007", url: MERGED.url, verdict: "merged", recordedAt: new Date().toISOString() }));
+    const out = applyGoalCompleteGuard(ptu(cwd, "goat-w"));
+    assert.equal(decision(out), "deny");
+    assert.ok(out.length < 4000, "denial stays bounded: " + out.length);
+    assert.match(out, /written by cxc unknown/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });

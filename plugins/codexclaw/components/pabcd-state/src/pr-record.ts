@@ -24,7 +24,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { evidenceDir } from "./state-root.ts";
+import { evidenceDir, resolveStateRoot } from "./state-root.ts";
 import { isCanonicalSessionId, statePath } from "./state.ts";
 import { renameWithRetry } from "./atomic-write.ts";
 import { installedCxcVersion, newerThanInstallHint } from "./install-version.ts";
@@ -122,8 +122,10 @@ export function readNewerPrRecord(cwd: string, sessionId: string): NewerPrRecord
     const path = prRecordPath(cwd, sessionId);
     if (!existsSync(path)) return null;
     const raw = JSON.parse(readFileSync(path, "utf8")) as { schema?: unknown; sessionId?: unknown; cxcVersion?: unknown };
-    if (typeof raw.schema !== "number" || raw.schema <= 1 || raw.sessionId !== sessionId) return null;
-    return { path, schema: raw.schema, writer: typeof raw.cxcVersion === "string" ? raw.cxcVersion : "unknown" };
+    if (typeof raw.schema !== "number" || !Number.isInteger(raw.schema) || raw.schema <= 1 || raw.sessionId !== sessionId) return null;
+    // The writer string is shown in a denial, so only a plausible version is echoed.
+    const writer = typeof raw.cxcVersion === "string" && /^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$/.test(raw.cxcVersion) ? raw.cxcVersion : "unknown";
+    return { path, schema: Math.min(raw.schema, 9999), writer };
   } catch {
     return null;
   }
@@ -187,9 +189,14 @@ export function runPrRecord(
 ): PrRecordCliResult {
   if (!isCanonicalSessionId(sessionId)) return { code: 1, output: "loop pr-record: session id is not canonical" };
   if (pr.trim() === "") return { code: 1, output: "loop pr-record: --pr <url|number> is required" };
-  // #316: the completion gate reads the record from the session's own checkout. Writing
-  // one anywhere else (a fresh clone, another worktree) succeeded and was never read.
-  if (!existsSync(statePath(cwd, sessionId))) {
+  // #316: in repo and local mode the evidence root belongs to this checkout, and the
+  // completion gate reads the record from the session's own checkout. A record written
+  // from a fresh clone or another worktree succeeded and was never read. External mode
+  // shares one evidence root across every checkout of the origin, so the record reaches
+  // the session's gate from any of them and is not refused.
+  const root = resolveStateRoot(cwd);
+  const sharedEvidence = root.mode === "external" && root.disabledReason === null;
+  if (!sharedEvidence && !existsSync(statePath(cwd, sessionId))) {
     return {
       code: 1,
       output: "loop pr-record: session '" + sessionId + "' has no state in " + cwd + " (" + statePath(cwd, sessionId) + " is missing), "
