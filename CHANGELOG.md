@@ -6,6 +6,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- IDLE Stop now releases on an open user decision when an unmet criterion waits on that decision. Stop counts a criterion as waiting only when a decision-waiting work phase lists it in `criteriaIds`, and no CLI could set that list, so a criterion added with `add-criterion` kept every Stop blocking with "Waiting on: work-phase … awaits decision …". `cxc loop link-criterion --session <id> --work-phase <id> --criterion <id>...` links criteria to an existing pending or in-progress phase; `loop add-work-phase --criterion <id>`, `loop ask --criterion <id>` (with `--work-phase`) and the steering `add-work-phase` op's `criteriaIds` link them when the phase or question is created. When every remaining phase waits but a criterion is unlinked, the Stop block names it and prints the link command. A linked criterion still has to be met with evidence before the goal can complete. (#314)
+
 ## [0.2.43] - 2026-10-22
 
 ### Fixed

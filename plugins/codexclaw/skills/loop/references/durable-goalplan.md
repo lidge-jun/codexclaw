@@ -100,7 +100,8 @@ This is the on-disk shape under `<durable root>/goalplans/<slug>/goalplan.json`
 - `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]`
 - `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]`
 - `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]`
-- `cxc loop ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]` — record a question after sending it through the host. It never sends a message. Name each dependent phase.
+- `cxc loop ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--criterion <criterion-id>]... [--cwd <path>]` — record a question after sending it through the host. It never sends a message. Name each dependent phase; `--criterion` (needs `--work-phase`) adds those criteria to each named phase's `criteriaIds`.
+- `cxc loop link-criterion --session <id> --work-phase <id> --criterion <criterion-id>... [--cwd <path>]` — add existing criteria to a pending or in-progress phase's `criteriaIds`. `add-work-phase --criterion` and the steering `add-work-phase` op's `criteriaIds` do the same when the phase is created.
 - `cxc loop decide --session <id> --id <id> --answer <text> [--cwd <path>]` — record the user reply. This changes only the decision record; phase status and blockedReason stay as they were.
 - `cxc loop pr-record --session <id> --pr <url|number> [--cwd <path>]` — record a merged or green PR as this session's completion record ([runtime lifecycle](runtime-lifecycle.md#completion-gate-goal-complete-gate-01-shipped)).
 - `cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]` — `--id` takes
@@ -109,7 +110,7 @@ This is the on-disk shape under `<durable root>/goalplans/<slug>/goalplan.json`
 
 The parser rejects unknown flags, stray positionals, missing values, and flags belonging to another verb before dispatch. Every value flag also accepts `--flag=value`, which is the way to pass a value that starts with `--`.
 
-`ready --json` includes `openDecisions` and `awaitingDecisions` when the plan has a decisions field; `show` displays each open question and its waiting phases. At IDLE, Stop releases when every remaining phase and unmet criterion waits on an open user decision; the goal remains active and completion is still gated.
+`ready --json` includes `openDecisions` and `awaitingDecisions` when the plan has a decisions field; `show` displays each open question and its waiting phases. At IDLE, Stop releases when every remaining phase and unmet criterion waits on an open user decision; the goal remains active and completion is still gated. An unmet criterion waits only when a waiting phase lists it in `criteriaIds`. When every phase waits but a criterion is unlisted, the Stop block names it and prints the `link-criterion` command; link it only if the criterion truly waits on that answer.
 
 Repeat `--depends-on` once per prerequisite; comma-separated values are one id. Existing dependencies are
 not edited after creation. `complete-task` and `meet-criterion` require non-empty proof text.

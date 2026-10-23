@@ -1244,12 +1244,22 @@ export function dependencyDeadlock(plan          )                            {
   return reasons.length > 0 ? { reasons } : null;
 }
 
-/** IDLE can yield only when actual open user decisions account for all remaining work. */
-export function remainingWorkAwaitsDecisions(plan          )          {
+/**
+ * #314: when every remaining work phase waits on an open user decision, the unmet
+ * criteria no waiting phase lists are the only thing keeping IDLE Stop from
+ * releasing. Returns null when some remaining phase does not wait (or the plan is
+ * broken), so callers can tell "nothing waits" from "waits, but criteria are loose".
+ */
+
+
+
+
+
+export function decisionWait(plan          )                      {
   // A plan with broken references must keep prompting the agent to repair it.
-  if (goalplanStructuralReasons(plan).length > 0) return false;
+  if (goalplanStructuralReasons(plan).length > 0) return null;
   const remaining = remainingWorkPhases(plan);
-  if (remaining.length === 0) return false;
+  if (remaining.length === 0) return null;
   const byId = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
   const waiting = (phase                   , visiting             )          => {
     if (phase.status !== "pending" && phase.status !== "in_progress") return false;
@@ -1267,8 +1277,52 @@ export function remainingWorkAwaitsDecisions(plan          )          {
     return result;
   };
   const waitingPhases = remaining.filter((phase) => waiting(phase, new Set()));
-  if (waitingPhases.length !== remaining.length) return false;
-  return unmetCriteria(plan).every((criterion) => waitingPhases.some((phase) => phase.criteriaIds.includes(criterion.id)));
+  if (waitingPhases.length !== remaining.length) return null;
+  return {
+    waitingPhaseIds: waitingPhases.map((phase) => phase.id),
+    unlinkedCriterionIds: unmetCriteria(plan)
+      .filter((criterion) => !waitingPhases.some((phase) => phase.criteriaIds.includes(criterion.id)))
+      .map((criterion) => criterion.id),
+  };
+}
+
+/** IDLE can yield only when actual open user decisions account for all remaining work. */
+export function remainingWorkAwaitsDecisions(plan          )          {
+  const wait = decisionWait(plan);
+  return wait !== null && wait.unlinkedCriterionIds.length === 0;
+}
+
+/**
+ * #314: tie criteria to the work phase that owns them. A criterion only counts as
+ * waiting on a decision through a waiting phase's criteriaIds, and nothing else could
+ * set that list after the phase existed. Linking changes no completion rule: the
+ * criterion still has to be met with evidence before the goal can complete.
+ */
+export function linkGoalplanCriteria(
+  plan          ,
+  workPhaseId        ,
+  criterionIds          ,
+)                          {
+  const phaseId = workPhaseId.trim();
+  const ids = criterionIds.map((id) => id.trim());
+  if (!phaseId) return { kind: "rejected", reason: "--work-phase <id> is required" };
+  if (ids.length === 0) return { kind: "rejected", reason: "--criterion <id> is required" };
+  if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
+    return { kind: "rejected", reason: "--criterion requires distinct non-empty ids" };
+  }
+  const phase = plan.workPhases.find((wp) => wp.id === phaseId);
+  if (!phase) return { kind: "rejected", reason: `work phase '${phaseId}' is not in this plan` };
+  if (phase.status === "done" || phase.status === "superseded") {
+    return { kind: "rejected", reason: `work phase '${phaseId}' is ${phase.status}; link the criterion to a phase that still has work` };
+  }
+  const unknown = ids.filter((id) => !plan.criteria.some((criterion) => criterion.id === id));
+  if (unknown.length > 0) return { kind: "rejected", reason: `unknown criterion ${unknown.map((id) => `'${id}'`).join(", ")}` };
+  const added = ids.filter((id) => !phase.criteriaIds.includes(id));
+  if (added.length === 0) return { kind: "unchanged", plan, reason: `work phase '${phaseId}' already lists ${ids.join(", ")}` };
+  const next           = { ...plan, workPhases: plan.workPhases.map((wp) => wp.id === phaseId
+    ? { ...wp, criteriaIds: [...wp.criteriaIds, ...added] } : wp) };
+  const reasons = goalplanDefinitionIntegrityReasons(next);
+  return reasons.length ? { kind: "rejected", reason: reasons.join("; ") } : { kind: "changed", plan: next };
 }
 
 const LIFECYCLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -1280,7 +1334,7 @@ const LIFECYCLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 export function askGoalplanDecision(
   plan          ,
-  input                                                                                                                        ,
+  input                                                                                                                                                 ,
 )                          {
   const id = input.id.trim();
   const question = input.question.trim();
@@ -1316,9 +1370,20 @@ export function askGoalplanDecision(
   const decision                   = { id, question, status: "open", askedAt: input.askedAt,
     ...(recommendation === undefined ? {} : { recommendation }),
     ...(options === undefined ? {} : { options }) };
-  const next           = { ...plan, decisions: [...(plan.decisions ?? []), decision],
+  let next           = { ...plan, decisions: [...(plan.decisions ?? []), decision],
     workPhases: plan.workPhases.map((wp) => workPhaseIds.includes(wp.id)
       ? { ...wp, awaitsDecision: [...(wp.awaitsDecision ?? []), id] } : wp) };
+  const criterionIds = input.criterionIds ?? [];
+  if (criterionIds.length > 0) {
+    if (workPhaseIds.length === 0) {
+      return { kind: "rejected", reason: "--criterion needs --work-phase: name the phase that waits on this decision" };
+    }
+    for (const phaseId of workPhaseIds) {
+      const linked = linkGoalplanCriteria(next, phaseId, criterionIds);
+      if (linked.kind === "rejected") return linked;
+      next = linked.plan;
+    }
+  }
   const reasons = goalplanDefinitionIntegrityReasons(next);
   return reasons.length ? { kind: "rejected", reason: reasons.join("; ") } : { kind: "changed", plan: next };
 }
