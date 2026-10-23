@@ -65,11 +65,12 @@ export function splitArgs(argv) {
   return { patterns, shard };
 }
 
-/** 261020: an operator's CODEXCLAW_STATE_ROOT/MODE must not steer fixtures into real state. */
+/** 261020: an operator's CODEXCLAW_STATE_ROOT/MODE/PLANS_DIR must not steer fixtures into real state. */
 export function withoutStateEnv(env) {
   const out = { ...env };
   delete out.CODEXCLAW_STATE_ROOT;
   delete out.CODEXCLAW_STATE_MODE;
+  delete out.CODEXCLAW_PLANS_DIR;
   return out;
 }
 
