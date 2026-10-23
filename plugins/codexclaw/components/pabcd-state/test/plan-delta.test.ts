@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 
@@ -189,7 +189,7 @@ test("#315: the chat B>C path accepts the same plan-unit delta and refuses an id
       let turn = 0;
       const say = (prompt: string) => handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", session_id: "chat", cwd, prompt, transcript_path: null, turn_id: "t" + ++turn });
       const chatC = "orchestrate c";
-      const refused = say(chatC);
+      const refused = JSON.parse(say(chatC)).hookSpecificOutput.additionalContext as string;
       assert.match(refused, /SOURCE-DELTA-01/);
       assert.ok(refused.includes(unit), refused);
       assert.equal(readState(cwd, "chat").phase, "B");
@@ -218,5 +218,85 @@ test("#315: plans hidden from git in the checkout (local mode, .git/info/exclude
     });
   } finally {
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("#315 review: codexclaw's own writes and non-plan files never count as plan work", () => {
+  const cwd = gitRepo();
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
+      // A whole checkout bound as the unit: the state and ledger writes between A>B and
+      // B>C land under it, and they must not satisfy SOURCE-DELTA-01.
+      writeFileSync(join(cwd, "000_plan.md"), "# root plan\n");
+      execFileSync("git", ["add", "-A"], { cwd });
+      execFileSync("git", ["commit", "-qm", "plan"], { cwd });
+      writeState(cwd, defaultState("dot"));
+      assert.equal(orchestrate(cwd, "dot", "p", { from: "IDLE", to: "P", did: "plan" }).code, 0);
+      assert.equal(orchestrate(cwd, "dot", "a", { from: "P", to: "A", did: "plan written", planUnit: "." }).code, 0);
+      assert.equal(orchestrate(cwd, "dot", "b", { from: "A", to: "B", did: "audited", auditOutput: "reviewer: PASS", auditVerdict: "pass" }).code, 0);
+      const idle = orchestrate(cwd, "dot", "c", TO_C);
+      assert.equal(idle.code, 1, idle.output);
+      assert.match(idle.output, /SOURCE-DELTA-01/);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+  const repo = gitRepo();
+  const plans = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-noise-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo", CODEXCLAW_PLANS_DIR: plans }, () => {
+      const unit = cycleToB(repo, "noise");
+      writeFileSync(join(unit, "notes.txt"), "scratch\n");
+      writeFileSync(join(unit, ".DS_Store"), "x");
+      assert.equal(orchestrate(repo, "noise", "c", TO_C).code, 1, "files that are not numbered plan docs are not plan work");
+    });
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(plans, { recursive: true, force: true });
+  }
+});
+
+test("#315 review: retargeting a symlinked plan unit between unchanged directories is not plan work", { skip: process.platform === "win32" }, () => {
+  const cwd = gitRepo();
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-link-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
+      for (const name of ["a", "b"]) {
+        mkdirSync(join(outside, name));
+        writeFileSync(join(outside, name, "000_plan.md"), "# same plan\n");
+      }
+      writeFileSync(join(outside, "b", "010_extra.md"), "# different set\n");
+      symlinkSync(join(outside, "a"), join(outside, "unit"));
+      writeState(cwd, defaultState("link"));
+      assert.equal(orchestrate(cwd, "link", "p", { from: "IDLE", to: "P", did: "plan" }).code, 0);
+      assert.equal(orchestrate(cwd, "link", "a", { from: "P", to: "A", did: "plan written", planUnit: join(outside, "unit") }).code, 0);
+      assert.equal(orchestrate(cwd, "link", "b", { from: "A", to: "B", did: "audited", auditOutput: "reviewer: PASS", auditVerdict: "pass" }).code, 0);
+      unlinkSync(join(outside, "unit"));
+      symlinkSync(join(outside, "b"), join(outside, "unit"));
+      assert.equal(orchestrate(cwd, "link", "c", TO_C).code, 1, "the unit pinned at B entry did not change");
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("#315 review: a project directory under the plans dir that links back into the checkout is refused", { skip: process.platform === "win32" }, () => {
+  const cwd = gitRepo();
+  const plans = realpathSync(mkdtempSync(join(tmpdir(), "cxc-plans-back-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo", CODEXCLAW_PLANS_DIR: plans }, () => {
+      const first = runDevlogCli(["path"], cwd).output.trim();
+      assert.ok(first.startsWith(plans + sep), first);
+      mkdirSync(join(cwd, "inside"));
+      symlinkSync(join(cwd, "inside"), first);
+      clearStateRootCache();
+      const explained = runDevlogCli(["path", "--explain"], cwd).output;
+      assert.equal(explained.split("\n")[0], join(cwd, "devlog"));
+      assert.match(explained, /warning: CODEXCLAW_PLANS_DIR .* inside the checkout/);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(plans, { recursive: true, force: true });
   }
 });

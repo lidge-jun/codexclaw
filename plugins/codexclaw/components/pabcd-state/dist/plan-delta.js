@@ -6,13 +6,17 @@
  * repository that forbids committing plans keeps them outside the commit, where git
  * cannot see them, so a docs-only roadmap cycle could never pass B>C there.
  *
- * On entry to B the bound plan unit is recorded by absolute path and content digest.
- * At B>C a changed digest counts the same way a changed source does. This gives
- * the second kind of repository parity with the first and weakens nothing for it:
- * in a repository that commits plans the same edit already changed the source.
+ * On entry to B the bound plan unit is recorded by canonical path and a digest of its
+ * plan documents. At B>C a changed digest counts the same way a changed source does.
+ *
+ * Only what P>A itself calls the plan is hashed: numbered docs (000_*.md) that are
+ * regular files directly inside the unit. Anything else in the directory (codexclaw's
+ * own state and ledger, logs, editor files, a whole checkout bound as ".") must not
+ * read as implementation work. The canonical path is pinned at B entry, so
+ * retargeting a symlink to the unit between two unchanged directories is no change.
  */
 import { createHash } from "node:crypto";
-import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
 
@@ -23,51 +27,30 @@ import { isAbsolute, join, resolve } from "node:path";
 
 
 
-/** Walk bound: a plan unit is a handful of markdown files, never a tree to crawl. */
-const MAX_FILES = 512;
-const MAX_DEPTH = 4;
+/** Same definition the P>A plan gate uses (plan-gate.ts). */
+const NUMBERED_DOC_RE = /^\d{3}_.+\.md$/;
+const MAX_DOCS = 256;
 
-/** Digest of a plan unit directory, or null when it is missing or not a directory. */
+/** Digest of a plan unit's numbered docs, or null when it is not a real directory. */
 export function planUnitDigest(dir        )                {
+  let names          ;
   try {
-    if (!statSync(dir).isDirectory()) return null;
+    // lstat: a unit that became a symlink after B began is not the directory we pinned.
+    if (!lstatSync(dir).isDirectory()) return null;
+    names = readdirSync(dir).filter((name) => NUMBERED_DOC_RE.test(name)).sort().slice(0, MAX_DOCS);
   } catch {
     return null;
   }
-  const files           = [];
-  const walk = (rel        , depth        )       => {
-    if (depth > MAX_DEPTH || files.length >= MAX_FILES) return;
-    let names          ;
-    try {
-      names = readdirSync(join(dir, rel)).sort();
-    } catch {
-      return;
-    }
-    for (const name of names) {
-      if (files.length >= MAX_FILES) return;
-      const relPath = rel ? rel + "/" + name : name;
-      let st;
-      try {
-        st = lstatSync(join(dir, relPath));
-      } catch {
-        continue;
-      }
-      // Symlinks inside the unit are skipped: they could point the digest at
-      // anything, including files that change on their own.
-      if (st.isDirectory()) walk(relPath, depth + 1);
-      else if (st.isFile()) files.push(relPath);
-    }
-  };
-  walk("", 0);
   const h = createHash("sha256");
-  for (const relPath of files.sort()) {
+  for (const name of names) {
     let content        ;
     try {
-      content = readFileSync(join(dir, relPath));
+      if (!lstatSync(join(dir, name)).isFile()) continue;
+      content = readFileSync(join(dir, name));
     } catch {
       continue;
     }
-    h.update(relPath);
+    h.update(name);
     h.update("\0");
     h.update(createHash("sha256").update(content).digest("hex"));
     h.update("\0");
@@ -78,7 +61,12 @@ export function planUnitDigest(dir        )                {
 /** Record the plan unit on entry to B. Null when no unit is bound or it cannot be read. */
 export function capturePlanEntry(cwd        , planUnit                           )                   {
   if (!planUnit) return null;
-  const path = isAbsolute(planUnit) ? resolve(planUnit) : resolve(cwd, planUnit);
+  let path        ;
+  try {
+    path = realpathSync.native(isAbsolute(planUnit) ? resolve(planUnit) : resolve(cwd, planUnit));
+  } catch {
+    return null;
+  }
   const digest = planUnitDigest(path);
   return digest === null ? null : { path, digest, capturedAt: new Date().toISOString() };
 }
@@ -103,5 +91,5 @@ export function reconstructPlanEntry(raw         )                   {
 
 /** Refusal detail: name the plan unit that was checked too, so the fix is obvious. */
 export function describePlanUnchanged(entry                  )         {
-  return entry ? " and the plan unit " + entry.path + " is unchanged too" : "";
+  return entry ? " and the plan docs in " + entry.path + " are unchanged too" : "";
 }

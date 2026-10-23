@@ -565,12 +565,24 @@ function applyPlansDir(
     return;
   }
   const base = resolve(raw);
-  if (isInside(realpathLoose(base), realpathLoose(root.checkoutRoot))) {
-    root.warnings.push(label + " " + base + " resolves inside the checkout " + root.checkoutRoot + "; ignored (plans there would be committed)");
-    return;
-  }
   const projectId = root.projectId ?? deriveProjectId(root.cwd, git, remote);
-  root.devlogDir = join(base, projectId);
+  const devlog = join(base, projectId);
+  // Check the final destination and the plan directories under it, not just the base: a
+  // symlink at <base>/<projectId> could otherwise point the plans straight back inside.
+  const realCheckout = realpathLoose(root.checkoutRoot);
+  for (const p of [base, devlog, join(devlog, "_plan"), join(devlog, "_fin")]) {
+    if (isInside(realpathLoose(p), realCheckout)) {
+      root.warnings.push(label + " " + p + " resolves inside the checkout " + root.checkoutRoot + "; ignored (plans there would be committed)");
+      return;
+    }
+  }
+  for (const p of [devlog, join(devlog, "_plan"), join(devlog, "_fin")]) {
+    if (isSymlink(p)) {
+      root.warnings.push(label + " path " + p + " is a symlink; ignored (plan directories must be real directories)");
+      return;
+    }
+  }
+  root.devlogDir = devlog;
   root.plansDirSource = source;
 }
 
