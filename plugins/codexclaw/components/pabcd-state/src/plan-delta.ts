@@ -17,10 +17,12 @@
  */
 import { createHash } from "node:crypto";
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
-import { devlogDir, isInside, realpathLoose } from "./state-root.ts";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { devlogDir, isInside, realpathLoose, resolveStateRoot } from "./state-root.ts";
 
 export interface PlanEntry {
+  /** The unit as attested at P>A (relative to cwd or absolute); re-checked on C>B. */
+  unit: string;
   /** Canonical (realpath) directory of the plan unit bound at P>A. */
   path: string;
   /** sha256 over the unit's numbered plan docs (name + content), sorted. */
@@ -59,40 +61,71 @@ export function planUnitDigest(dir: string): string | null {
   return h.digest("hex");
 }
 
-/**
- * True when the bound unit lies under the resolved plan root (<devlog>/_plan). P>A
- * accepts any directory with a numbered doc, so without this an unrelated scratch
- * directory edited during B would pass SOURCE-DELTA-01. The lexical path is checked as
- * well as the real one, so a unit that is a symlink under _plan (plans kept outside
- * the commit through an excluded link) still counts.
- */
-function underPlanRoot(cwd: string, unit: string): boolean {
-  const devlog = devlogDir(cwd);
-  if (!devlog) return false;
-  const planRoot = join(devlog, "_plan");
-  const lexical = resolve(cwd, unit);
-  if (lexical !== resolve(planRoot) && isInside(lexical, resolve(planRoot))) return true;
-  const real = realpathLoose(lexical);
-  const realRoot = realpathLoose(planRoot);
-  return real !== realRoot && isInside(real, realRoot);
+/** Windows paths compare case-insensitively; everywhere else they are exact. */
+function samePath(a: string, b: string): boolean {
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function isSymlink(p: string): boolean {
+  try {
+    return lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Record the plan unit on entry to B. Null when no unit is bound, it cannot be read, or
- * it is outside the plan root. `revalidated` marks a unit an earlier A>B already accepted
- * (C>B rework re-records it from its canonical path, which may be a symlink's target).
+ * #315: the canonical directory of a plan unit that may serve as B>C evidence, or null.
+ *
+ * P>A accepts any directory with a numbered doc, so without this an unrelated directory
+ * edited during B would pass SOURCE-DELTA-01. A unit counts only when:
+ *  - it is a DIRECT child of the resolved plan root <devlog>/_plan (compared through the
+ *    parent's real path, case-insensitively on Windows), never the root itself or a
+ *    directory nested below a unit;
+ *  - neither <devlog> nor <devlog>/_plan is a symlink, so the root cannot be pointed at
+ *    an arbitrary tree;
+ *  - when the unit itself is a symlink (plans kept in an excluded scratch folder), its
+ *    target is not a filesystem root and does not contain the checkout or the plan root.
+ * Mode none has no devlog, so nothing counts there.
  */
-export function capturePlanEntry(cwd: string, planUnit: string | null | undefined, revalidated = false): PlanEntry | null {
-  if (!planUnit) return null;
-  if (!revalidated && !underPlanRoot(cwd, planUnit)) return null;
-  let path: string;
+export function planUnitBinding(cwd: string, unit: string): string | null {
+  const devlog = devlogDir(cwd);
+  if (!devlog) return null;
+  const planRoot = join(devlog, "_plan");
+  if (isSymlink(devlog) || isSymlink(planRoot)) return null;
+  const lexical = resolve(cwd, unit);
+  const name = basename(lexical);
+  if (!name || name === "." || name === "..") return null;
+  let realParent: string;
+  let realRoot: string;
+  let target: string;
   try {
-    path = realpathSync.native(isAbsolute(planUnit) ? resolve(planUnit) : resolve(cwd, planUnit));
+    realParent = realpathSync.native(dirname(lexical));
+    realRoot = realpathSync.native(planRoot);
+    target = realpathSync.native(lexical);
   } catch {
     return null;
   }
+  if (!samePath(realParent, realRoot)) return null;
+  if (dirname(target) === target) return null;
+  const checkout = realpathLoose(resolveStateRoot(cwd).checkoutRoot);
+  if (isInside(checkout, target) || isInside(realRoot, target)) return null;
+  return target;
+}
+
+/**
+ * Record the plan unit on entry to B. Null when no unit is bound, it cannot be read, or it
+ * is not a plan unit (planUnitBinding). A C>B rework passes the stored entry: its attested
+ * unit is checked again and must still resolve to the same canonical directory.
+ */
+export function capturePlanEntry(cwd: string, planUnit: string | null | undefined, previous?: PlanEntry | null): PlanEntry | null {
+  const unit = planUnit ?? previous?.unit;
+  if (!unit) return null;
+  const path = planUnitBinding(cwd, unit);
+  if (path === null) return null;
+  if (!planUnit && previous && !samePath(previous.path, path)) return null;
   const digest = planUnitDigest(path);
-  return digest === null ? null : { path, digest, capturedAt: new Date().toISOString() };
+  return digest === null ? null : { unit, path, digest, capturedAt: new Date().toISOString() };
 }
 
 /** The plan unit's change since B began, or null when there is none to report. */
@@ -108,9 +141,12 @@ export function reconstructPlanEntry(raw: unknown): PlanEntry | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   if (typeof r.path !== "string" || !isAbsolute(r.path)) return null;
+  // An entry without its attested unit (written before this check existed) cannot be
+  // re-validated, so it reads as absent and B>C falls back to the source check.
+  if (typeof r.unit !== "string" || r.unit.length === 0) return null;
   if (typeof r.digest !== "string" || !/^[0-9a-f]{64}$/.test(r.digest)) return null;
   if (typeof r.capturedAt !== "string") return null;
-  return { path: r.path, digest: r.digest, capturedAt: r.capturedAt };
+  return { unit: r.unit, path: r.path, digest: r.digest, capturedAt: r.capturedAt };
 }
 
 /** Refusal detail: name the plan unit that was checked too, so the fix is obvious. */

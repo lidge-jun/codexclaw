@@ -551,3 +551,18 @@ test("#315 follow-up: migrate moves legacy plans into a configured plans directo
   assert.equal(readFileSync(join(root.devlogDir!, "_plan", "u1", "000_plan.md"), "utf8"), "plan\n");
   assert.equal(existsSync(join(co, "devlog", "_plan", "u1", "000_plan.md")), false);
 });
+
+test("#315 follow-up r1: migrate never moves plans through a plans directory that is itself a symlink", { skip: process.platform === "win32" }, () => {
+  const co = checkout("https://github.com/acme/app.git");
+  const real = join(scratch, "real-plans");
+  mkdirSync(real);
+  const plans = join(scratch, "plans-link");
+  symlinkSync(real, plans);
+  const env = envFor(join(scratch, "base"), { CODEXCLAW_PLANS_DIR: plans });
+  mkdirSync(join(co, "devlog", "_plan", "u1"), { recursive: true });
+  writeFileSync(join(co, "devlog", "_plan", "u1", "000_plan.md"), "plan\n");
+  const applied = runStateCli(["migrate", "--apply"], co, env);
+  assert.equal(applied.code, 0, applied.output);
+  assert.ok(existsSync(join(co, "devlog", "_plan", "u1", "000_plan.md")), "the legacy plan stays");
+  assert.equal(readdirSync(real).length, 0, "nothing was written through the link");
+});
