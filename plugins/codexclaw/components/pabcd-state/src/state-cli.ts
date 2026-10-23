@@ -134,7 +134,7 @@ export function describeStateRoot(root: StateRoot): string[] {
   const lines = [
     "mode: " + root.mode + " (" + root.reason + ")",
     "durable: " + (root.mode === "none" ? "(disabled)" : root.durableDir),
-    "devlog: " + (root.devlogDir ?? "(disabled)"),
+    "devlog: " + (root.devlogDir ?? "(disabled)") + (root.plansDirSource ? " (" + root.plansDirSource + ")" : ""),
     "volatile: " + root.volatileDir,
   ];
   if (root.projectId) lines.push("project: " + root.projectId + (root.originKey ? " (origin " + root.originKey + ")" : ""));

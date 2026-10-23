@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C846-brightgreen" alt="3,846 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C855-brightgreen" alt="3,855 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -92,7 +92,7 @@ In repositories whose origin owner is not on your allowlist, codexclaw keeps its
 {"state":{"ownerAllowlist":["your-github-user"],"root":"/abs/path/private-state","projects":{"github.com/acme/app":"external"}}}
 ```
 
-`CODEXCLAW_STATE_MODE` (`repo`, `local`, `external`, `none`) and `CODEXCLAW_STATE_ROOT` override it. If the root is a private git repository, `cxc state sync` pulls, commits and pushes it without forcing. Details: `structure/80_state_layout.md`.
+`CODEXCLAW_STATE_MODE` (`repo`, `local`, `external`, `none`) and `CODEXCLAW_STATE_ROOT` override it. If the root is a private git repository, `cxc state sync` pulls, commits and pushes it without forcing. A repository that forbids committing plans can keep only its plans outside the checkout with `CODEXCLAW_PLANS_DIR` or `state.plansDir` (absolute); plan edits there still satisfy the B>C source check. Details: `structure/80_state_layout.md`.
 
 To move an existing enterprise checkout's in-repo state (`devlog/` and the durable part of `.codexclaw/`) out of the repository, close any running PABCD cycle to IDLE, then from the checkout:
 
