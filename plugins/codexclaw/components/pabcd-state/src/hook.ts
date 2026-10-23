@@ -75,6 +75,7 @@ import {
   readyTasks,
   readyWorkPhases,
   remainingWorkAwaitsDecisions,
+  decisionWait,
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
@@ -1601,6 +1602,16 @@ export function buildGoalIdleBlock(
     if (work.waitingOn.length > 0) lines.push(`Waiting on: ${work.waitingOn.join("; ")}`);
     if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
     if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
+    // #314: every remaining phase waits on a decision, yet Stop still blocks because
+    // these unmet criteria are owned by no waiting phase. Say so, with the exact fix.
+    const wait = plan ? decisionWait(plan) : null;
+    if (wait && wait.unlinkedCriterionIds.length > 0) {
+      const ids = wait.unlinkedCriterionIds;
+      lines.push(
+        `Every remaining work phase waits on an open decision, but unmet criteria ${ids.join(", ")} are not listed by a waiting phase, so this goal keeps running. `
+        + `If they wait on that decision, link them: \`cxc loop link-criterion --session ${sessionId} --work-phase ${wait.waitingPhaseIds[0]} ${ids.map((id) => `--criterion ${id}`).join(" ")}\`; otherwise do the work they need.`,
+      );
+    }
   } else if (plan && plan.workPhases.length === 0 && plan.criteria.length === 0) {
     lines.push(
       `The bound goalplan '${state.slug}' is EMPTY: register workPhases[]/criteria[] in ${durableLabel(cwd, "goalplans", state.slug, "goalplan.json")} (schema in $cxc-loop) so remaining work is durable and the E8 gate can pass.`,
