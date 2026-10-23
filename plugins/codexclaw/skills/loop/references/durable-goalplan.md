@@ -96,7 +96,7 @@ This is the on-disk shape under `<durable root>/goalplans/<slug>/goalplan.json`
   registers a criterion whose scenario is the `--criterion` text. There is no `--id`:
   ids are assigned as `c-1`, `c-2`, ... (max existing `c-N` + 1, in registration
   order). A duplicate scenario text is rejected. `--presented native` requires `--surface desktop`.
-- `cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]`
+- `cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--criterion <criterion-id>]... [--cwd <path>]`
 - `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]`
 - `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]`
 - `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]`

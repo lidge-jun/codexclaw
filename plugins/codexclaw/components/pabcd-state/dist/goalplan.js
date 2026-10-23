@@ -1296,7 +1296,7 @@ export function remainingWorkAwaitsDecisions(plan          )          {
  * #314: tie criteria to the work phase that owns them. A criterion only counts as
  * waiting on a decision through a waiting phase's criteriaIds, and nothing else could
  * set that list after the phase existed. Linking changes no completion rule: the
- * criterion still has to be met with evidence before the goal can complete.
+ * criterion still has to be met with evidence for the E8 completion check.
  */
 export function linkGoalplanCriteria(
   plan          ,
@@ -1312,8 +1312,10 @@ export function linkGoalplanCriteria(
   }
   const phase = plan.workPhases.find((wp) => wp.id === phaseId);
   if (!phase) return { kind: "rejected", reason: `work phase '${phaseId}' is not in this plan` };
-  if (phase.status === "done" || phase.status === "superseded") {
-    return { kind: "rejected", reason: `work phase '${phaseId}' is ${phase.status}; link the criterion to a phase that still has work` };
+  // Only a pending or in-progress phase can wait on a decision (decisionWait), so a link
+  // to a blocked, done or superseded phase could never release Stop.
+  if (phase.status !== "pending" && phase.status !== "in_progress") {
+    return { kind: "rejected", reason: `work phase '${phaseId}' is ${phase.status}; link the criterion to a pending or in-progress phase` };
   }
   const unknown = ids.filter((id) => !plan.criteria.some((criterion) => criterion.id === id));
   if (unknown.length > 0) return { kind: "rejected", reason: `unknown criterion ${unknown.map((id) => `'${id}'`).join(", ")}` };

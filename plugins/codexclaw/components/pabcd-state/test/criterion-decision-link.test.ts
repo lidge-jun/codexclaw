@@ -157,3 +157,30 @@ test("#314: linking refuses unknown criteria and phases and writes nothing", () 
     assert.equal(JSON.stringify(readGoalplan(cwd, slug)), before);
   });
 });
+
+test("#314 review: a title that spells out criteria cannot swallow a real --criterion link", () => {
+  withActiveGoal("link-collide", (cwd) => {
+    seed(cwd, "link-collide");
+    ok(cwd, "add-work-phase", "--session", "link-collide", "--id", "wp5", "--title", "accept [criteria: c-2]");
+    const second = loop(cwd, "add-work-phase", "--session", "link-collide", "--id", "wp5", "--title", "accept", "--criterion", "c-2");
+    // Either it applies or it is refused as an existing phase; it must never report a
+    // duplicate while the link is missing.
+    const plan = readGoalplan(cwd, readState(cwd, "link-collide").slug!)!;
+    const wp5 = plan.workPhases.find((wp) => wp.id === "wp5")!;
+    assert.ok(!/already applied/.test(second.output) || wp5.criteriaIds.includes("c-2"), second.output);
+  });
+});
+
+test("#314 review: a blocked phase cannot take a criterion link", () => {
+  withActiveGoal("link-blocked", (cwd) => {
+    seed(cwd, "link-blocked");
+    ok(cwd, "add-work-phase", "--session", "link-blocked", "--id", "wp5", "--title", "vendor");
+    const slug = readState(cwd, "link-blocked").slug!;
+    const plan = readGoalplan(cwd, slug)!;
+    writeGoalplan(cwd, { ...plan, workPhases: plan.workPhases.map((wp) => wp.id === "wp5" ? { ...wp, status: "blocked" as const, blockedReason: "vendor" } : wp) });
+    const before = JSON.stringify(readGoalplan(cwd, slug));
+    assert.notEqual(loop(cwd, "link-criterion", "--session", "link-blocked", "--work-phase", "wp5", "--criterion", "c-2").code, 0);
+    assert.equal(JSON.stringify(readGoalplan(cwd, slug)), before);
+  });
+});
+

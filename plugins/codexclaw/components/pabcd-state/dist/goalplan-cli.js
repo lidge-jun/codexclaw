@@ -417,6 +417,8 @@ function runAddOp(args                 )                    {
 
   let op                         ;
   let summary        ;
+  let keyPrefix         = args.verb;
+  let keySource                    ;
   if (args.verb === "add-criterion") {
     const scenario = (args.criteria[0] ?? "").trim();
     if (scenario.length === 0) {
@@ -449,13 +451,18 @@ function runAddOp(args                 )                    {
     // dependsOn stays OUT of the summary so a phase registered without prerequisites keeps
     // the exact idempotency key it had before this upgrade. Re-running an old command must
     // still be recorded as a duplicate, not applied a second time.
-    // Linked criteria are appended only when present, for the same reason.
-    summary = criteriaIds.length > 0 ? `${id}: ${title} [criteria: ${criteriaIds.join(", ")}]` : `${id}: ${title}`;
+    summary = `${id}: ${title}`;
+    // A command that links criteria gets its own key namespace and a structured key
+    // source, so no title text can collide with it and drop the link as a "duplicate".
+    if (criteriaIds.length > 0) {
+      keyPrefix = "add-work-phase-linked";
+      keySource = JSON.stringify({ id, title, criteriaIds });
+    }
   }
 
   // The idempotency key is content-derived, so re-running the same command is a
   // recorded duplicate rather than a second criterion with the same text.
-  const key = `${args.verb}-${createHash("sha256").update(summary).digest("hex").slice(0, 12)}`;
+  const key = `${keyPrefix}-${createHash("sha256").update(keySource ?? summary).digest("hex").slice(0, 12)}`;
   const result = applySteeringBatch(args.cwd, slug, {
     idempotencyKey: key,
     rationale: `cxc loop ${args.verb}`,
@@ -773,7 +780,7 @@ export function renderGoalplanHelp()         {
     "  IDLE Stop waits for the user only when every remaining phase awaits an open decision AND every",
     "  unmet criterion is listed by one of those phases. Tie a criterion to its phase with",
     "  add-work-phase --criterion, ask --criterion (needs --work-phase) or link-criterion. A linked",
-    "  criterion still has to be met with evidence before the goal can complete.",
+    "  criterion still has to be met with evidence for the E8 completion check (a pr-record waives it).",
     "  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text.",
     "  pr-record checks the PR once with gh (merged, or open with every check passing) and stores it as",
     "  this session's completion record. The goal gate then accepts completion without a closed cycle or",
