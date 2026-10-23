@@ -27,6 +27,12 @@ Config is the user config `$CODEXCLAW_HOME/config.json` (default `~/.codexclaw/c
 
 Config inside the checkout is ignored, except the default `~/.codexclaw/config.json` when the checkout is the home directory. `CODEXCLAW_HOME` / `CODEXCLAW_STATE_ROOT` / `state.root` must be absolute, and an external root that resolves inside the checkout disables durable writes. Base: `CODEXCLAW_STATE_ROOT` > `state.root` > `$CODEXCLAW_HOME/projects` > `~/.codexclaw/projects`.
 
+## Plans directory
+
+Some repositories forbid committing plans. `CODEXCLAW_PLANS_DIR` > config `state.plansDir` (absolute) moves only the devlog, and with it every plan unit, to `<plansDir>/<project id>`, in any mode except `none`; ledgers, goalplans and evidence stay where the mode puts them. A relative value, or one that resolves inside the checkout, is ignored with a warning. `cxc devlog path --explain` names the source, and `cxc plan init` scaffolds there.
+
+SOURCE-DELTA-01 then reads the plan unit too. On entry to B the session records the unit bound at P>A by absolute path and a sha256 digest of its files (`phaseEntryPlan`). At B>C a changed digest counts like a changed source, and the ledger row for that edge carries `planDelta: { path, before, after }`. In a repository that commits its plans the same edit already changes the source, so nothing gets weaker there. Plans hidden from git inside the checkout (`local` mode's `.git/info/exclude`, an ignored symlink) count the same way.
+
 ## Project id
 
 The origin URL is normalized to `host/owner/repo` (scp, ssh, https; credentials, port, query, fragment and `.git` dropped; lower-cased). Project ids join the sanitized origin segments with `__` (each segment limited to 40 characters), followed by `-` and 32 hex characters of the SHA-256 of the normalized origin key. Every worktree reads the same shared git config, so all worktrees of one repository share one directory, and deleting a worktree leaves it in place. `project.json` records the origin; a directory recorded for another origin is never shared. Without a usable origin, git checkouts use `local__<name>-<32-hex hash of the real common git directory>` and non-git directories `path__<name>-<32-hex hash of the real cwd>`. The git config is parsed from disk (no subprocess on hook paths); `include`, `includeIf` and `insteadOf` are not followed, and `cxc state path` shows the origin key that was read.

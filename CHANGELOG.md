@@ -6,6 +6,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A repository that forbids committing plans can now pass SOURCE-DELTA-01 on a docs-only roadmap cycle. `CODEXCLAW_PLANS_DIR` or config `state.plansDir` (absolute) moves only the devlog, and with it every plan unit, to `<plansDir>/<project id>` outside the checkout; `cxc devlog path --explain` names the source, and a value inside the checkout is ignored with a warning. On entry to B the session records the plan unit bound at P>A by absolute path and content digest, and B>C accepts a changed digest like a changed source, on both the CLI and chat paths. The ledger row for that edge records `planDelta: { path, before, after }`, and a refusal names the unchanged plan unit. Plans hidden from git inside the checkout (local mode, an ignored symlink) count the same way. A repository that commits its plans behaves as before: a plan edit there is already a source change. (#315)
+
 ## [0.2.43] - 2026-10-22
 
 ### Fixed

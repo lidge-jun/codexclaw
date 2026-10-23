@@ -52,6 +52,12 @@ made during that B (SOURCE-DELTA-01). The record never covers unverified
 subagent work or a structurally broken plan. A PR that is closed, still running
 checks, or failing any check is refused and nothing is written.
 
+A docs-only roadmap cycle in a repository that forbids committing plans keeps
+its plan units outside the commit (`CODEXCLAW_PLANS_DIR` or `state.plansDir`;
+`cxc devlog path` shows where). B>C accepts a change to the plan unit bound at
+P>A, recorded on entry to B by path and digest, the same way it accepts a
+source change.
+
 Before waiting on dispatched work or long external processes, read
 [Waiting on work](waiting.md), the mode-neutral owner of wait and retirement rules.
 It also owns the cross-turn preflight: the Stop-continuation bounds below mean a

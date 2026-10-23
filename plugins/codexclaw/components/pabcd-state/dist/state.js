@@ -6,6 +6,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { renameWithRetry } from "./atomic-write.js";
 import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
+import { reconstructPlanEntry,                } from "./plan-delta.js";
 import { splitLines } from "./text-lines.js";
 
 
@@ -93,6 +94,15 @@ export function reconstructUnverified(raw         )                             
  * A retry replays the SAME decision instead of recomputing one from a plan file that
  * cannot say whether the earlier commit landed.
  */
+
+
+
+
+
+
+
+
+
 
 
 
@@ -597,6 +607,10 @@ export function readStateStrict(cwd        , sessionId        )                 
       // found on any other phase is stale by definition and reading it back would
       // keep the invariant true only by accident.
       phaseEntrySource: parsed.phase === "B" ? reconstructSourceIdentity(parsed.phaseEntrySource) : null,
+      // #315: present only while a plan entry is held, so a state that never reached B
+      // keeps its exact persisted shape.
+      ...((parsed.phase === "B" || parsed.phase === "C") && reconstructPlanEntry(parsed.phaseEntryPlan)
+        ? { phaseEntryPlan: reconstructPlanEntry(parsed.phaseEntryPlan) } : {}),
       ...(typeof parsed.boundSourceRoot === "string" && isAbsolute(parsed.boundSourceRoot) ? { boundSourceRoot: parsed.boundSourceRoot } : {}),
       // 060: only A can hold a plan binding — minted at P>A, consumed at A>B.
       planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,

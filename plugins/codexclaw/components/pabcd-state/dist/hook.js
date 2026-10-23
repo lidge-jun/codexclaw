@@ -134,6 +134,7 @@ import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 import { hasNativeObservation, hasRenderArtifactModified, hasRenderObservation, nativeObservationLedgerMalformed, renderGroundingAdvisory } from "./render-observations.js";
 import { detectMemoryWriteRequest } from "./memory-write-gate.js";
 import { prRecordSince, readPrRecord } from "./pr-record.js";
+import { capturePlanEntry, describePlanUnchanged, planDeltaSince } from "./plan-delta.js";
 
 
 
@@ -768,6 +769,8 @@ function handleOrchestrateCommand(
   // SOURCE-DELTA-01 (050): the chat path gets the same B>C check as the CLI. Wiring
   // only one of them would leave a phrasing that bypasses the gate entirely, which
   // is the class of hole this unit exists to close.
+  // #315: set when chat B>C is accepted on the plan unit alone; recorded on the ledger row.
+  let chatPlanDelta                                    = null;
   if (state.phase === "B" && command.verb === "C" && !state.phaseEntrySource
       && resolveSessionSource(payload.cwd, payload.session_id) !== payload.cwd) {
     return buildContextOutput("UserPromptSubmit", "[codexclaw — refused: SOURCE-ROOT: bound source has no valid B baseline. Re-plan before continuing.]");
@@ -777,11 +780,16 @@ function handleOrchestrateCommand(
     if (state.phaseEntrySource.sourceRoot !== now.sourceRoot) {
       return buildContextOutput("UserPromptSubmit", "[codexclaw — refused: SOURCE-ROOT: source binding changed since B began. Re-plan and capture a new baseline; nothing was written.]");
     }
+    // #315: a changed plan unit counts, as on the CLI path.
     if (compareSource(state.phaseEntrySource, now).kind === "same"
+      && !prRecordSince(readPrRecord(payload.cwd, payload.session_id), state.phaseEntrySource.capturedAt)) {
+      chatPlanDelta = planDeltaSince(state.phaseEntryPlan ?? null);
+    }
+    if (compareSource(state.phaseEntrySource, now).kind === "same" && !chatPlanDelta
       && !prRecordSince(readPrRecord(payload.cwd, payload.session_id), state.phaseEntrySource.capturedAt)) {
       return buildContextOutput(
         "UserPromptSubmit",
-        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). A merged or green PR from this B counts: \`cxc loop pr-record --session ${payload.session_id} --pr <url>\`. Nothing was written.]`,
+        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)})${describePlanUnchanged(state.phaseEntryPlan ?? null)}, so nothing was implemented in this B (SOURCE-DELTA-01). A merged or green PR from this B counts: \`cxc loop pr-record --session ${payload.session_id} --pr <url>\`. Nothing was written.]`,
       );
     }
   }
@@ -1156,6 +1164,10 @@ function handleOrchestrateCommand(
   const entrySource = result.state && result.state.phase === "B"
     ? captureSessionSourceIdentity(payload.cwd, payload.session_id, { excludeCodexclawArtifacts: true })
     : null;
+  // #315: same plan-unit record as the CLI path (path + digest on entry to B, kept through C).
+  const entryPlan = result.state && result.state.phase === "B"
+    ? capturePlanEntry(payload.cwd, state.planUnit ?? state.phaseEntryPlan?.path)
+    : result.state?.phase === "C" ? state.phaseEntryPlan ?? null : null;
   const planBinding = state.phase === "P" && result.state?.phase === "A"
     ? chatPlanBinding(payload.cwd, state.slug, command.attest)
     : null;
@@ -1175,6 +1187,7 @@ function handleOrchestrateCommand(
   writeState(payload.cwd, {
     ...result.state ,
     phaseEntrySource: entrySource,
+    phaseEntryPlan: entryPlan,
     planUnit: planBinding ? planBinding.unit : keepBinding ? state.planUnit : null,
     planEpoch: planBinding ? planBinding.epoch : keepBinding ? state.planEpoch : null,
     orchestrationActive: false,
@@ -1232,6 +1245,7 @@ function handleOrchestrateCommand(
     writeState(payload.cwd, {
       ...result.state,
       phaseEntrySource: entrySource,
+      phaseEntryPlan: entryPlan,
       ...(entrySource?.sourceRoot ? { boundSourceRoot: entrySource.sourceRoot } : {}),
       planUnit: planBinding ? planBinding.unit : keepBinding ? state.planUnit : null,
       planEpoch: planBinding ? planBinding.epoch : keepBinding ? state.planEpoch : null,
@@ -1248,7 +1262,7 @@ function handleOrchestrateCommand(
   // 050 wp5: a bound D-close pays its PABCD row inside a lock with the dedup key, so
   // appending it again here would double-count the close.
   if (result.ledger && !(result.control === "done" && state.slug)) {
-    appendLedger(payload.cwd, result.ledger);
+    appendLedger(payload.cwd, chatPlanDelta ? { ...result.ledger, planDelta: chatPlanDelta } : result.ledger);
   }
 
   if (result.control === "reset") {

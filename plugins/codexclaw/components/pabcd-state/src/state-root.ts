@@ -18,6 +18,10 @@
  * ($CODEXCLAW_HOME|~/.codexclaw)/config.json, ignored when it resolves inside the checkout so a
  * repository cannot choose its own state root. Plan: devlog/_plan/261020_external_state_root.
  *
+ * #315 plans directory: a repository that forbids committing plans keeps them outside the
+ * commit. env CODEXCLAW_PLANS_DIR > config state.plansDir (absolute) moves ONLY the devlog to
+ * <plansDir>/<projectId>, whatever the mode; a value inside the checkout is ignored.
+ *
  * Byte-identical copies live in every component that owns a codexclaw-dir.ts (cross-component
  * imports are banned); plugins/codexclaw/test/codexclaw-dir-copies.test.mjs pins them.
  */
@@ -52,6 +56,7 @@ export interface StateConfig {
   root?: string;
   ownerAllowlist?: string[];
   projects?: Record<string, StateMode>;
+  plansDir?: string;
 }
 
 export interface RemoteKey {
@@ -83,6 +88,8 @@ export interface StateRoot {
   owner: string | null;
   /** Non-null when durable writes must be refused (mode none, or an unsafe external root). */
   disabledReason: string | null;
+  /** #315: where devlogDir came from when a plans directory moved it, else null. */
+  plansDirSource: string | null;
   warnings: string[];
 }
 
@@ -337,6 +344,7 @@ function parseStateConfig(raw: unknown): StateConfig {
   const mode = asMode(s.mode);
   if (mode) out.mode = mode;
   if (typeof s.root === "string" && s.root.trim().length > 0) out.root = s.root.trim();
+  if (typeof s.plansDir === "string" && s.plansDir.trim().length > 0) out.plansDir = s.plansDir.trim();
   if (Array.isArray(s.ownerAllowlist)) {
     out.ownerAllowlist = s.ownerAllowlist.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
       .map((x) => x.trim().toLowerCase());
@@ -466,7 +474,7 @@ export function resolveStateRoot(cwd: string, env: NodeJS.ProcessEnv = process.e
     devlogDir: join(cwdAbs, DEVLOG_DIRNAME),
     projectId: null, projectDir: null, stateBase: null,
     originKey: remote?.key ?? null, owner: remote?.owner ?? null,
-    disabledReason: null, warnings,
+    disabledReason: null, plansDirSource: null, warnings,
   };
 
   if (mode === "none") {
@@ -475,7 +483,10 @@ export function resolveStateRoot(cwd: string, env: NodeJS.ProcessEnv = process.e
     root.disabledReason = "codexclaw durable state is disabled (state mode none, " + reason + "); ledger, goalplan, evidence and devlog writes are skipped";
     return root;
   }
-  if (mode !== "external") return root;
+  if (mode !== "external") {
+    applyPlansDir(root, env, cfg, git, remote);
+    return root;
+  }
 
   let base: string | null = null;
   const envRoot = env.CODEXCLAW_STATE_ROOT?.trim();
@@ -532,7 +543,35 @@ export function resolveStateRoot(cwd: string, env: NodeJS.ProcessEnv = process.e
   if (existsSync(join(volatileDir, "ledger.jsonl")) || existsSync(join(volatileDir, "goalplans"))) {
     warnings.push("legacy durable state found in " + volatileDir + " (not read in external mode); run: cxc state migrate --apply");
   }
+  if (!root.disabledReason) applyPlansDir(root, env, cfg, git, remote);
   return root;
+}
+
+/**
+ * #315: point the devlog at <plansDir>/<projectId>. The project id keeps two repositories
+ * sharing one plans directory apart and is the same id external mode uses, so every worktree
+ * of a repository sees the same plans. Ignored (with a warning) when relative or inside the
+ * checkout: plans there are either committed or a symlink the checkout can lose.
+ */
+function applyPlansDir(
+  root: StateRoot, env: NodeJS.ProcessEnv, cfg: StateConfig, git: GitInfo | null, remote: RemoteKey | null,
+): void {
+  const envValue = env.CODEXCLAW_PLANS_DIR?.trim();
+  const [raw, source] = envValue ? [envValue, "env CODEXCLAW_PLANS_DIR"] : cfg.plansDir ? [cfg.plansDir, "config state.plansDir"] : [null, null];
+  if (!raw || !source) return;
+  const label = source.replace(/^(env|config) /, "");
+  if (!isAbsolute(raw)) {
+    root.warnings.push(label + " is not absolute; ignored");
+    return;
+  }
+  const base = resolve(raw);
+  if (isInside(realpathLoose(base), realpathLoose(root.checkoutRoot))) {
+    root.warnings.push(label + " " + base + " resolves inside the checkout " + root.checkoutRoot + "; ignored (plans there would be committed)");
+    return;
+  }
+  const projectId = root.projectId ?? deriveProjectId(root.cwd, git, remote);
+  root.devlogDir = join(base, projectId);
+  root.plansDirSource = source;
 }
 
 export function durableDir(cwd: string, env: NodeJS.ProcessEnv = process.env): string {
