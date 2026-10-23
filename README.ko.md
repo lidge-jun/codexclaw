@@ -220,6 +220,8 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 
 각 라우터는 필요할 때만 불러오는 자체 모듈형 참고 자료를 갖추고 있으며, 부모 스킬의 검증 게이트, 규칙 등급, 안전 규칙을 물려받는다.
 
+**프런트엔드 스킬 다운스트림.** `dev-frontend`와 `dev-uiux-design`의 레퍼런스는 고정된 치환 규칙([rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs))으로 [noslopdesign](https://github.com/lidge-jun/noslopdesign)에 복제된다. 두 스킬 안에서 다른 스킬을 가리킬 때는 `dev-frontend`, `dev-uiux-design`(그대로, `cxc-`를 붙여서, 또는 `../../dev-*/` 링크로), `` `dev-backend` ``, `` `dev-testing` ``, `` `dev-security` ``, `` `dev-devops` ``, `` `dev` §0.2 ``, `§0.4` 형태만 쓴다. `Source:`, `Adapted from` 줄은 줄 맨 앞에 두고, 두 폴더 이름은 바꾸지 않는다. 목록에 없는 형태는 대부분 남은 참조 검사에 걸려 그 레포의 주간 동기화를 막고 이슈를 연다.
+
 **비주얼라이저 유지보수 — codexclaw 수정 후 Aside 이식.** 공통 기능은 codexclaw에서 먼저 수정하고 검증한다. 이후 `aside-visualizer`에 이식하고, 그 저장소의 납품 브랜치에 병합한 뒤 완료 조건을 검증해야 Aside 이슈를 닫는다. Aside 전용 어댑터와 독립 설치·Chrome 없는 PDF 경로는 보존한다. 자세한 순서는 [이식 절차](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)에 적었다. 일반 산출물 요청이 저장소 수정·설치·공개·별도 루프까지 허용하는 것은 아니다. 산출물의 검증 깊이는 `draft`, `standard`, `publication` 중에서 고른다.
 
 ## CLI
@@ -245,6 +247,7 @@ codexclaw는 참조 구현이다. 방법론과 스킬은 에이전트에 종속�
 | [pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative) | Methodology spec + docs-site + agent-neutral skill set |
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
+| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-frontend` + `dev-uiux-design` as `noslop-frontend` / `noslop-uiux`, synced weekly from here |
 
 ## 문서
 
