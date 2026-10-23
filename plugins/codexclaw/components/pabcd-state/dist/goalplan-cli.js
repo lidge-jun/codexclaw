@@ -54,6 +54,7 @@ import { parseSourceBoundReceipt } from "./source-receipt.js";
 import { applySteeringBatch } from "./steering.js";
 import { DurableStateDisabledError } from "./state-root.js";
 import { runPrRecord } from "./pr-record.js";
+import { newerThanInstallHint } from "./install-version.js";
 
 
 
@@ -191,7 +192,7 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
   }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|link-criterion|pr-record); run cxc loop --help`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|link-criterion|pr-record); run cxc loop --help. If a skill names this verb, ${newerThanInstallHint("that skill")}`,
     };
   }
   const selected = verb                ;

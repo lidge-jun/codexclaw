@@ -51,6 +51,13 @@ plan not fully ticked, and B>C accepts an unchanged source when the record was
 made during that B (SOURCE-DELTA-01). The record never covers unverified
 subagent work or a structurally broken plan. A PR that is closed, still running
 checks, or failing any check is refused and nothing is written.
+Run it from the session's checkout (or pass `--cwd`): the gate reads the record
+there, so pr-record refuses a directory that holds no state for the session.
+`pr-record` needs cxc 0.2.43+. If `cxc loop --help` does not list it, or the gate
+still denies after a record was written, the installed plugin is older than these
+skills (`cxc --version`): `codex plugin marketplace upgrade codexclaw`, re-approve
+the hooks Codex marks Modified, and open a new thread. Do not record the PR with a
+newer clone's CLI: the installed hooks still cannot read it.
 
 Before waiting on dispatched work or long external processes, read
 [Waiting on work](waiting.md), the mode-neutral owner of wait and retirement rules.

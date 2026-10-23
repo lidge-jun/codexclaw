@@ -25,8 +25,11 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { evidenceDir } from "./state-root.js";
-import { isCanonicalSessionId } from "./state.js";
+import { isCanonicalSessionId, statePath } from "./state.js";
 import { renameWithRetry } from "./atomic-write.js";
+import { installedCxcVersion, newerThanInstallHint } from "./install-version.js";
+
+
 
 
 
@@ -102,6 +105,37 @@ export function prRecordPath(cwd        , sessionId        )         {
   return join(evidenceDir(cwd), "pr-records", sessionId + ".json");
 }
 
+/**
+ * #316: a record this build cannot read because a newer cxc wrote it (schema > 1).
+ * It is never trusted; the gate names it so the operator updates instead of retrying.
+ */
+
+
+
+
+
+
+/** The session's record that a newer cxc wrote, or null. */
+export function readNewerPrRecord(cwd        , sessionId        )                       {
+  try {
+    if (!isCanonicalSessionId(sessionId)) return null;
+    const path = prRecordPath(cwd, sessionId);
+    if (!existsSync(path)) return null;
+    const raw = JSON.parse(readFileSync(path, "utf8"))                                                                   ;
+    if (typeof raw.schema !== "number" || raw.schema <= 1 || raw.sessionId !== sessionId) return null;
+    return { path, schema: raw.schema, writer: typeof raw.cxcVersion === "string" ? raw.cxcVersion : "unknown" };
+  } catch {
+    return null;
+  }
+}
+
+/** Appended to a completion denial when a newer record explains why it did not count. */
+export function newerPrRecordNote(newer                      )         {
+  if (!newer) return "";
+  return " The PR record at " + newer.path + " (schema " + newer.schema + ", written by cxc " + newer.writer + ") "
+    + newerThanInstallHint("that record") + " This gate cannot read it.";
+}
+
 /** The session's record, or null when absent, unreadable, or not this session's. */
 export function readPrRecord(cwd        , sessionId        )                  {
   try {
@@ -153,6 +187,15 @@ export function runPrRecord(
 )                    {
   if (!isCanonicalSessionId(sessionId)) return { code: 1, output: "loop pr-record: session id is not canonical" };
   if (pr.trim() === "") return { code: 1, output: "loop pr-record: --pr <url|number> is required" };
+  // #316: the completion gate reads the record from the session's own checkout. Writing
+  // one anywhere else (a fresh clone, another worktree) succeeded and was never read.
+  if (!existsSync(statePath(cwd, sessionId))) {
+    return {
+      code: 1,
+      output: "loop pr-record: session '" + sessionId + "' has no state in " + cwd + " (" + statePath(cwd, sessionId) + " is missing), "
+        + "so the completion gate would never read a record written here. Run it from the session's checkout or pass --cwd <that checkout>.\nNothing was written.",
+    };
+  }
   const fetched = (deps.view ?? ghPrView)(pr.trim(), cwd);
   if (!fetched.ok) return { code: 1, output: "loop pr-record: " + fetched.error + "\nNothing was written." };
   const verdict = classifyPr(fetched.view);
@@ -170,6 +213,7 @@ export function runPrRecord(
     headRefOid: str(fetched.view.headRefOid),
     checks: verdict.checks,
     recordedAt: (deps.now ?? (() => new Date().toISOString()))(),
+    cxcVersion: installedCxcVersion(),
   };
   const path = prRecordPath(cwd, sessionId);
   mkdirSync(dirname(path), { recursive: true });

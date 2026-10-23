@@ -114,6 +114,7 @@ codex plugin remove codexclaw@codexclaw      # uninstall
 
 After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate.
 Upgrading to 0.1.1+ also delivers the payload CLI (`bin/cxc.mjs`); existing installs must upgrade (or re-add) to receive new top-level directories.
+Then open a new thread: skills, hooks and the CLI load when a session starts. `cxc --version` prints the running build. Skills can come from a newer machine than the installed hooks (a GOAT thread started elsewhere), so a skill may name a verb the installed CLI lacks: `cxc loop pr-record` needs 0.2.43+, and a 0.2.42 completion gate ignores the records it writes. Upgrade that host; builds after 0.2.43 name their version and this command when they meet a verb or record newer than themselves.
 
 The CLI has two tiers. Every install ships the payload dispatcher — no PATH setup needed; when `cxc` isn't on PATH, the session-start banner prints this exact invocation:
 
