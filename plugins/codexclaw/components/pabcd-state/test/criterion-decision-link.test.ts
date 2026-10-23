@@ -183,4 +183,3 @@ test("#314 review: a blocked phase cannot take a criterion link", () => {
     assert.equal(JSON.stringify(readGoalplan(cwd, slug)), before);
   });
 });
-
