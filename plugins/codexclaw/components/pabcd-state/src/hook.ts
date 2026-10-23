@@ -1167,7 +1167,7 @@ function handleOrchestrateCommand(
     : null;
   // #315: same plan-unit record as the CLI path (path + digest on entry to B, kept through C).
   const entryPlan = result.state && result.state.phase === "B"
-    ? capturePlanEntry(payload.cwd, state.planUnit ?? state.phaseEntryPlan?.path)
+    ? capturePlanEntry(payload.cwd, state.planUnit, state.phaseEntryPlan)
     : result.state?.phase === "C" ? state.phaseEntryPlan ?? null : null;
   const planBinding = state.phase === "P" && result.state?.phase === "A"
     ? chatPlanBinding(payload.cwd, state.slug, command.attest)

@@ -300,3 +300,134 @@ test("#315 review: a project directory under the plans dir that links back into 
     rmSync(plans, { recursive: true, force: true });
   }
 });
+
+test("#315 follow-up: a plan unit outside the plan root never counts as B>C evidence", () => {
+  const cwd = gitRepo();
+  const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-elsewhere-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
+      writeFileSync(join(elsewhere, "000_plan.md"), "# not under devlog/_plan\n");
+      writeState(cwd, defaultState("outside"));
+      assert.equal(orchestrate(cwd, "outside", "p", { from: "IDLE", to: "P", did: "plan" }).code, 0);
+      assert.equal(orchestrate(cwd, "outside", "a", { from: "P", to: "A", did: "plan written", planUnit: elsewhere }).code, 0);
+      assert.equal(orchestrate(cwd, "outside", "b", { from: "A", to: "B", did: "audited", auditOutput: "reviewer: PASS", auditVerdict: "pass" }).code, 0);
+      writeFileSync(join(elsewhere, "000_plan.md"), "# edited somewhere unrelated\n");
+      const refused = orchestrate(cwd, "outside", "c", TO_C);
+      assert.equal(refused.code, 1, refused.output);
+      assert.match(refused.output, /SOURCE-DELTA-01/);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(elsewhere, { recursive: true, force: true });
+  }
+});
+
+test("#315 follow-up: the issue's setup, devlog/_plan/<unit> as a git-excluded symlink to a scratch folder, still counts", { skip: process.platform === "win32" }, () => {
+  const cwd = gitRepo();
+  const scratch = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-scratch-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
+      mkdirSync(join(cwd, "devlog", "_plan"), { recursive: true });
+      writeFileSync(join(scratch, "000_plan.md"), "# roadmap\n");
+      symlinkSync(scratch, join(cwd, "devlog", "_plan", "261023_roadmap"));
+      writeFileSync(join(cwd, ".git", "info", "exclude"), "devlog/\n.codexclaw/\n");
+      writeState(cwd, defaultState("scratch"));
+      assert.equal(orchestrate(cwd, "scratch", "p", { from: "IDLE", to: "P", did: "plan" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "a", { from: "P", to: "A", did: "plan written", planUnit: "devlog/_plan/261023_roadmap" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "b", { from: "A", to: "B", did: "audited", auditOutput: "reviewer: PASS", auditVerdict: "pass" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "c", TO_C).code, 1, "an idle B is still refused");
+      writeFileSync(join(scratch, "010_phase1.md"), "# phase 1\n");
+      const accepted = orchestrate(cwd, "scratch", "c", TO_C);
+      assert.equal(accepted.code, 0, accepted.output);
+      // Rework keeps the same unit: C>B re-records it, and only a new edit passes again.
+      assert.equal(orchestrate(cwd, "scratch", "b", { from: "C", to: "B", did: "rework the phase doc" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "c", TO_C).code, 1);
+      writeFileSync(join(scratch, "010_phase1.md"), "# phase 1\n\nreworked\n");
+      assert.equal(orchestrate(cwd, "scratch", "c", TO_C).code, 0);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+function bindAndEnterB(cwd: string, sessionId: string, planUnit: string): void {
+  writeState(cwd, defaultState(sessionId));
+  assert.equal(orchestrate(cwd, sessionId, "p", { from: "IDLE", to: "P", did: "plan" }).code, 0);
+  const a = orchestrate(cwd, sessionId, "a", { from: "P", to: "A", did: "plan written", planUnit });
+  assert.equal(a.code, 0, a.output);
+  assert.equal(orchestrate(cwd, sessionId, "b", { from: "A", to: "B", did: "audited", auditOutput: "reviewer: PASS", auditVerdict: "pass" }).code, 0);
+}
+
+test("#315 follow-up r1: a symlinked plan root, a nested unit, or a unit that links back to the checkout never counts", { skip: process.platform === "win32" }, () => {
+  const outside = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-r1-")));
+  const roots: string[] = [];
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
+      // devlog/_plan itself is a link to an unrelated directory.
+      const a = gitRepo(); roots.push(a);
+      mkdirSync(join(outside, "fake", "unit"), { recursive: true });
+      writeFileSync(join(outside, "fake", "unit", "000_plan.md"), "# fake\n");
+      mkdirSync(join(a, "devlog"));
+      symlinkSync(join(outside, "fake"), join(a, "devlog", "_plan"));
+      bindAndEnterB(a, "root-link", "devlog/_plan/unit");
+      writeFileSync(join(outside, "fake", "unit", "000_plan.md"), "# edited\n");
+      assert.equal(orchestrate(a, "root-link", "c", TO_C).code, 1, "symlinked plan root");
+
+      // A unit nested below a linked unit is not a plan unit.
+      const b = gitRepo(); roots.push(b);
+      mkdirSync(join(outside, "tree", "sub"), { recursive: true });
+      writeFileSync(join(outside, "tree", "sub", "000_plan.md"), "# nested\n");
+      mkdirSync(join(b, "devlog", "_plan"), { recursive: true });
+      symlinkSync(join(outside, "tree"), join(b, "devlog", "_plan", "link"));
+      bindAndEnterB(b, "nested", "devlog/_plan/link/sub");
+      writeFileSync(join(outside, "tree", "sub", "000_plan.md"), "# edited\n");
+      assert.equal(orchestrate(b, "nested", "c", TO_C).code, 1, "nested unit");
+
+      // A unit that links to the checkout root (git-ignored numbered doc there).
+      const c = gitRepo(); roots.push(c);
+      mkdirSync(join(c, "devlog", "_plan"), { recursive: true });
+      writeFileSync(join(c, ".git", "info", "exclude"), "000_plan.md\ndevlog/\n.codexclaw/\n");
+      writeFileSync(join(c, "000_plan.md"), "# root doc\n");
+      symlinkSync(c, join(c, "devlog", "_plan", "loop"));
+      bindAndEnterB(c, "loop", "devlog/_plan/loop");
+      writeFileSync(join(c, "000_plan.md"), "# edited\n");
+      assert.equal(orchestrate(c, "loop", "c", TO_C).code, 1, "unit linking back to the checkout");
+    });
+  } finally {
+    for (const r of roots) rmSync(r, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("#315 follow-up r1: C>B re-checks the stored binding, so a forged or legacy entry cannot carry an outside directory", () => {
+  const cwd = gitRepo();
+  const plans = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-forge-")));
+  const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-elsewhere2-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo", CODEXCLAW_PLANS_DIR: plans }, () => {
+      const unit = cycleToB(cwd, "forge");
+      writeFileSync(join(unit, "010_phase1.md"), "# phase 1\n");
+      assert.equal(orchestrate(cwd, "forge", "c", TO_C).code, 0);
+      writeFileSync(join(elsewhere, "000_plan.md"), "# elsewhere\n");
+      const atC = readState(cwd, "forge");
+      for (const forged of [
+        { ...atC.phaseEntryPlan!, path: elsewhere },
+        { path: elsewhere, digest: atC.phaseEntryPlan!.digest, capturedAt: atC.phaseEntryPlan!.capturedAt },
+      ]) {
+        writeState(cwd, { ...readState(cwd, "forge"), phase: "C", phaseEntryPlan: forged });
+        assert.equal(orchestrate(cwd, "forge", "b", { from: "C", to: "B", did: "rework" }).code, 0);
+        writeFileSync(join(elsewhere, "000_plan.md"), "# elsewhere " + Math.random() + "\n");
+        assert.equal(orchestrate(cwd, "forge", "c", TO_C).code, 1, JSON.stringify(forged));
+        // Fail closed: a tampered entry drops plan evidence for this B entirely, so even
+        // the real unit does not count until the cycle re-plans and binds it again.
+        writeFileSync(join(unit, "010_phase1.md"), "# phase 1 " + Math.random() + "\n");
+        assert.equal(orchestrate(cwd, "forge", "c", TO_C).code, 1);
+      }
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(plans, { recursive: true, force: true });
+    rmSync(elsewhere, { recursive: true, force: true });
+  }
+});

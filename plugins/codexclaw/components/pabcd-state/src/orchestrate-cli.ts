@@ -1083,7 +1083,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // #315: record the plan unit by path and digest on the same edge. A>B takes the unit
   // P>A bound; a C>B rework edge re-records the unit this cycle already used.
   const entryPlan = result.state.phase === "B"
-    ? capturePlanEntry(args.cwd, state.planUnit ?? state.phaseEntryPlan?.path)
+    ? capturePlanEntry(args.cwd, state.planUnit, state.phaseEntryPlan)
     : result.state.phase === "C" ? state.phaseEntryPlan ?? null : null;
   // 060: A carries the binding this edge just minted; entering P or I drops it, so
   // re-planning cannot leave an old approval looking current.
