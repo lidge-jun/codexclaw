@@ -13,8 +13,12 @@ B>C refused: "the source is unchanged since B began ... (SOURCE-DELTA-01)".
   config `state.plansDir`, absolute, moves `devlogDir` to
   `<plansDir>/<projectId>` in every mode but none. Relative or in-checkout
   values are ignored with a warning. `plansDirSource` feeds `devlog path --explain`.
-- `plan-delta.ts`: `planUnitDigest` (sorted relative path + sha256 of each regular
-  file; symlinks skipped; bounded walk), `capturePlanEntry`, `planDeltaSince`.
+- `plan-delta.ts`: `planUnitDigest` hashes only numbered plan docs (`NNN_*.md` regular
+  files directly in the unit, the P>A definition); `capturePlanEntry` pins the realpath;
+  `planDeltaSince` lstat-checks the pinned directory.
+- Review round 1 (gpt-6.1-sol) found that whole-directory hashing let codexclaw state
+  under `planUnit: "."` pass an idle B, that the plans destination was checked only at
+  its base, and that a symlinked unit could be retargeted. Each has a regression test.
 - State `phaseEntryPlan` is captured on entry to B from `state.planUnit` (A>B) or the
   previous entry (C>B rework), kept through C, null elsewhere on read.
 - B>C (orchestrate CLI and chat hook): an unchanged source still passes when the
