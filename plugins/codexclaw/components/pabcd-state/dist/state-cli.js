@@ -664,7 +664,9 @@ export function runStateMigrate(cwd        , env                   , apply      
   }
   const devlogSrc = join(root.cwd, "devlog");
   if (pathHasSymlink(root.cwd, devlogSrc)) ops.push({ kind: "skip-symlink", src: devlogSrc, dst: root.devlogDir, note: "source is a symlink" });
-  else walk(devlogSrc, root.devlogDir, ops, root.projectDir);
+  // #315: a configured plans directory puts the devlog outside projectDir; check its
+  // destinations against the plans base so they are not all read as symlink hazards.
+  else walk(devlogSrc, root.devlogDir, ops, root.plansDirSource ? dirname(root.devlogDir) : root.projectDir);
   const tracked = trackedSet(root.cwd, env);
   if (tracked === null) {
     return { code: 1, output: "state migrate: git ls-files failed in " + root.cwd + "; refusing to move files whose tracked status is unknown" };

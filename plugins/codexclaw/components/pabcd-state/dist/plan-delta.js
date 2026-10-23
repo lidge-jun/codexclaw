@@ -18,6 +18,7 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
+import { devlogDir, isInside, realpathLoose } from "./state-root.js";
 
 
 
@@ -58,9 +59,32 @@ export function planUnitDigest(dir        )                {
   return h.digest("hex");
 }
 
-/** Record the plan unit on entry to B. Null when no unit is bound or it cannot be read. */
-export function capturePlanEntry(cwd        , planUnit                           )                   {
+/**
+ * True when the bound unit lies under the resolved plan root (<devlog>/_plan). P>A
+ * accepts any directory with a numbered doc, so without this an unrelated scratch
+ * directory edited during B would pass SOURCE-DELTA-01. The lexical path is checked as
+ * well as the real one, so a unit that is a symlink under _plan (plans kept outside
+ * the commit through an excluded link) still counts.
+ */
+function underPlanRoot(cwd        , unit        )          {
+  const devlog = devlogDir(cwd);
+  if (!devlog) return false;
+  const planRoot = join(devlog, "_plan");
+  const lexical = resolve(cwd, unit);
+  if (lexical !== resolve(planRoot) && isInside(lexical, resolve(planRoot))) return true;
+  const real = realpathLoose(lexical);
+  const realRoot = realpathLoose(planRoot);
+  return real !== realRoot && isInside(real, realRoot);
+}
+
+/**
+ * Record the plan unit on entry to B. Null when no unit is bound, it cannot be read, or
+ * it is outside the plan root. `revalidated` marks a unit an earlier A>B already accepted
+ * (C>B rework re-records it from its canonical path, which may be a symlink's target).
+ */
+export function capturePlanEntry(cwd        , planUnit                           , revalidated = false)                   {
   if (!planUnit) return null;
+  if (!revalidated && !underPlanRoot(cwd, planUnit)) return null;
   let path        ;
   try {
     path = realpathSync.native(isAbsolute(planUnit) ? resolve(planUnit) : resolve(cwd, planUnit));

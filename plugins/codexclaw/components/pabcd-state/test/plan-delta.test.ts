@@ -300,3 +300,53 @@ test("#315 review: a project directory under the plans dir that links back into 
     rmSync(plans, { recursive: true, force: true });
   }
 });
+
+test("#315 follow-up: a plan unit outside the plan root never counts as B>C evidence", () => {
+  const cwd = gitRepo();
+  const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-elsewhere-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
+      writeFileSync(join(elsewhere, "000_plan.md"), "# not under devlog/_plan\n");
+      writeState(cwd, defaultState("outside"));
+      assert.equal(orchestrate(cwd, "outside", "p", { from: "IDLE", to: "P", did: "plan" }).code, 0);
+      assert.equal(orchestrate(cwd, "outside", "a", { from: "P", to: "A", did: "plan written", planUnit: elsewhere }).code, 0);
+      assert.equal(orchestrate(cwd, "outside", "b", { from: "A", to: "B", did: "audited", auditOutput: "reviewer: PASS", auditVerdict: "pass" }).code, 0);
+      writeFileSync(join(elsewhere, "000_plan.md"), "# edited somewhere unrelated\n");
+      const refused = orchestrate(cwd, "outside", "c", TO_C);
+      assert.equal(refused.code, 1, refused.output);
+      assert.match(refused.output, /SOURCE-DELTA-01/);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(elsewhere, { recursive: true, force: true });
+  }
+});
+
+test("#315 follow-up: the issue's setup, devlog/_plan/<unit> as a git-excluded symlink to a scratch folder, still counts", { skip: process.platform === "win32" }, () => {
+  const cwd = gitRepo();
+  const scratch = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-plans-scratch-")));
+  try {
+    withEnv({ CODEXCLAW_STATE_MODE: "repo" }, () => {
+      mkdirSync(join(cwd, "devlog", "_plan"), { recursive: true });
+      writeFileSync(join(scratch, "000_plan.md"), "# roadmap\n");
+      symlinkSync(scratch, join(cwd, "devlog", "_plan", "261023_roadmap"));
+      writeFileSync(join(cwd, ".git", "info", "exclude"), "devlog/\n.codexclaw/\n");
+      writeState(cwd, defaultState("scratch"));
+      assert.equal(orchestrate(cwd, "scratch", "p", { from: "IDLE", to: "P", did: "plan" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "a", { from: "P", to: "A", did: "plan written", planUnit: "devlog/_plan/261023_roadmap" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "b", { from: "A", to: "B", did: "audited", auditOutput: "reviewer: PASS", auditVerdict: "pass" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "c", TO_C).code, 1, "an idle B is still refused");
+      writeFileSync(join(scratch, "010_phase1.md"), "# phase 1\n");
+      const accepted = orchestrate(cwd, "scratch", "c", TO_C);
+      assert.equal(accepted.code, 0, accepted.output);
+      // Rework keeps the same unit: C>B re-records it, and only a new edit passes again.
+      assert.equal(orchestrate(cwd, "scratch", "b", { from: "C", to: "B", did: "rework the phase doc" }).code, 0);
+      assert.equal(orchestrate(cwd, "scratch", "c", TO_C).code, 1);
+      writeFileSync(join(scratch, "010_phase1.md"), "# phase 1\n\nreworked\n");
+      assert.equal(orchestrate(cwd, "scratch", "c", TO_C).code, 0);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});

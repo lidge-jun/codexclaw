@@ -535,3 +535,19 @@ test("#302 review: real CR edits (partial insertion, binary) are committed, neve
   }
 });
 }
+
+test("#315 follow-up: migrate moves legacy plans into a configured plans directory in external mode", () => {
+  const co = checkout("https://github.com/acme/app.git");
+  const plans = join(scratch, "plans");
+  mkdirSync(plans);
+  const env = envFor(join(scratch, "base"), { CODEXCLAW_PLANS_DIR: plans });
+  mkdirSync(join(co, "devlog", "_plan", "u1"), { recursive: true });
+  writeFileSync(join(co, "devlog", "_plan", "u1", "000_plan.md"), "plan\n");
+  const root = resolveStateRoot(co, env);
+  assert.ok(root.devlogDir!.startsWith(plans + sep), root.devlogDir!);
+  const applied = runStateCli(["migrate", "--apply"], co, env);
+  assert.equal(applied.code, 0, applied.output);
+  assert.match(applied.output, /skipped symlinks 0/);
+  assert.equal(readFileSync(join(root.devlogDir!, "_plan", "u1", "000_plan.md"), "utf8"), "plan\n");
+  assert.equal(existsSync(join(co, "devlog", "_plan", "u1", "000_plan.md")), false);
+});
