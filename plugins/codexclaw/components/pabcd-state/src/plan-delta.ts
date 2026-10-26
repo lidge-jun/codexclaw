@@ -153,3 +153,14 @@ export function reconstructPlanEntry(raw: unknown): PlanEntry | null {
 export function describePlanUnchanged(entry: PlanEntry | null): string {
   return entry ? " and the plan docs in " + entry.path + " are unchanged too" : "";
 }
+
+/**
+ * #321: the plan unit as the remedy. A read-only research loop that sees only "the
+ * source is unchanged" goes looking for a tracked file to touch; say instead that its
+ * bound plan unit counts, and how, or why no unit can count for this B.
+ */
+export function describePlanRemedy(entry: PlanEntry | null): string {
+  return entry
+    ? " A changed bound plan unit counts as this B's work: a read-only research cycle can write its result as a numbered doc (for example 040_survey.md) in " + entry.path + " instead of touching a tracked file."
+    : " A changed plan unit counts only when the unit bound at P>A sits directly under <devlog>/_plan (see `cxc devlog path`), and this B has none.";
+}
