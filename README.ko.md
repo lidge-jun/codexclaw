@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C839-brightgreen" alt="3,839 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C869-brightgreen" alt="3,869 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -76,6 +76,7 @@ codex plugin remove codexclaw@codexclaw      # 제거
 
 업그레이드 후에는 Codex가 훅을 **Modified**로 표시한다. 다시 승인해야 활성화된다.
 0.1.1 이상으로 업그레이드하면 페이로드 CLI(`bin/cxc.mjs`)가 함께 배송된다. 기존 설치는 업그레이드(또는 재설치)해야 새 최상위 디렉터리를 받는다.
+그다음 새 스레드를 연다. 스킬, 훅, CLI는 세션이 시작될 때 읽힌다. `cxc --version`이 실행 중인 빌드를 출력한다. 스킬은 설치된 훅보다 새 기기에서 올 수 있으므로(다른 기기에서 시작한 GOAT 스레드) 설치된 CLI에 없는 동사를 스킬이 부를 수 있다. `cxc loop pr-record`는 0.2.43 이상이 필요하고, 0.2.42 완료 게이트는 그 기록을 읽지 않는다. 그 호스트를 업그레이드한다. 0.2.43 이후 빌드는 자신보다 새 동사나 기록을 만나면 버전과 이 명령을 함께 알려 준다.
 
 CLI는 두 층이다. 모든 설치에 페이로드 디스패처가 들어 있어 PATH 설정이 필요 없다. `cxc`가 PATH에 없으면 세션 시작 배너가 정확한 실행 명령을 알려준다:
 
