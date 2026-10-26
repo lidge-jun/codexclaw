@@ -221,6 +221,58 @@ test("#315: plans hidden from git in the checkout (local mode, .git/info/exclude
   }
 });
 
+// #321: a read-only research cycle writes its deliverable as a new numbered doc next to
+// the scaffolded ones (040_survey.md beside 000_plan.md and 010_phase1.md) in a unit that
+// git cannot see. Repo mode with devlog/_plan/ in .git/info/exclude is the reported
+// setup; local mode hides the same directory itself. Both B>C paths must accept it.
+for (const mode of ["repo", "local"] as const) {
+  test(`#321 ${mode} mode: a numbered research doc added during B to an excluded devlog/_plan unit satisfies B>C`, () => {
+    const cwd = gitRepo();
+    const chatCwd = gitRepo();
+    try {
+      withEnv({ CODEXCLAW_STATE_MODE: mode }, () => {
+        for (const dir of [cwd, chatCwd]) {
+          if (mode === "repo") writeFileSync(join(dir, ".git", "info", "exclude"), "devlog/_plan/\n.codexclaw/\n");
+        }
+        const status = (dir: string) => execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: dir, encoding: "utf8" });
+
+        const unit = cycleToB(cwd, "research");
+        assert.ok(unit.startsWith(join(cwd, "devlog", "_plan") + sep), unit);
+        assert.deepEqual(readdirSync(unit).sort(), ["000_plan.md", "010_phase1.md"], "plan init scaffolds the plan and one phase doc");
+        assert.equal(status(cwd), "", "git sees neither state nor plans");
+        // A file that is not a numbered doc is not plan work, so B>C is still refused.
+        writeFileSync(join(unit, "survey.md"), "| issue | bundle |\n");
+        const refused = orchestrate(cwd, "research", "c", TO_C);
+        assert.equal(refused.code, 1, refused.output);
+        assert.match(refused.output, /SOURCE-DELTA-01/);
+        // The refusal points a research loop at its plan unit, not at a tracked file.
+        assert.match(refused.output, /A changed bound plan unit counts as this B's work/);
+        assert.ok(refused.output.includes("numbered doc (for example 040_survey.md) in " + unit), refused.output);
+        writeFileSync(join(unit, "040_survey.md"), "| issue | bundle |\n| #1 | a |\n");
+        assert.equal(status(cwd), "", "the research doc stays out of git");
+        const accepted = orchestrate(cwd, "research", "c", TO_C);
+        assert.equal(accepted.code, 0, accepted.output);
+        assert.equal(readState(cwd, "research").phase, "C");
+
+        const chatUnit = cycleToB(chatCwd, "research-chat");
+        let turn = 0;
+        const say = () => handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", session_id: "research-chat", cwd: chatCwd, prompt: "orchestrate c", transcript_path: null, turn_id: "t" + ++turn });
+        const chatRefusal = JSON.parse(say()).hookSpecificOutput.additionalContext as string;
+        assert.match(chatRefusal, /SOURCE-DELTA-01/);
+        assert.match(chatRefusal, /A changed bound plan unit counts as this B's work/);
+        assert.ok(chatRefusal.includes("numbered doc (for example 040_survey.md) in " + chatUnit), chatRefusal);
+        assert.equal(readState(chatCwd, "research-chat").phase, "B");
+        writeFileSync(join(chatUnit, "040_survey.md"), "| issue | bundle |\n");
+        say();
+        assert.equal(readState(chatCwd, "research-chat").phase, "C");
+      });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(chatCwd, { recursive: true, force: true });
+    }
+  });
+}
+
 test("#315 review: codexclaw's own writes and non-plan files never count as plan work", () => {
   const cwd = gitRepo();
   try {
@@ -315,6 +367,7 @@ test("#315 follow-up: a plan unit outside the plan root never counts as B>C evid
       const refused = orchestrate(cwd, "outside", "c", TO_C);
       assert.equal(refused.code, 1, refused.output);
       assert.match(refused.output, /SOURCE-DELTA-01/);
+      assert.match(refused.output, /A changed plan unit counts only when the unit bound at P>A sits directly under <devlog>\/_plan/);
     });
   } finally {
     rmSync(cwd, { recursive: true, force: true });

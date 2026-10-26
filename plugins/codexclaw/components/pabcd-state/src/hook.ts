@@ -135,7 +135,7 @@ import { discardStreak, readDivergenceCandidates } from "./divergence.ts";
 import { hasNativeObservation, hasRenderArtifactModified, hasRenderObservation, nativeObservationLedgerMalformed, renderGroundingAdvisory } from "./render-observations.ts";
 import { detectMemoryWriteRequest } from "./memory-write-gate.ts";
 import { prRecordSince, readPrRecord } from "./pr-record.ts";
-import { capturePlanEntry, describePlanUnchanged, planDeltaSince } from "./plan-delta.ts";
+import { capturePlanEntry, describePlanRemedy, describePlanUnchanged, planDeltaSince } from "./plan-delta.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -790,7 +790,7 @@ function handleOrchestrateCommand(
       && !prRecordSince(readPrRecord(payload.cwd, payload.session_id), state.phaseEntrySource.capturedAt)) {
       return buildContextOutput(
         "UserPromptSubmit",
-        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)})${describePlanUnchanged(state.phaseEntryPlan ?? null)}, so nothing was implemented in this B (SOURCE-DELTA-01). A merged or green PR from this B counts: \`cxc loop pr-record --session ${payload.session_id} --pr <url>\`. Nothing was written.]`,
+        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)})${describePlanUnchanged(state.phaseEntryPlan ?? null)}, so nothing was implemented in this B (SOURCE-DELTA-01).${describePlanRemedy(state.phaseEntryPlan ?? null)} A merged or green PR from this B counts: \`cxc loop pr-record --session ${payload.session_id} --pr <url>\`. Nothing was written.]`,
       );
     }
   }

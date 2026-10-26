@@ -129,7 +129,7 @@ import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
 import { resetRenderLedger } from "./render-observations.ts";
 import type { OrchestrateVerb } from "./orchestrate-grammar.ts";
 import { prRecordSince, readPrRecord } from "./pr-record.ts";
-import { capturePlanEntry, describePlanUnchanged, planDeltaSince } from "./plan-delta.ts";
+import { capturePlanEntry, describePlanRemedy, describePlanUnchanged, planDeltaSince } from "./plan-delta.ts";
 import {
   appendLedger,
   findForeignSessionCopies,
@@ -723,7 +723,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
     if (cmp.kind === "same" && !planDelta && !prRecordSince(readPrRecord(args.cwd, sessionId), state.phaseEntrySource.capturedAt)) {
       return {
         code: 1,
-        output: `orchestrate C: ${renderPhaseContext(state, sessionId)}; the source is unchanged since B began (${describeSource(now)})${describePlanUnchanged(state.phaseEntryPlan ?? null)}, so nothing was implemented in this B (SOURCE-DELTA-01). Implement inside B rather than carrying earlier work across the edge, or, if this B delivered a merged or green PR, record it: \`cxc loop pr-record --session ${sessionId} --pr <url>\`. Nothing was written.`,
+        output: `orchestrate C: ${renderPhaseContext(state, sessionId)}; the source is unchanged since B began (${describeSource(now)})${describePlanUnchanged(state.phaseEntryPlan ?? null)}, so nothing was implemented in this B (SOURCE-DELTA-01).${describePlanRemedy(state.phaseEntryPlan ?? null)} Implement inside B rather than carrying earlier work across the edge, or, if this B delivered a merged or green PR, record it: \`cxc loop pr-record --session ${sessionId} --pr <url>\`. Nothing was written.`,
       };
     }
   }
