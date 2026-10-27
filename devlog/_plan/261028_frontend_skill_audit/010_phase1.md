@@ -286,3 +286,12 @@ cycle mechanics; this file only defines what the audit hands to them.
 Content quality (does the procedure make sense) is human review plus the independent A
 reviewer; no command observes it.
 
+
+## wp1 P revalidation (2026-10-28)
+
+Stale check against origin/dev c12c71c8 (no new commits; \`git diff origin/dev -- plugins/codexclaw/skills\`
+empty): every context and removal line in diffs C-F is present verbatim (script in 006 round 1),
+and the four new rule-id prefixes still have no definition in skills/. No amendment needed;
+B executes A-F as written. Architect reflection on this revalidation: same architect, recorded below.
+
+Architect 01a17e1c-1bae-7400-b95f-83ef964231d2: ALIGNED, no gaps (2026-10-28).
