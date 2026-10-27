@@ -14,7 +14,7 @@
  */
 
 /** Branches that may never be deleted regardless of pull-request state. */
-const PROTECTED_BRANCHES = Object.freeze(["main", "dev", "preview", "gh-pages"]);
+const PROTECTED_BRANCHES = Object.freeze(["main", "dev", "gh-pages"]);
 
 /** Branch namespaces explicitly reserved for disposable pull-request work. */
 // codexclaw declares only codex/ disposable. fix/, docs/ and every other

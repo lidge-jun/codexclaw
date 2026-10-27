@@ -5,7 +5,8 @@
 // specific violation text, so a check that silently stops observing fails here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -251,6 +252,122 @@ test("a tests badge equal to the measured total passes", () => {
     rewriteTestsBadge(dir, 4321);
     const result = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4321 });
     assert.equal(result.ok, true, result.violations.join(" | "));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// #301: PR and dev CI compare in floor mode. A badge that lags behind newly added tests
+// is a notice, a badge that claims more tests than ran is a violation, and the default
+// (release) comparison stays exact.
+function breakOneSkillsBadge(dir) {
+  const p = join(dir, "README.ko.md");
+  writeFileSync(p, readFileSync(p, "utf8").replace(/(badge\/skills-)(\d+)(-)/, (_m, a, n, c) => a + (Number(n) + 1) + c));
+}
+
+test("floor mode: a lagging tests badge passes with a notice naming the write command", () => {
+  const { dir, plugin } = scratch();
+  try {
+    rewriteTestsBadge(dir, 4000);
+    const result = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4321, testsMode: "floor" });
+    assert.equal(result.ok, true, result.violations.join(" | "));
+    assert.equal(result.notices.length, 1);
+    assert.match(result.notices[0], /--write --tests 4321/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("floor mode: an equal tests badge passes without a notice", () => {
+  const { dir, plugin } = scratch();
+  try {
+    rewriteTestsBadge(dir, 4321);
+    const result = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4321, testsMode: "floor" });
+    assert.equal(result.ok, true, result.violations.join(" | "));
+    assert.deepEqual(result.notices, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("floor mode: a tests badge above the measured total fails", () => {
+  const { dir, plugin } = scratch();
+  try {
+    rewriteTestsBadge(dir, 4321);
+    const result = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4000, testsMode: "floor" });
+    assert.equal(result.ok, false);
+    assert.ok(result.violations.some((v) => v.includes("overstates")), result.violations.join(" | "));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("floor mode keeps surface agreement mandatory and still reports the lag", () => {
+  const { dir, plugin } = scratch();
+  try {
+    rewriteTestsBadge(dir, 4000);
+    breakOneSkillsBadge(dir);
+    const result = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4321, testsMode: "floor" });
+    assert.equal(result.ok, false);
+    assert.equal(result.notices.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the default tests comparison stays exact", () => {
+  const { dir, plugin } = scratch();
+  try {
+    rewriteTestsBadge(dir, 4000);
+    const result = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4321 });
+    assert.equal(result.ok, false);
+    assert.ok(result.violations.some((v) => v.includes("measured suite reported 4321")), result.violations.join(" | "));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an unknown tests mode is refused", () => {
+  assert.throws(() => check({ expectedTests: 1, testsMode: "loose" }), /testsMode must be one of exact\|floor/);
+});
+
+function runScratchCli(dir, args) {
+  // realpath: the CLI only runs when argv[1] equals its own module path, and macOS
+  // tmpdir is a /var -> /private/var symlink.
+  const script = realpathSync(join(dir, "plugins", "codexclaw", "scripts", "inventory.mjs"));
+  return spawnSync(process.execPath, [script, "--check", ...args], { encoding: "utf8" });
+}
+
+test("CLI floor mode prints the lag notice on success and on failure", () => {
+  const { dir } = scratch();
+  try {
+    const n = readPublished(dir).counts.tests + 5;
+    const ok = runScratchCli(dir, ["--tests", String(n), "--tests-mode", "floor"]);
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.match(ok.stdout, /::notice title=tests badge::/);
+    assert.ok(ok.stdout.includes("--write --tests " + n), ok.stdout);
+
+    breakOneSkillsBadge(dir);
+    const failed = runScratchCli(dir, ["--tests", String(n), "--tests-mode", "floor"]);
+    assert.equal(failed.status, 1);
+    assert.ok(failed.stdout.includes("--write --tests " + n), failed.stdout);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI refuses an unknown tests mode and a mode without a measured total", () => {
+  const { dir } = scratch();
+  try {
+    const unknown = runScratchCli(dir, ["--tests", "1", "--tests-mode", "bogus"]);
+    assert.equal(unknown.status, 1);
+    assert.match(unknown.stderr, /exact\|floor/);
+    const missingValue = runScratchCli(dir, ["--tests", "1", "--tests-mode"]);
+    assert.equal(missingValue.status, 1);
+    assert.match(missingValue.stderr, /exact\|floor/);
+    const bare = runScratchCli(dir, ["--tests-mode", "floor"]);
+    assert.equal(bare.status, 1);
+    assert.match(bare.stderr, /needs --tests/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

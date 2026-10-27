@@ -174,7 +174,9 @@ codexclaw translation:
   task_name (triggers a turn when idle; `send_message` is context-only delivery), or
   V1 `send_input` to its agent_id. V1 alone supports `resume_agent` after close.
   The point is context preservation — the reviewer or
-  worker keeps what it already read. Do NOT justify reuse with "same provider = prompt
+  worker keeps what it already read. A reused reviewer's re-audit stays bounded to
+  blocker closure and amendment regressions (AUDIT-REAUDIT-SCOPE-01 in the pabcd
+  phase-audit reference), which is what lets reuse converge. Do NOT justify reuse with "same provider = prompt
   cache reuse"; that assumption was tested and rejected in the jawcode lineage
   (`../jawcode/devlog/_fin/260614_subagent_cache_actor_lifecycle/95_d_cycle2_done_summary.md`,
   implementation-verified). Carve-out: the final C adversarial gate — and any reviewer

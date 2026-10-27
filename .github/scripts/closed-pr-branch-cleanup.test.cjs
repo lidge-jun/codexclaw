@@ -41,8 +41,8 @@ function deletedBranches(result) {
 }
 
 describe("isProtectedBranch", () => {
-  it("protects the integration, release, and prerelease lines", () => {
-    for (const name of ["main", "dev", "preview", "gh-pages"]) {
+  it("protects the integration and release lines", () => {
+    for (const name of ["main", "dev", "gh-pages"]) {
       assert.equal(isProtectedBranch(name), true, name);
     }
     assert.equal(isProtectedBranch("codex/dev"), false);
@@ -146,7 +146,7 @@ describe("planClosedPrBranchDeletions", () => {
   it("refuses to delete a protected branch even if a closed pull request used it", () => {
     const result = planClosedPrBranchDeletions({
       pullRequests: [closedPr({ number: 70, headRefName: "dev" })],
-      branches: ["dev", "main", "preview"],
+      branches: ["dev", "main"],
       now: NOW,
     });
     assert.deepEqual(deletedBranches(result), []);

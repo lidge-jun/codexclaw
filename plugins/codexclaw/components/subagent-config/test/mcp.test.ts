@@ -2,7 +2,7 @@
  * mcp.test.ts — drives the compiled subagent-config MCP server over stdio and
  * verifies the get/set tools roundtrip against a temp cwd store.
  */
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, utimesSync } from "node:fs";
@@ -237,7 +237,16 @@ test("native catalog age gates absence", async () => {
   }
 });
 
-test("timeout yields staleModel null with staleReason", async () => {
+// Node 22's test runner cancels a test whose only pending work is an unref()'d timer
+// (the code under test unrefs on purpose), so hold one referenced handle for the
+// test's lifetime; the test timeout keeps that handle from hiding a hang (#296).
+function holdEventLoop(t: TestContext): void {
+  const keep = setInterval(() => {}, 60_000);
+  t.after(() => clearInterval(keep));
+}
+
+test("timeout yields staleModel null with staleReason", { timeout: 10_000 }, async (t) => {
+  holdEventLoop(t);
   const cwd = mkdtempSync(join(tmpdir(), "cxc-mcp-timeout-"));
   setRole(cwd, "reviewer", { mode: "model", model: "provider/model" }, "project");
   const started = Date.now();

@@ -1,5 +1,5 @@
 /** media-handler.test.ts — Telegram/Discord media download helpers. */
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -125,7 +125,16 @@ test("streaming limiter removes a partial file when the actual body exceeds its 
   }
 });
 
-test("download timeout aborts a stalled operation", async () => {
+// Node 22's test runner cancels a test whose only pending work is an unref()'d timer
+// (the code under test unrefs on purpose), so hold one referenced handle for the
+// test's lifetime; the test timeout keeps that handle from hiding a hang (#296).
+function holdEventLoop(t: TestContext): void {
+  const keep = setInterval(() => {}, 60_000);
+  t.after(() => clearInterval(keep));
+}
+
+test("download timeout aborts a stalled operation", { timeout: 10_000 }, async (t) => {
+  holdEventLoop(t);
   await assert.rejects(
     withDownloadTimeout((signal) => new Promise((_resolve, reject) => {
       signal.addEventListener("abort", () => reject(signal.reason), { once: true });
@@ -134,7 +143,8 @@ test("download timeout aborts a stalled operation", async () => {
   );
 });
 
-test("download timeout returns even when an operation ignores AbortSignal", async () => {
+test("download timeout returns even when an operation ignores AbortSignal", { timeout: 10_000 }, async (t) => {
+  holdEventLoop(t);
   const started = Date.now();
   await assert.rejects(withDownloadTimeout(() => new Promise(() => {}), 5), /timed out/);
   assert.ok(Date.now() - started < 500);

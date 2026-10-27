@@ -303,14 +303,14 @@ Pull requests target the `dev` integration branch; `main` moves by maintainer pr
 
 CI on a pull request runs the checks a reviewer needs; the slow installation lanes run when a change lands on an integration line.
 
-| Check | Pull request | Push to `dev` / `preview` / `main` |
+| Check | Pull request | Push to `dev` / `main` |
 |---|---|---|
 | `ci` (aggregate of `test (ubuntu-latest, false)`, `test (macos-latest, false)`, four Windows shards) | yes | yes |
 | `artifact (…)` / `install (…)` packed-install lifecycle | yes | yes |
 | `enforce-target` | yes | — |
 | `wsl (drvfs /mnt/c)`, `wsl (native ext4 ~)` | no (also `workflow_dispatch`) | yes |
 
-`ci` fails when any leg fails, is cancelled or is skipped; it is the one check to require. The ubuntu lane runs the whole suite in one process and is where the tests badge total is measured; the Windows legs run `scripts/test.mjs --shard i/2`.
+`ci` fails when any leg fails, is cancelled or is skipped; it is the one check to require. The ubuntu lane runs the whole suite in one process and is where the tests badge total is measured; a badge that lags behind new tests only gets a notice with the exact `inventory.mjs --write --tests <n>` command, and the release gate requires the exact number. The Windows legs run `scripts/test.mjs --shard i/2`.
 
 ## License
 
