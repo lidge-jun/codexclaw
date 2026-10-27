@@ -100,3 +100,14 @@ Architect handle `01a17e1c-1bae-7400-b95f-83ef964231d2` (sol "Kant").
 A context-free gpt-6-sol reader stumbled on undefined HOTL/satisfy-spec/docs-first, "host
 goal", "020 H", "last head", "sol A reviewer", the meaning of "23 sentence fixes" and unlabeled
 file sizes. All seven were rewritten above on 2026-10-28.
+
+## Cycle log
+
+**wp0 D (2026-10-28).** Roadmap locked at 093f5568: research 001-005, architect record 004
+(ALIGNED round 3), audit 006 (PASS round 3 after four High blockers), decade docs 010/020/030.
+Direction: wp1 executes 010 as written after a stale check. What did not improve: the Aside
+reports could not be recovered (ephemeral sessions purged), so 003 relies on sol explorers and
+main grep. Hypothesis that died: the axe CLI is a usable default verifier; ChromeDriver
+mismatch made it exit 2, so the Playwright script is primary. Evidence that would refute the
+direction: a wp1/wp2 reviewer showing the experience audit duplicates an existing owner, or the
+link gate failing on the planned cross-link order.
