@@ -9,7 +9,7 @@ name: WSL
 # merged it and is fixed forward.
 on:
   push:
-    branches: [main, preview, dev]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
