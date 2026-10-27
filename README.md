@@ -303,7 +303,7 @@ Pull requests target the `dev` integration branch; `main` moves by maintainer pr
 
 CI on a pull request runs the checks a reviewer needs; the slow installation lanes run when a change lands on an integration line.
 
-| Check | Pull request | Push to `dev` / `preview` / `main` |
+| Check | Pull request | Push to `dev` / `main` |
 |---|---|---|
 | `ci` (aggregate of `test (ubuntu-latest, false)`, `test (macos-latest, false)`, four Windows shards) | yes | yes |
 | `artifact (…)` / `install (…)` packed-install lifecycle | yes | yes |

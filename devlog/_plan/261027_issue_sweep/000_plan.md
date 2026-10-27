@@ -82,4 +82,3 @@ Round 1, reviewer 01a17d5a-54d4-7ad3-89b4-e26e711ceb88 (gpt-6.1-sol, high): FAIL
 - c-4 full local `npm test` exit 0 on this mac (Node 26), plus a #296 verdict on Node 22.
 - c-5 phase-audit.md / loop-engineering.md carry the three rules; same-reviewer reuse kept.
 - c-6 PR merged into dev with green CI on its head; five issues closed with comments.
-

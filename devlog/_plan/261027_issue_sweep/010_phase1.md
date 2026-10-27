@@ -208,4 +208,3 @@ Same architect (01a17d54…, gpt-6.1-sol): **MISALIGNED** with four gaps; D1–D
 #313 disposition is main-verified (PR #307 merged 2026-10-21, #319 merged 2026-10-23;
 `cxc loop pr-record` present in 0.2.44 dist pr-record.js:183), outside the architect's scope.
 No material gap remains open before A.
-

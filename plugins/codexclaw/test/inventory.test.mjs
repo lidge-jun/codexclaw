@@ -362,6 +362,9 @@ test("CLI refuses an unknown tests mode and a mode without a measured total", ()
     const unknown = runScratchCli(dir, ["--tests", "1", "--tests-mode", "bogus"]);
     assert.equal(unknown.status, 1);
     assert.match(unknown.stderr, /exact\|floor/);
+    const missingValue = runScratchCli(dir, ["--tests", "1", "--tests-mode"]);
+    assert.equal(missingValue.status, 1);
+    assert.match(missingValue.stderr, /exact\|floor/);
     const bare = runScratchCli(dir, ["--tests-mode", "floor"]);
     assert.equal(bare.status, 1);
     assert.match(bare.stderr, /needs --tests/);

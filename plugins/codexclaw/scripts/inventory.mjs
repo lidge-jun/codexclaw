@@ -450,16 +450,19 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     console.error("[codexclaw inventory] --tests must be an integer");
     process.exit(1);
   }
+  // Presence and value are checked separately: a trailing `--tests-mode` with no value
+  // must be refused, not read as the default.
+  const modeGiven = process.argv.includes("--tests-mode");
   const modeArg = argValue("--tests-mode");
-  if (modeArg != null && !TESTS_MODES.includes(modeArg)) {
+  if (modeGiven && !TESTS_MODES.includes(modeArg)) {
     console.error("[codexclaw inventory] --tests-mode must be one of " + TESTS_MODES.join("|"));
     process.exit(1);
   }
-  if (modeArg != null && expectedArg == null) {
+  if (modeGiven && expectedArg == null) {
     console.error("[codexclaw inventory] --tests-mode needs --tests <measured-total>");
     process.exit(1);
   }
-  const testsMode = modeArg ?? "exact";
+  const testsMode = modeGiven ? modeArg : "exact";
 
   const result = check({ expectedTests, testsMode });
   // GitHub Actions reads workflow commands from stdout; elsewhere this is a plain line.
