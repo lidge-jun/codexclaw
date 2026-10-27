@@ -48,7 +48,7 @@ HIG pages live at `https://developer.apple.com/design/human-interface-guidelines
 |---|---|---|---|---|
 | First run | J-01 | Start the core task right away | No intro screens or setup block the first screen before it is useful. | launching |
 | First run | J-02 | Short, optional onboarding taught by doing | Onboarding can be skipped and leads to the first meaningful action. | onboarding |
-| First run | J-03 | Accounts and permissions when needed | The product can be tried before sign-up; permission prompts appear in the feature's context. | managing-accounts, onboarding |
+| First run | J-03 | Accounts and permissions when needed | Where the business model allows, the product can be tried before sign-up; where payment or identity must come first, sign-up asks only what the first use needs. Permission prompts appear in the feature's context. | managing-accounts, onboarding |
 | Navigation | J-04 | Few, clearly named destinations that keep place | Moving between sections and back preserves position and task context. | tab-bars, sidebars |
 | Navigation | J-05 | Frequent actions visible, related actions grouped | Main commands are reachable without long menus or deep submenus. | toolbars, menus |
 | Navigation | J-06 | Search location and scope are clear | Search is easy to find and results say what was searched. | searching |

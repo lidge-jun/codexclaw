@@ -289,9 +289,20 @@ reviewer; no command observes it.
 
 ## wp1 P revalidation (2026-10-28)
 
-Stale check against origin/dev c12c71c8 (no new commits; \`git diff origin/dev -- plugins/codexclaw/skills\`
+Stale check against origin/dev c12c71c8 (no new commits; `git diff origin/dev -- plugins/codexclaw/skills`
 empty): every context and removal line in diffs C-F is present verbatim (script in 006 round 1),
 and the four new rule-id prefixes still have no definition in skills/. No amendment needed;
 B executes A-F as written. Architect reflection on this revalidation: same architect, recorded below.
 
 Architect 01a17e1c-1bae-7400-b95f-83ef964231d2: ALIGNED, no gaps (2026-10-28).
+
+## wp1 C>B rework (2026-10-28)
+
+C verifier (gpt-6-sol, fresh) returned GO-WITH-FIXES (1 blocker): c-3 requires screenshot
+evidence ids, but the slop table had no evidence column and gap evidence was optional.
+Folded in B: new UX-AUDIT-08 (STRICT) evidence ids (EV-n list, screenshot id required for any
+rendered observation, reused by dev-frontend violation rows); Current column and slop table
+cite EV-ids; handoff carries the evidence list; artifact folder default when no plan unit
+(`audit-<YYMMDD>/`); journey stage "leaving and returning" maps to J-23/J-24; J-03 check
+covers products where payment or identity must come first. topic-index row now says
+UX-AUDIT-01..08. 020 content B "Before" column reuses EV-ids (amended in 020 now).

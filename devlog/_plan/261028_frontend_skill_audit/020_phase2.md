@@ -241,7 +241,7 @@ violation closes only on an after capture and a passing verifier taken after the
 | V-id | `V-1` ... |
 | Source | Rule id (anti-slop, FE-*), WCAG criterion, GAP-id from the experience audit, or P/J id |
 | Where | Route, state, viewport, theme, DOM selector |
-| Before | Capture path and crop |
+| Before | Capture path and crop; reuse the experience audit's EV-id when the violation came from it |
 | Severity | S1-S4, the experience audit scale; every WCAG A or AA failure is S1 |
 | Verifier | One of the types in section 3 |
 | Pass rule | The threshold or expected result, written before the fix |

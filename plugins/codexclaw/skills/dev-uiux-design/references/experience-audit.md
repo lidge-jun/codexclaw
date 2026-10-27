@@ -19,10 +19,23 @@ dev-frontend's visual audit loop.
 6. **Concept-level anti-slop findings.**
 7. **Handoff** to dev-frontend.
 
-Keep each step's output as a file in one audit folder. In a repository with plan units use
-`<plan unit>/audit/`; otherwise ask once where artifacts belong. Steps 2-4 come before any
+Evidence ids (UX-AUDIT-08) run through every step.
+
+Keep each step's output as a file in one audit folder: the folder the user names, else
+`<plan unit>/audit/` in a repository with plan units, else `audit-<YYMMDD>/` in the working
+directory. Record the path in the first artifact. Steps 2-4 come before any
 screenshot review of style: judging a screen before knowing who it serves turns the audit
 into taste.
+
+## Evidence ids (UX-AUDIT-08, STRICT)
+
+Every observation the audit relies on gets an evidence id before it is used: `EV-1`, `EV-2`
+... in an `evidence.md` list with type (screenshot, recording, analytics, support note,
+`path:line`), route, state, viewport and theme where they apply, and the file path. A
+rendered observation (layout, copy on screen, a state, a visual default) needs a screenshot
+id; code or data may support it but does not replace the capture. Gap and slop rows cite
+EV-ids, and dev-frontend's violation rows reuse the same ids as their before evidence, so
+every fix traces back to what was seen.
 
 ## Personas (UX-AUDIT-02, DEFAULT)
 
@@ -47,7 +60,8 @@ rules it out; accessibility gaps otherwise disappear from the audit.
 
 Map each primary persona through the journey stages in
 [universal principles](universal-principles.md#journey-stages): first run, navigation, core
-task, input, waiting, errors, settings, help, leaving and returning. Per stage record:
+task, input, waiting, errors, settings, help, and leaving and returning (J-23, J-24). Per
+stage record:
 
 | Stage | Route or screen | User intent | Expected system response | Current friction | Exit risk |
 |---|---|---|---|---|---|
@@ -73,7 +87,7 @@ ideal is the experience, and the visual direction stays with
 |---|---|
 | GAP-id | `GAP-1` ... |
 | Persona, stage | `PER-1`, core task |
-| Current | What happens today, with an evidence pointer: screenshot id, recording, or `path:line` |
+| Current | What happens today, with its EV-ids (a screenshot EV-id for anything rendered) |
 | Ideal | The UX-AUDIT-04 statement it misses |
 | User impact | What the persona loses: time, data, access, trust |
 | Principles | P/J ids and WCAG criteria |
@@ -95,8 +109,8 @@ recorded with its reason; it does not delete the row.
 
 Record direction-level problems that make the product generic or wrong for its domain:
 
-| SLOP-id | Location | Generic default observed | Why it fails this persona or domain | Alternative direction | Exception and its evidence |
-|---|---|---|---|---|---|
+| SLOP-id | Location | Screenshot EV-id | Generic default observed | Why it fails this persona or domain | Alternative direction | Exception and its evidence |
+|---|---|---|---|---|---|---|
 
 Rendered tells with rule ids (gradient budget, card grids, oversized type and similar) are
 recorded by dev-frontend in the violation ledger; this table holds the judgment about the
@@ -106,10 +120,10 @@ shortcuts.
 
 ## Handoff to implementation (UX-AUDIT-07, DEFAULT)
 
-Hand dev-frontend one packet: personas, journey map, ideal-state table, gap ledger,
-anti-slop findings, the fix order (S1 first, then journey order within a severity) and the
+Hand dev-frontend one packet: the evidence list, personas, journey map, ideal-state table,
+gap ledger, anti-slop findings, the fix order (S1 first, then journey order within a severity) and the
 verifier for each gap. dev-frontend turns each gap with a rendered symptom into violation
-ledger rows that carry the GAP-id, so the before/after evidence traces back to the user
+ledger rows that carry the GAP-id and its EV-ids, so the before/after evidence traces back to the user
 impact that justified the fix.
 
 ## Multi-cycle audits
