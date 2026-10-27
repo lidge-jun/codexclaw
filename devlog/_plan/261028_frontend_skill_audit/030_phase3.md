@@ -147,3 +147,18 @@ makes it older, and recounting the family is outside this unit.
 Stale check of every table "Before" against the wp2 head: all present; only #8 moved
 (visual-verification.md:57 -> :61, four lines inserted by 020 F). B applies each row as an
 exact-substring replacement that must match once, so line drift cannot misapply a fix.
+
+## wp3 B deviation (2026-10-28)
+
+A wider search during B (`rg -n 'SKILL(\.md)?`? ?§[0-9]'` over both skills) found six more stale
+section references of the same kind as section C, outside the original list. Fixed in the same
+change because they are the same defect class and in IN scope:
+
+| # | File | Before | After |
+|---|---|---|---|
+| 28 | dev-uiux-design/references/design-isms.md | `The composite kit behind SKILL.md §1 UX-DEFAULT-ISM-01 (decided 2026-07-07` | `The composite kit behind [intent discovery](intent-discovery.md) UX-DEFAULT-ISM-01 (decided 2026-07-07` |
+| 29 | dev-uiux-design/references/form-patterns.md | `- Schema validation: ¤dev-frontend/SKILL.md¤ §10 (Zod + react-hook-form)` | `- Schema validation: dev-frontend [React stack](../../dev-frontend/references/stacks/react.md) (Zod + react-hook-form)` |
+| 30 | dev-frontend/references/core/preflight-full.md | `- [ ] Anti-slop patterns enforced (SKILL §5)` | `- [ ] Anti-slop patterns enforced ([anti-slop enforcement](anti-slop-enforcement.md))` |
+| 31 | dev-frontend/references/core/preflight-full.md | `(SKILL §8)` | `([forms](platform-runtime.md#8-react-forms-and-accessibility))` |
+| 32 | dev-frontend/references/core/preflight-full.md | `(SKILL §7)` | `([accessibility baseline](platform-runtime.md#7-accessibility-baseline))` |
+| 33 | dev-frontend/references/core/preflight-full.md | `(SKILL §13)` | `([error boundaries](platform-runtime.md#13-error-boundaries))` |

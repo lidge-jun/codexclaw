@@ -5,7 +5,7 @@ Utility scripts for React/artifact-based frontend projects.
 ## Available Scripts
 
 ### `init-artifact.sh`
-Initializes a new React + TypeScript + Tailwind project aligned with `SKILL.md` §12.
+Initializes a new React + TypeScript + Tailwind project aligned with [platform rules](../references/core/platform-runtime.md#12-frontend-platform-rules).
 
 ```bash
 bash scripts/init-artifact.sh <project-name>

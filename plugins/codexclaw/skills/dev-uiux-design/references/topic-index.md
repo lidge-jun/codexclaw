@@ -26,7 +26,6 @@
 | `intent-discovery-ladder.md` | UX-INTENT-01 optional deepening (Steps 1-6) | Mood/lightness/density/shape/viewport/reference ladder, vague request disambiguation |
 | `anti-rationalization.md` | **Before C-phase verification** | Agent-shortcut excuse/rebuttal table (UX-ANTI-RATIONAL-01) |
 | `korean-design-vocabulary.md` | Korean design briefs or Korean-first UI | Korean descriptor → CSS token translation, quick-match table, font selection guidelines |
-| `design-trends.md` | Calibrating a dated design example | Source provenance, surface-specific exceptions, and re-verification before promoting a sample to a default |
 
 ---
 

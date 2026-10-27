@@ -5,7 +5,7 @@ state of a product, or to list everything wrong with it before fixing it. This f
 design-judgment half of an audit: who the users are, what they are trying to do, what the
 ideal experience is, and every gap between that and today. The rendered half (WCAG 2.2 AA
 verdicts, violation screenshots, before/after verification and PR evidence) belongs to
-dev-frontend's visual audit loop.
+dev-frontend's [visual audit loop](../../dev-frontend/references/core/visual-audit-loop.md).
 
 ## Order of work (UX-AUDIT-01, DEFAULT)
 

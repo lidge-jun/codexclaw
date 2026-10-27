@@ -96,8 +96,8 @@ codexclaw currently ships 28 skill directories:
 | `cxc-dev-backend` | `dev-backend` | API, server, database, queues, and backend operations. |
 | `cxc-dev-data` | `dev-data` | Pipelines, ETL/ELT, SQL, schema, backfills, and reports. |
 | `cxc-dev-debugging` | `dev-debugging` | Runtime root-cause debugging method. |
-| `cxc-dev-frontend` | `dev-frontend` | Frontend/UI implementation and responsive layout. |
-| `cxc-dev-uiux-design` | `dev-uiux-design` | UX direction, states, visual judgment, logos, and typography. |
+| `cxc-dev-frontend` | `dev-frontend` | Frontend/UI implementation, responsive layout, WCAG 2.2 AA checks and before/after visual audits. |
+| `cxc-dev-uiux-design` | `dev-uiux-design` | UX direction, states, experience audits (personas, journeys, gap ledger), visual judgment, logos, and typography. |
 | `cxc-dev-testing` | `dev-testing` | Test strategy, QA, Playwright, contracts, CI, and coverage. |
 | `cxc-qa` | `qa` | Manual surface-driving QA evidence for web, TUI, CLI, API, and desktop GUI surfaces. |
 | `cxc-dev-code-reviewer` | `dev-code-reviewer` | Review verdicts, findings, and risk assessment. |

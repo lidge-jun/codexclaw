@@ -11,7 +11,7 @@ UX-PRINCIPLES-01 (DEFAULT): when a gap ledger row in [experience audit](experien
 rests on one of these principles, cite its P- or J-id so a reviewer can trace the claim. A
 principle is a question to ask of the rendered product. It is never a conformance verdict:
 WCAG 2.2 AA has its own owner in
-dev-frontend's WCAG 2.2 AA reference.
+[dev-frontend WCAG 2.2 AA](../../dev-frontend/references/core/wcag22-aa.md).
 
 HIG pages live at `https://developer.apple.com/design/human-interface-guidelines/<slug>`.
 
