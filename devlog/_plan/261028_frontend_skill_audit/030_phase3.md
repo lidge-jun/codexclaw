@@ -42,7 +42,7 @@ dev-uiux-design/references/experience-audit.md
 | 5 | dev-uiux-design/references/ux-preflight.md:70 | `- [ ] Color contrast passes WCAG AA (4.5:1 text, 3:1 large text)` | `- [ ] Text contrast passes WCAG 1.4.3 (4.5:1 text, 3:1 large text); full AA statements follow dev-frontend [WCAG 2.2 AA](../../dev-frontend/references/core/wcag22-aa.md)` |
 | 6 | dev-frontend/references/core/a11y-patterns.md:131 | `- axe-core or Lighthouse accessibility audit (score ≥ 90)` | `- axe-core with the WCAG 2.2 tags in [WCAG 2.2 AA](wcag22-aa.md#automated-pass); a Lighthouse accessibility score is smoke only, never a conformance result` |
 | 7 | dev-frontend/references/core/a11y-patterns.md:138 | `- 3:1 contrast for UI components and graphical objects` | `- 3:1 contrast for component boundaries and states needed to identify them, and for meaningful graphics (1.4.11)` |
-| 8 | dev-frontend/references/core/visual-verification.md:57 | `2. **Form field contrast:** Input borders must be visible against background (minimum 3:1 against surrounding bg). Test: toggle between light/dark if applicable.` | `2. **Form field contrast:** When the border is what identifies the input, it needs 3:1 against the surrounding background (WCAG 1.4.11; disabled fields are exempt). Test: toggle between light/dark if applicable.` |
+| 8 | dev-frontend/references/core/visual-verification.md:61 | `2. **Form field contrast:** Input borders must be visible against background (minimum 3:1 against surrounding bg). Test: toggle between light/dark if applicable.` | `2. **Form field contrast:** When the border is what identifies the input, it needs 3:1 against the surrounding background (WCAG 1.4.11; disabled fields are exempt). Test: toggle between light/dark if applicable.` |
 | 9 | dev-frontend/references/core/platform-runtime.md:12 | `- WCAG AA minimum (4.5:1 normal text, 3:1 large text)` | `- Text contrast 4.5:1 normal, 3:1 large (WCAG 1.4.3); conformance statements follow [WCAG 2.2 AA](wcag22-aa.md)` |
 | 10 | dev-frontend/references/core/platform-runtime.md:13 | `- Visible focus indicators (`focus-visible:ring-2`)` | `- Focus indicators that are visible and never fully hidden (WCAG 2.4.7, 2.4.11); `focus-visible:ring-2` is one implementation` |
 | 11 | dev-frontend/references/core/platform-runtime.md:22 | `- Pointer targets follow WCAG 2.2 AA target-size rules; 44×44px is a conservative product baseline, not the only legal minimum` | `- Pointer targets meet WCAG 2.5.8 (24×24 CSS px or equivalent spacing, see [WCAG 2.2 AA](wcag22-aa.md)); 44×44px is the conservative product baseline for touch` |
@@ -141,3 +141,9 @@ makes it older, and recounting the family is outside this unit.
 | c-7 | gate.mjs, check-prompt-architecture.mjs and the five skill tests exit 0 at the PR 3 head; full `npm test` through `cxc receipt test` at PR 3 head |
 | c-8 | three PRs open with the bases above, before/after sections present, checks green |
 
+
+## wp3 P revalidation (2026-10-28)
+
+Stale check of every table "Before" against the wp2 head: all present; only #8 moved
+(visual-verification.md:57 -> :61, four lines inserted by 020 F). B applies each row as an
+exact-substring replacement that must match once, so line drift cannot misapply a fix.
