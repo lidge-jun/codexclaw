@@ -452,3 +452,11 @@ The first fixture screenshots did not show the defect: unstyled links hid the 12
 44 px target difference and the missing chart.png rendered a broken icon. Section H now
 carries the fixture with a link background and an inline SVG chart. axe results are
 unchanged (before image-alt + target-size, exit 1; after [], exit 0).
+
+## Review follow-up: KWCAG (2026-10-28)
+
+PR #328 review (chatgpt-codex-connector, P2, discussion_r4391610430): the opening line called
+KWCAG something "which follows" WCAG 2.2, implying this 55-criterion checklist decides KWCAG.
+KWCAG 2.2 (KS X OT0003, 2022) is based on WCAG 2.1 and has 33 inspection items. Fixed: the
+equivalence is removed and FE-WCAG22-03 (STRICT) requires the KWCAG item list or an explicit
+item-by-item mapping before a KWCAG verdict.
