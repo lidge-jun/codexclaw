@@ -162,3 +162,12 @@ change because they are the same defect class and in IN scope:
 | 31 | dev-frontend/references/core/preflight-full.md | `(SKILL §8)` | `([forms](platform-runtime.md#8-react-forms-and-accessibility))` |
 | 32 | dev-frontend/references/core/preflight-full.md | `(SKILL §7)` | `([accessibility baseline](platform-runtime.md#7-accessibility-baseline))` |
 | 33 | dev-frontend/references/core/preflight-full.md | `(SKILL §13)` | `([error boundaries](platform-runtime.md#13-error-boundaries))` |
+
+## wp3 delivery note (2026-10-28)
+
+PRs: #327 (base dev), #328 (base docs/frontend-skill-audit-uiux), #329 (base
+docs/frontend-skill-audit-frontend). The PR #328 images first returned 404: before.png and
+after.png matched a global git ignore pattern (*.png) and run.log matched the repository's
+*.log rule, so wp2's commit never contained them. Fixed by force-adding the three files on the
+wp2 branch (ba8d7771) and merging that layer into wp3 (7c1fe156) without rewriting history;
+both image URLs now return 200.
