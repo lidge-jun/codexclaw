@@ -434,3 +434,12 @@ install).
 | c-6 | `run.log` shows before exit 1 with target-size and image-alt, after exit 0, from the committed script |
 | Gates | same verifier set as 010, all exit 0 |
 
+
+## wp2 P revalidation (2026-10-28)
+
+Branch docs/frontend-skill-audit-frontend created from the wp1 head. Stale check: every
+context and removal line in diffs C-G2 is present verbatim in dev-frontend (script as in 006).
+Amendment carried from wp1 C: content B "Before" column reuses experience-audit EV-ids
+(UX-AUDIT-08). experience-audit.md exists, so content B's link to it resolves. No other change.
+
+Architect: ALIGNED (EV-id reuse keeps D4/D6 ownership).
