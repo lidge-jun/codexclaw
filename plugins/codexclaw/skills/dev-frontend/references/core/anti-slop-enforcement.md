@@ -5,6 +5,9 @@ values and palettes are STYLE_SAMPLE (`design-intake.md` §1.5); the emoji-as-UI
 
 Read `anti-slop.md` for full rules. Key standards:
 
+A visual audit that records violations and fixes them with before/after proof runs the
+[visual audit loop](visual-audit-loop.md); the rules below supply its rule ids.
+
 Award examples do not establish universal taste rules. Use the shipped design-trends
 reference and reopen its sources; explain the product-specific role and preserve
 accessibility. No private goalplan is required to justify a design decision.

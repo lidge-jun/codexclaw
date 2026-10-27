@@ -372,13 +372,14 @@ NEW files under `devlog/_plan/261028_frontend_skill_audit/evidence/axe-fixture/`
 ~~~~html
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Pagination fixture (before)</title></head>
+<head><meta charset="utf-8"><title>Pagination fixture (before)</title>
+<style>body{font:16px system-ui,sans-serif;margin:16px} nav a{display:inline-block;background:#dfe6fb;color:#1d3a9e;text-align:center;text-decoration:none}</style></head>
 <body>
 <main>
   <h1>Monthly report</h1>
-  <img src="chart.png">
+  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='90'%3E%3Crect width='240' height='90' fill='%23f4f6fb'/%3E%3Crect x='14' y='50' width='26' height='30' fill='%234a6cf7'/%3E%3Crect x='52' y='38' width='26' height='42' fill='%234a6cf7'/%3E%3Crect x='90' y='44' width='26' height='36' fill='%234a6cf7'/%3E%3Crect x='128' y='26' width='26' height='54' fill='%234a6cf7'/%3E%3Crect x='166' y='30' width='26' height='50' fill='%234a6cf7'/%3E%3Crect x='204' y='14' width='26' height='66' fill='%234a6cf7'/%3E%3C/svg%3E" width="240" height="90">
   <nav aria-label="Pages">
-    <a href="#1" style="display:inline-block;width:12px;height:12px;font-size:8px">1</a><a href="#2" style="display:inline-block;width:12px;height:12px;font-size:8px">2</a>
+    <a href="#1" style="width:12px;height:12px;font-size:8px;line-height:12px">1</a><a href="#2" style="width:12px;height:12px;font-size:8px;line-height:12px">2</a>
   </nav>
 </main>
 </body>
@@ -390,14 +391,15 @@ NEW files under `devlog/_plan/261028_frontend_skill_audit/evidence/axe-fixture/`
 ~~~~html
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Pagination fixture (after)</title></head>
+<head><meta charset="utf-8"><title>Pagination fixture (after)</title>
+<style>body{font:16px system-ui,sans-serif;margin:16px} nav a{display:inline-block;background:#dfe6fb;color:#1d3a9e;text-align:center;text-decoration:none}</style></head>
 <body>
 <main>
   <h1>Monthly report</h1>
-  <img src="chart.png" alt="Sales by month, January to June">
+  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='90'%3E%3Crect width='240' height='90' fill='%23f4f6fb'/%3E%3Crect x='14' y='50' width='26' height='30' fill='%234a6cf7'/%3E%3Crect x='52' y='38' width='26' height='42' fill='%234a6cf7'/%3E%3Crect x='90' y='44' width='26' height='36' fill='%234a6cf7'/%3E%3Crect x='128' y='26' width='26' height='54' fill='%234a6cf7'/%3E%3Crect x='166' y='30' width='26' height='50' fill='%234a6cf7'/%3E%3Crect x='204' y='14' width='26' height='66' fill='%234a6cf7'/%3E%3C/svg%3E" width="240" height="90" alt="Sales by month, January to June, rising from 30 to 66">
   <nav aria-label="Pages">
-    <a href="#1" style="display:inline-block;min-width:44px;min-height:44px;font-size:16px">1</a>
-    <a href="#2" style="display:inline-block;min-width:44px;min-height:44px;font-size:16px">2</a>
+    <a href="#1" style="min-width:44px;min-height:44px;line-height:44px">1</a>
+    <a href="#2" style="min-width:44px;min-height:44px;line-height:44px">2</a>
   </nav>
 </main>
 </body>
@@ -434,3 +436,27 @@ install).
 | c-6 | `run.log` shows before exit 1 with target-size and image-alt, after exit 0, from the committed script |
 | Gates | same verifier set as 010, all exit 0 |
 
+
+## wp2 P revalidation (2026-10-28)
+
+Branch docs/frontend-skill-audit-frontend created from the wp1 head. Stale check: every
+context and removal line in diffs C-G2 is present verbatim in dev-frontend (script as in 006).
+Amendment carried from wp1 C: content B "Before" column reuses experience-audit EV-ids
+(UX-AUDIT-08). experience-audit.md exists, so content B's link to it resolves. No other change.
+
+Architect: ALIGNED (EV-id reuse keeps D4/D6 ownership).
+
+## wp2 B deviation (2026-10-28)
+
+The first fixture screenshots did not show the defect: unstyled links hid the 12 px versus
+44 px target difference and the missing chart.png rendered a broken icon. Section H now
+carries the fixture with a link background and an inline SVG chart. axe results are
+unchanged (before image-alt + target-size, exit 1; after [], exit 0).
+
+## Review follow-up: KWCAG (2026-10-28)
+
+PR #328 review (chatgpt-codex-connector, P2, discussion_r4391610430): the opening line called
+KWCAG something "which follows" WCAG 2.2, implying this 55-criterion checklist decides KWCAG.
+KWCAG 2.2 (KS X OT0003, 2022) is based on WCAG 2.1 and has 33 inspection items. Fixed: the
+equivalence is removed and FE-WCAG22-03 (STRICT) requires the KWCAG item list or an explicit
+item-by-item mapping before a KWCAG verdict.

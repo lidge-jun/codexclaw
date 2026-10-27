@@ -55,4 +55,5 @@ this file is the full launch/audit list. Production surfaces only (`dev` §0.4).
 - [ ] Desktop/mobile/narrow screenshots checked for overlap, clipping, asset rendering
 - [ ] No captured third-party asset (reference-capture.md) in the shipped build; capture manifest present for any reference captures
 - [ ] Accessibility deep pass: modals trap focus, live regions — a11y-patterns.md
+- [ ] Accessibility conformance stated only per [WCAG 2.2 AA](wcag22-aa.md) verdict rules (FE-WCAG22-01)
 - [ ] Stack-specific rules followed (references/stacks/)

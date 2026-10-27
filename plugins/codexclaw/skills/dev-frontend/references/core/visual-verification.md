@@ -2,6 +2,10 @@
 
 Do not declare frontend work complete from code alone. Render and inspect the UI.
 
+This file owns viewports and capture mechanics. An audit that tracks many violations with
+before/after pairs and per-violation verifiers runs the [visual audit loop](visual-audit-loop.md)
+on top of it.
+
 ## Required Checks
 
 For substantial UI changes:
