@@ -9,6 +9,7 @@ import {
   LEAF_GUARD_BLOCK, LEAF_GUARD_BLOCK_COORDINATOR, LEAF_GUARD_MARKER,
   V1_SCOPE_BLOCK, V1_SCOPE_BLOCK_COORDINATOR, SCOPE_GUARD_MARKER,
   SKILL_AFFORDANCE_MARKER, SUBSPAWN_TOKEN, runSpawnAttachHook,
+  skillAffordanceBlock,
 } from "../src/spawn-attach-hook.ts";
 
 const surfaces = [
@@ -77,7 +78,9 @@ for (const surface of surfaces) {
       assert.ok(affordance.includes(`${resolve("plugins/codexclaw/skills")}/<name>/SKILL.md`));
       assert.match(affordance, /\$codexclaw:cxc-pabcd delegation\.md/);
       assert.doesNotMatch(affordance, /Available skills|^- cxc-/m);
-      assert.ok(Buffer.byteLength(affordance) <= 250);
+      // The budget is for the prose; the injected skills root depends on where the
+      // checkout lives (#297).
+      assert.ok(Buffer.byteLength(affordance.replaceAll(resolve("plugins/codexclaw/skills"), "<skills>")) <= 250);
     }
   });
 
@@ -131,4 +134,15 @@ test("V1 full guard under V2 cannot suppress V2 guarding and reapplication dedup
   assert.deepEqual(repeated.updatedInput, first.updatedInput);
   assert.equal(repeated.updatedInput.message.split(LEAF_GUARD_MARKER).length - 1, 1);
   assert.equal(repeated.updatedInput.message.split(SCOPE_GUARD_MARKER).length - 1, 1);
+});
+test("skill affordance budget does not depend on the skills root length (#297)", () => {
+  const short = "/s";
+  const long = "/" + "x".repeat(300);
+  const blocks = [short, long].map((dir) => {
+    const block = skillAffordanceBlock(dir);
+    assert.ok(block.includes(`${dir}/<name>/SKILL.md`));
+    return block.replaceAll(dir, "<skills>");
+  });
+  assert.equal(blocks[0], blocks[1]);
+  assert.ok(Buffer.byteLength(blocks[0]) <= 250);
 });
