@@ -1,7 +1,7 @@
 # WCAG 2.2 AA conformance check
 
-Read when someone asks whether a web UI meets WCAG 2.2 AA (or KWCAG, which follows it),
-before stating any accessibility conformance, and for the accessibility part of a
+Read when someone asks whether a web UI meets WCAG 2.2 AA, before stating any WCAG
+conformance, and for the accessibility part of a
 [visual audit loop](visual-audit-loop.md). This file owns the criterion list, levels and the
 verdict. Widget patterns stay in [a11y patterns](a11y-patterns.md), contrast tokens in
 [color system](color-system.md); both link here for levels. Native apps follow their
@@ -25,6 +25,13 @@ FE-WCAG22-02 (DEFAULT): state the scope before testing: pages or routes; states 
 error, loading, empty, dialog open, signed in and out); viewports (at least 1280 and 320 CSS
 px); themes; input methods. WCAG conformance applies to whole pages and whole processes, so a
 multi-step flow is in or out as a unit.
+
+FE-WCAG22-03 (STRICT): this checklist does not decide KWCAG. KWCAG 2.2 (KS X OT0003, 2022) is
+a separate Korean standard built on WCAG 2.1 with 33 inspection items and its own numbering, so a
+KWCAG verdict needs the KWCAG item list, or an explicit item-by-item mapping to this table that
+names unmapped items, before anything is called KWCAG-conformant. Sources:
+[RRA standard listing](https://www.rra.go.kr/ko/reference/kcsList_view.do?nb_seq=5247&nb_type=6),
+[item overview](https://a11ykr.github.io/docs/kwcag2/).
 
 Record one row per criterion: PASS, FAIL, N/A with the reason, or NOT TESTED. FAIL rows
 become S1 rows in the visual audit loop's violation ledger.
