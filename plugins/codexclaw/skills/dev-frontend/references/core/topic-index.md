@@ -33,6 +33,8 @@
 | `mobile-ux.md`            | Consumer/landing pages with mobile traffic | Thumb zone, touch targets, sticky CTA, mobile section composition, bottom sheet, portrait media |
 | `seo-baseline.md`         | Public-facing sites, SSR/SSG         | SEO meta, JSON-LD, robots.txt, GEO strategies, OG/Twitter cards                    |
 | `a11y-patterns.md`        | Interactive widgets, modals, forms   | ARIA patterns, focus management, keyboard nav, screen reader testing               |
+| `wcag22-aa.md`            | Accessibility conformance questions or claims | 55 WCAG 2.2 A/AA criteria, axe tag script, manual procedures, the six 2.2 additions, verdict rules |
+| `visual-audit-loop.md`    | Auditing and fixing a rendered UI with evidence | Violation ledger, verifier and pass rule per violation, before/after captures, closure gate, PR section, cxc-loop routing |
 | `performance-budget.md`   | Launch / audit                       | CWV targets, bundle budgets, font loading, image optimization, build gates         |
 | `theme-switching.md`      | Dark mode / theme                    | CSS custom properties toggle, FOWT prevention, transition, component checklist     |
 | `color-system.md`         | Color tokens, palettes wiring, theme-ready CSS | Token layering, `oklch()` + fallback discipline, `color-mix()`, `light-dark()`, Tailwind v4/shadcn wiring, contrast gates (verified 2026-07-07) |
