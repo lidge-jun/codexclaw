@@ -111,3 +111,11 @@ main grep. Hypothesis that died: the axe CLI is a usable default verifier; Chrom
 mismatch made it exit 2, so the Playwright script is primary. Evidence that would refute the
 direction: a wp1/wp2 reviewer showing the experience audit duplicates an existing owner, or the
 link gate failing on the planned cross-link order.
+
+**wp1 D (2026-10-28).** dev-uiux-design gained universal-principles.md and experience-audit.md
+(b8bca2b7) plus the C rework (11a16316). Direction: wp2 executes 020, whose content B now reuses
+EV-ids. What did not improve: the C verifier showed the first build could not trace a rendered
+gap to a screenshot; the plan audit missed it because c-3's wording ("screenshot evidence per
+violation id") was checked against the frontend loop only. Hypothesis that died: evidence
+pointers can stay optional at the design layer. Refuting evidence for the direction: a wp2 C
+walk-through where GAP/EV ids do not carry into V rows.
