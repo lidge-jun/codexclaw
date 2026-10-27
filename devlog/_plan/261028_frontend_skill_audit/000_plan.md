@@ -119,3 +119,11 @@ gap to a screenshot; the plan audit missed it because c-3's wording ("screenshot
 violation id") was checked against the frontend loop only. Hypothesis that died: evidence
 pointers can stay optional at the design layer. Refuting evidence for the direction: a wp2 C
 walk-through where GAP/EV ids do not carry into V rows.
+
+**wp2 D (2026-10-28).** dev-frontend gained wcag22-aa.md and visual-audit-loop.md plus routing
+(ca00e858); the seeded fixture proves the documented script detects image-alt and target-size
+and passes after the fix. Direction: wp3 executes 030 (cross links, 23 fixes, SoT sync,
+changelog, PRs). What did not improve: the first fixture screenshots were useless as visual
+before/after evidence (unstyled links, broken image); the plan specified the HTML for axe, not
+for a human viewer. Refuting evidence for the direction: a wp3 rg finding contradicting WCAG
+statements outside the 030 list.
