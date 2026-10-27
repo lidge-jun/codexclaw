@@ -28,6 +28,8 @@ Before selecting depth or claiming completion, read [dev](../dev/SKILL.md#01-pat
 | Typography, color, layout, assets, icons or cutouts | [Implementation](references/core/implementation.md) |
 | New/redesigned surfaces or visual audits | [Anti-slop enforcement](references/core/anti-slop-enforcement.md) |
 | Performance, accessibility, forms, state, platform or errors | [Platform and runtime](references/core/platform-runtime.md) |
+| WCAG 2.2 AA questions or any accessibility conformance statement | [WCAG 2.2 AA](references/core/wcag22-aa.md) |
+| Auditing a rendered UI: violation ledger, before/after evidence, fix proof | [Visual audit loop](references/core/visual-audit-loop.md) |
 | API consumption, security UI or contract fixtures | [Backend contracts](references/core/backend-contracts.md) |
 | Any render/executable frontend artifact | [Verification grounding](references/core/render-grounding.md) |
 | Before shipping a production frontend surface at C2+ | [Full pre-flight](references/core/preflight-full.md) |

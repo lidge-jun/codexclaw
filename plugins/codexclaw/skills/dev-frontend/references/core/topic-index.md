@@ -4,8 +4,7 @@
 | ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
 | `crud-ui.md`              | C2 list/detail/form product screens  | State coverage (loading/empty/error/permission), forms, objective UX gates         |
 | `anti-slop.md`            | New/redesigned visual surfaces, visual audits, and variant generation | 2026 AI slop patterns, Korean slop, oversized text, fake assets, default UI smells |
-| `../../../dev-uiux-design/references/design-trends.md` | Calibrating a dated design example | Source provenance, surface-specific exceptions, and re-verification before promoting a sample to a default |
-| `../../../dev-uiux-design/references/design-trends.md` | Implementing a dated trend or checking whether a technique is stable | 2026-07-14 axis prevalence, technique maturity, signature status, risks, and re-crawl/promotion rules |
+| `../../../dev-uiux-design/references/design-trends.md` | Calibrating a dated example or implementing a dated trend | 2026-07-14 axis prevalence, technique maturity, provenance, exceptions, re-verification and promotion rules |
 | `aesthetics.md`           | Implementing an established visual direction | Domain-correct typography, color, composition constraints, serif three-role system, expressive/functional layers, AI-brand grammar |
 | `product-density.md`      | Apps, tools, dashboards              | Density profiles for landing, consumer app, SaaS, ops, finance, devtools          |
 | `asset-requirements.md`   | Any public/product/visual surface    | Required screenshots, images, diagrams, charts, generated bitmaps, or 3D assets, mockup production pipeline   |
@@ -33,6 +32,8 @@
 | `mobile-ux.md`            | Consumer/landing pages with mobile traffic | Thumb zone, touch targets, sticky CTA, mobile section composition, bottom sheet, portrait media |
 | `seo-baseline.md`         | Public-facing sites, SSR/SSG         | SEO meta, JSON-LD, robots.txt, GEO strategies, OG/Twitter cards                    |
 | `a11y-patterns.md`        | Interactive widgets, modals, forms   | ARIA patterns, focus management, keyboard nav, screen reader testing               |
+| `wcag22-aa.md`            | Accessibility conformance questions or claims | 55 WCAG 2.2 A/AA criteria, axe tag script, manual procedures, the six 2.2 additions, verdict rules |
+| `visual-audit-loop.md`    | Auditing and fixing a rendered UI with evidence | Violation ledger, verifier and pass rule per violation, before/after captures, closure gate, PR section, cxc-loop routing |
 | `performance-budget.md`   | Launch / audit                       | CWV targets, bundle budgets, font loading, image optimization, build gates         |
 | `theme-switching.md`      | Dark mode / theme                    | CSS custom properties toggle, FOWT prevention, transition, component checklist     |
 | `color-system.md`         | Color tokens, palettes wiring, theme-ready CSS | Token layering, `oklch()` + fallback discipline, `color-mix()`, `light-dark()`, Tailwind v4/shadcn wiring, contrast gates (verified 2026-07-07) |

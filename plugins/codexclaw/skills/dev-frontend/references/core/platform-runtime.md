@@ -9,8 +9,8 @@ For detailed budgets and browser connection limits, read `performance-budget.md`
 
 - Semantic HTML (`<button>`, `<nav>`, `<main>`)
 - Keyboard navigation for all interactive elements
-- WCAG AA minimum (4.5:1 normal text, 3:1 large text)
-- Visible focus indicators (`focus-visible:ring-2`)
+- Text contrast 4.5:1 normal, 3:1 large (WCAG 1.4.3); conformance statements follow [WCAG 2.2 AA](wcag22-aa.md)
+- Focus indicators that are visible and never fully hidden (WCAG 2.4.7, 2.4.11); `focus-visible:ring-2` is one implementation
 - `prefers-reduced-motion` support
 - Skip link or equivalent bypass for repeated navigation
 - Focus must not be hidden by sticky headers, sticky bottom bars, sheets, or overlays
@@ -19,7 +19,7 @@ For detailed budgets and browser connection limits, read `performance-budget.md`
 - Do not encode meaning by color alone
 - Modals, menus, comboboxes, bottom sheets, and command palettes must have a complete keyboard path
 - Stress-test Korean long labels and screen-reader names; clipped Hangul is a failure
-- Pointer targets follow WCAG 2.2 AA target-size rules; 44×44px is a conservative product baseline, not the only legal minimum
+- Pointer targets meet WCAG 2.5.8 (24×24 CSS px or equivalent spacing, see [WCAG 2.2 AA](wcag22-aa.md)); 44×44px is the conservative product baseline for touch
 
 ### A11y polish (FE-A11Y-POLISH-01)
 

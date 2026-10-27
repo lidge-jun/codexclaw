@@ -4,6 +4,10 @@
 
 **Role separation:** This skill owns design judgment: intent discovery, information architecture, UX state meaning, typography/color/layout direction, product personality, brand vocabulary, anti-slop concept/taste judgment (is this direction generic, domain-wrong, or aesthetically derivative?), and design-system decisions. `dev-frontend` owns implementation: HTML/CSS/components, responsive mechanics, accessibility wiring, runtime behavior, rendered tell detection, and rendered verification. After choosing the design direction here, load `dev-frontend` for concrete implementation.
 
+**Audit handoff:** an [experience audit](experience-audit.md) ends with one packet of
+personas, journeys, ideal state, gap ledger and per-gap verifiers. `dev-frontend` records the
+rendered gaps as violations, fixes them and proves each fix with before and after evidence.
+
 > **Role boundary (canonical — identical in `dev` and `dev-frontend`):**
 > `dev` owns universal process, evidence, and safety rules. `dev-uiux-design` owns
 > design intent, direction, and concept judgment. `dev-frontend` owns concrete frontend

@@ -132,7 +132,7 @@ Related: `compositional-patterns.md` Poster Hero, Editorial Index / Roster, and 
 ---
 
 ### 1.14 Liquid Editorial (2026 no-brief default kit)
-The composite kit behind SKILL.md §1 UX-DEFAULT-ISM-01 (decided 2026-07-07
+The composite kit behind [intent discovery](intent-discovery.md) UX-DEFAULT-ISM-01 (decided 2026-07-07
 from Tier-2 trend research: Apple Liquid Glass 2025-06-09 announcement + HIG
 restraint guidance; Figma/Creative Bloq/Fireart 2026 forecasts naming
 expressive typography, tactile anti-AI texture, and authored color as the

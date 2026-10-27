@@ -53,10 +53,12 @@ the failing delta → re-verify.
 - **DEFAULT (REVIEW-SYNTHESIS-01):** after a reviewer/verifier FAIL verdict, the main
   session records a synthesis BEFORE re-patching or re-dispatching: per-blocker root
   cause, conflicts between blockers (and against the standing plan), and an explicit
-  accept/rebut decision per point. Mechanically patching each reviewer comment and
-  throwing it back ("patch-to-reviewer") is a retry, not a loop — a re-dispatch without
-  synthesis counts as a failed repair under LOOP-REPAIR-01. E7 guidance (agent-followed,
-  not hook-enforced). Lineage: jawcode devlog `260615_pabcd_synthesis_review_loops`
+  accept/rebut decision per point. Rebuttals follow REBUTTAL-BASIS-01 and re-audit rounds
+  follow AUDIT-REAUDIT-SCOPE-01 ([phase-audit.md](phase-audit.md)). Mechanically patching
+  each reviewer comment and throwing it back ("patch-to-reviewer") is a retry, not a
+  loop — a re-dispatch without synthesis counts as a failed repair under LOOP-REPAIR-01.
+  E7 guidance (agent-followed, not hook-enforced). Lineage: jawcode devlog
+  `260615_pabcd_synthesis_review_loops`
   (design-note lineage, not production-validated). Reviewer lifecycle across rounds is
   owned by `structure/20_pabcd_dispatch_doctrine.md` §3 (DISPATCH-ACTOR-01 /
   DISPATCH-RETIRE-01; repository-only provenance, not an installed prerequisite).

@@ -6,6 +6,21 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.45] - 2026-10-28
+
+### Added
+
+- dev-uiux-design: an experience audit (evidence ids, personas, journeys, ideal state, a severity-ranked gap ledger and a handoff packet) and universal interface principles distilled from Apple's HIG without Apple-specific visuals. (#327)
+- dev-frontend: a WCAG 2.2 AA owner with all 55 A/AA criteria, the six 2.2 additions, a Playwright axe script and verdict rules that forbid conformance claims from automated runs alone; a visual audit loop with a violation ledger, a verifier and pass rule per violation, before/after captures, a closure gate, a PR before/after section and cxc-loop routing. A KWCAG verdict is kept separate: KWCAG 2.2 builds on WCAG 2.1 with 33 inspection items, so it needs its own item list or an explicit mapping (FE-WCAG22-03). (#328)
+
+### Fixed
+
+- WCAG levels and thresholds stated wrongly in both skills: reduced motion labelled AA (it is AAA 2.3.3), large bold text at 18.5px (18.66px), Lighthouse score used as an accessibility pass, unconditional 3:1 borders, and target size without the 24px AA floor. Stale "SKILL.md §12/§14" references now link to the sections that hold those rules. (#329)
+
+### Compatibility
+
+- Skill and documentation changes only. No hook declaration, CLI command or component behavior changed, so no hook retrust is needed beyond the usual install.
+
 ## [0.2.44] - 2026-10-26
 
 ### Fixed

@@ -34,7 +34,7 @@ For government, public-service, finance, healthcare, education administration, o
 - Apply KWCAG/WCAG accessibility thinking from the start: labels, keyboard operation, focus order, contrast, alternatives, error recovery, and status messaging.
 - Favor trust, reversibility, and task completion over decorative personality.
 - Avoid cute characters, playful metaphors, soft 3D mascots, and heavy motion unless they explain a task and pass stakeholder/a11y review.
-- Treat 44×44px hit areas as a conservative mobile baseline; smaller targets must still satisfy WCAG 2.2 target-size/spacing requirements.
+- Treat 44×44px hit areas as a conservative mobile baseline; smaller targets must still meet WCAG 2.5.8 (24×24 CSS px or equivalent spacing, see [WCAG 2.2 AA](wcag22-aa.md)).
 
 ## Korean Typography
 

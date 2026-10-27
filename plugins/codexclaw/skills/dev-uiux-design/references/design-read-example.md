@@ -1,6 +1,6 @@
 # Design Read Example
 
-Use this as a filled-in model for `SKILL.md` §2. Adapt the specifics to the brief; do not copy it as a default style.
+Use this as a filled-in model for [Design Read](design-read.md). Adapt the specifics to the brief; do not copy it as a default style.
 
 ## 1. Filled-In Design Read
 

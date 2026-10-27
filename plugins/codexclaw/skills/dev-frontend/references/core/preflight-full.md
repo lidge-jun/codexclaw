@@ -1,12 +1,12 @@
 # Full Pre-Flight Checklist (launch/audit depth)
 
-Companion to `dev-frontend/SKILL.md` §14. The router keeps the minimum blocking gates;
+Companion to the `dev-frontend/SKILL.md` pre-flight row. The router keeps the minimum blocking gates;
 this file is the full launch/audit list. Production surfaces only (`dev` §0.4).
 
 ## Design & composition
 - [ ] Domain-correct direction chosen and committed
 - [ ] Product surface, locale, density, asset need, soft 3D gate, motion intensity classified
-- [ ] Anti-slop patterns enforced (SKILL §5)
+- [ ] Anti-slop patterns enforced ([anti-slop enforcement](anti-slop-enforcement.md))
 - [ ] Oversized hero text avoided unless a true hero surface
 - [ ] Required assets are real, semantic, rendered — not generic decoration
 - [ ] Soft 3D/miniature/character assets pass domain and semantic gates
@@ -25,16 +25,16 @@ this file is the full launch/audit list. Production surfaces only (`dev` §0.4).
 
 ## States & behavior
 - [ ] Loading, empty, and error states provided
-- [ ] State classified before adding store/Context/Effect/cache (SKILL §12)
+- [ ] State classified before adding store/Context/Effect/cache ([state classification](platform-runtime.md#state-classification))
 - [ ] Effects sync with external systems; derived state is not Effect-synced
 - [ ] Container queries considered before viewport-query or JS layout workarounds
 - [ ] View transitions respect reduced motion
 - [ ] shadcn components follow local registry and token conventions
 - [ ] AI UI states honest: no fake streaming, citations, or tool calls
-- [ ] Forms validate with schema and show field-level errors (SKILL §8)
-- [ ] Focus management on modals and popovers (SKILL §7)
+- [ ] Forms validate with schema and show field-level errors ([forms](platform-runtime.md#8-react-forms-and-accessibility))
+- [ ] Focus management on modals and popovers ([accessibility baseline](platform-runtime.md#7-accessibility-baseline))
 - [ ] Interactive components isolated as Client Components (if RSC)
-- [ ] Error Boundaries wrap major sections, not the entire app (SKILL §13)
+- [ ] Error Boundaries wrap major sections, not the entire app ([error boundaries](platform-runtime.md#13-error-boundaries))
 
 ## Korean-first
 - [ ] CJK typography and Korean UX writing rules followed (korea-2026.md, ux-writing-ko.md)
@@ -55,4 +55,5 @@ this file is the full launch/audit list. Production surfaces only (`dev` §0.4).
 - [ ] Desktop/mobile/narrow screenshots checked for overlap, clipping, asset rendering
 - [ ] No captured third-party asset (reference-capture.md) in the shipped build; capture manifest present for any reference captures
 - [ ] Accessibility deep pass: modals trap focus, live regions — a11y-patterns.md
+- [ ] Accessibility conformance stated only per [WCAG 2.2 AA](wcag22-aa.md) verdict rules (FE-WCAG22-01)
 - [ ] Stack-specific rules followed (references/stacks/)

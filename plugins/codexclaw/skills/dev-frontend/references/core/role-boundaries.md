@@ -13,3 +13,8 @@
 > output/process hygiene (FAMILY-SLOP-01), `dev-uiux-design` = concept/taste judgment
 > (is this direction generic or domain-wrong?), `dev-frontend` = rendered implementation
 > tell detection and removal (FE-AI-TELL-01).
+
+**Audit handoff:** when `dev-uiux-design` hands over an
+[experience audit](../../../dev-uiux-design/references/experience-audit.md), record its rendered
+gaps in the [visual audit loop](visual-audit-loop.md) ledger with their GAP-ids. Accessibility
+verdicts follow [WCAG 2.2 AA](wcag22-aa.md).
