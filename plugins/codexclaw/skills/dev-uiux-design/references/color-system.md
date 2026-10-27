@@ -86,5 +86,5 @@ light-dark(), Tailwind/shadcn wiring):
 ### Accessible Pair Generation
 For every text-on-background combination, verify:
 - Normal text (< 24px): 4.5:1 contrast ratio minimum (WCAG AA).
-- Large text (≥ 24px or bold ≥ 18.5px): 3:1 minimum.
-- Interactive components: 3:1 against adjacent colors.
+- Large text (≥ 24px, or bold ≥ 18.66px; 18pt and 14pt bold): 3:1 minimum.
+- Component boundaries and states needed to identify a control: 3:1 against adjacent colors (1.4.11).

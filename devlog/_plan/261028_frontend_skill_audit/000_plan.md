@@ -127,3 +127,14 @@ changelog, PRs). What did not improve: the first fixture screenshots were useles
 before/after evidence (unstyled links, broken image); the plan specified the HTML for axe, not
 for a human viewer. Refuting evidence for the direction: a wp3 rg finding contradicting WCAG
 statements outside the 030 list.
+
+**wp3 D (2026-10-28).** Cross links, 29 sentence fixes (23 planned plus 6 found during B), SoT
+sync and CHANGELOG landed (19e9d69e); PRs #327 -> #328 -> #329 opened as a manual chain with
+before/after sections. Full suite through `cxc receipt test` at e816f21f: 3879 tests, 3874 pass,
+0 fail, 5 skipped; gate and prompt-architecture OK. What did not improve: hosted CI had not
+started when this cycle closed, because the account's runners were saturated by another
+repository's queue (about 150 queued runs), so c-8 (green PR checks) is still open and the goal
+stays active until the checks report. Hypothesis that died: evidence files in the plan unit are
+committed automatically; global and repository ignore rules dropped the PNGs and run.log until
+they were force-added (ba8d7771). Refuting evidence for the direction: a hosted check failing on
+these docs, or a reviewer showing a remaining WCAG contradiction.

@@ -42,7 +42,7 @@ dev-uiux-design/references/experience-audit.md
 | 5 | dev-uiux-design/references/ux-preflight.md:70 | `- [ ] Color contrast passes WCAG AA (4.5:1 text, 3:1 large text)` | `- [ ] Text contrast passes WCAG 1.4.3 (4.5:1 text, 3:1 large text); full AA statements follow dev-frontend [WCAG 2.2 AA](../../dev-frontend/references/core/wcag22-aa.md)` |
 | 6 | dev-frontend/references/core/a11y-patterns.md:131 | `- axe-core or Lighthouse accessibility audit (score ≥ 90)` | `- axe-core with the WCAG 2.2 tags in [WCAG 2.2 AA](wcag22-aa.md#automated-pass); a Lighthouse accessibility score is smoke only, never a conformance result` |
 | 7 | dev-frontend/references/core/a11y-patterns.md:138 | `- 3:1 contrast for UI components and graphical objects` | `- 3:1 contrast for component boundaries and states needed to identify them, and for meaningful graphics (1.4.11)` |
-| 8 | dev-frontend/references/core/visual-verification.md:57 | `2. **Form field contrast:** Input borders must be visible against background (minimum 3:1 against surrounding bg). Test: toggle between light/dark if applicable.` | `2. **Form field contrast:** When the border is what identifies the input, it needs 3:1 against the surrounding background (WCAG 1.4.11; disabled fields are exempt). Test: toggle between light/dark if applicable.` |
+| 8 | dev-frontend/references/core/visual-verification.md:61 | `2. **Form field contrast:** Input borders must be visible against background (minimum 3:1 against surrounding bg). Test: toggle between light/dark if applicable.` | `2. **Form field contrast:** When the border is what identifies the input, it needs 3:1 against the surrounding background (WCAG 1.4.11; disabled fields are exempt). Test: toggle between light/dark if applicable.` |
 | 9 | dev-frontend/references/core/platform-runtime.md:12 | `- WCAG AA minimum (4.5:1 normal text, 3:1 large text)` | `- Text contrast 4.5:1 normal, 3:1 large (WCAG 1.4.3); conformance statements follow [WCAG 2.2 AA](wcag22-aa.md)` |
 | 10 | dev-frontend/references/core/platform-runtime.md:13 | `- Visible focus indicators (`focus-visible:ring-2`)` | `- Focus indicators that are visible and never fully hidden (WCAG 2.4.7, 2.4.11); `focus-visible:ring-2` is one implementation` |
 | 11 | dev-frontend/references/core/platform-runtime.md:22 | `- Pointer targets follow WCAG 2.2 AA target-size rules; 44×44px is a conservative product baseline, not the only legal minimum` | `- Pointer targets meet WCAG 2.5.8 (24×24 CSS px or equivalent spacing, see [WCAG 2.2 AA](wcag22-aa.md)); 44×44px is the conservative product baseline for touch` |
@@ -141,3 +141,33 @@ makes it older, and recounting the family is outside this unit.
 | c-7 | gate.mjs, check-prompt-architecture.mjs and the five skill tests exit 0 at the PR 3 head; full `npm test` through `cxc receipt test` at PR 3 head |
 | c-8 | three PRs open with the bases above, before/after sections present, checks green |
 
+
+## wp3 P revalidation (2026-10-28)
+
+Stale check of every table "Before" against the wp2 head: all present; only #8 moved
+(visual-verification.md:57 -> :61, four lines inserted by 020 F). B applies each row as an
+exact-substring replacement that must match once, so line drift cannot misapply a fix.
+
+## wp3 B deviation (2026-10-28)
+
+A wider search during B (`rg -n 'SKILL(\.md)?`? ?§[0-9]'` over both skills) found six more stale
+section references of the same kind as section C, outside the original list. Fixed in the same
+change because they are the same defect class and in IN scope:
+
+| # | File | Before | After |
+|---|---|---|---|
+| 28 | dev-uiux-design/references/design-isms.md | `The composite kit behind SKILL.md §1 UX-DEFAULT-ISM-01 (decided 2026-07-07` | `The composite kit behind [intent discovery](intent-discovery.md) UX-DEFAULT-ISM-01 (decided 2026-07-07` |
+| 29 | dev-uiux-design/references/form-patterns.md | `- Schema validation: ¤dev-frontend/SKILL.md¤ §10 (Zod + react-hook-form)` | `- Schema validation: dev-frontend [React stack](../../dev-frontend/references/stacks/react.md) (Zod + react-hook-form)` |
+| 30 | dev-frontend/references/core/preflight-full.md | `- [ ] Anti-slop patterns enforced (SKILL §5)` | `- [ ] Anti-slop patterns enforced ([anti-slop enforcement](anti-slop-enforcement.md))` |
+| 31 | dev-frontend/references/core/preflight-full.md | `(SKILL §8)` | `([forms](platform-runtime.md#8-react-forms-and-accessibility))` |
+| 32 | dev-frontend/references/core/preflight-full.md | `(SKILL §7)` | `([accessibility baseline](platform-runtime.md#7-accessibility-baseline))` |
+| 33 | dev-frontend/references/core/preflight-full.md | `(SKILL §13)` | `([error boundaries](platform-runtime.md#13-error-boundaries))` |
+
+## wp3 delivery note (2026-10-28)
+
+PRs: #327 (base dev), #328 (base docs/frontend-skill-audit-uiux), #329 (base
+docs/frontend-skill-audit-frontend). The PR #328 images first returned 404: before.png and
+after.png matched a global git ignore pattern (*.png) and run.log matched the repository's
+*.log rule, so wp2's commit never contained them. Fixed by force-adding the three files on the
+wp2 branch (ba8d7771) and merging that layer into wp3 (7c1fe156) without rewriting history;
+both image URLs now return 200.
