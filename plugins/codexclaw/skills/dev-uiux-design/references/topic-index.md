@@ -15,6 +15,8 @@
 | `design-system-bootstrap.md` | New project / design system | Token architecture, component hierarchy, **DESIGN.md format** (google-labs-code/design.md) |
 | `responsive-nav.md` | Responsive or navigation work | Breakpoints, container queries, nav patterns by density |
 | `ux-preflight.md` | **Before delivery** | UX state verification checklist |
+| `experience-audit.md` | Auditing an existing product or defining its ideal state | Personas, journeys, ideal state, gap ledger, concept anti-slop findings, implementation handoff (UX-AUDIT-01..08) |
+| `universal-principles.md` | Judging experience against user needs | 22 foundation principles and 24 journey-stage checks distilled from Apple HIG, Apple visuals excluded |
 | `typography-line-breaks.md` | **Always for text-heavy UI** | Heading break quality, **short descriptor category** (hero subtitle, card desc — use `balance` not `pretty`), orphan prevention, `ch` units, Korean orphan criteria, `-webkit-line-clamp` conflict |
 | `favicon-logo.md` | **Favicon, product logo, or brand identity work** | Favicon file set, SVG dark mode, logo in nav/footer, dark mode variants, OG images, brand tokens, common mistakes |
 | `logo-trust-sections.md` | Integration/partner/client logos | Marquee vs grid decision, anti-patterns, grayscale treatment, placement |
