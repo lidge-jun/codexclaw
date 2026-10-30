@@ -352,6 +352,6 @@ export function handleGitWriteGuardPreTool(rawStdin: string): string {
   if (verdict.action === "allow") return "";
   const hookSpecificOutput = verdict.action === "deny"
     ? { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: verdict.reason, additionalContext: verdict.reason }
-    : { hookEventName: "PreToolUse", permissionDecision: "allow", additionalContext: verdict.context };
+    : { hookEventName: "PreToolUse", additionalContext: verdict.context };
   return `${JSON.stringify({ hookSpecificOutput })}\n`;
 }

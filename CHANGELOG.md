@@ -6,6 +6,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- PreToolUse advisories reach the model again. The IDLE-EDIT advisory, the SHELL-SUBST-01 advisory of the git write guard and the friction gate answered with `permissionDecision: "allow"` and no `updatedInput`, which Codex rejects as `PreToolUse hook returned unsupported permissionDecision:allow`: it marks the hook failed and discards the advice. The friction gate also put its advice in `permissionDecisionReason`, which Codex never shows on an allow. All three now send `additionalContext` with no decision, and the tool call runs as before. (#333)
+
 ## [0.2.45] - 2026-10-28
 
 ### Added

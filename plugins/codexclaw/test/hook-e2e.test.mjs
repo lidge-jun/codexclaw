@@ -493,8 +493,9 @@ test("L080: post-tool-use-friction records on a failing Bash response; pre gate 
     });
     assert.equal(adv.status, 0, adv.stderr);
     const out = JSON.parse(adv.stdout);
-    assert.equal(out.hookSpecificOutput.permissionDecision, "allow");
-    assert.match(out.hookSpecificOutput.permissionDecisionReason, /friction/i);
+    assert.equal(out.hookSpecificOutput.permissionDecision, undefined);
+    assert.equal(out.hookSpecificOutput.permissionDecisionReason, undefined);
+    assert.match(out.hookSpecificOutput.additionalContext, /friction/i);
 
     // a clean response does NOT record; fresh cwd gate stays silent (fail-open allow)
     const clean = mkdtempSync(join(tmpdir(), "ccx-friction2-"));

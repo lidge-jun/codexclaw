@@ -7,9 +7,10 @@
  * ACTIVE native goal. Advisory only — never denies; a legitimate C0/C1
  * fast-path edit stays allowed; record exceptions follow dev §0.1.
  *
- * Envelope contract (audit-pinned, codex-rs pre_tool_use.rs:226-230): only
- * `additionalContext` reaches the model on a non-deny decision —
- * allow + permissionDecisionReason (friction-gate shape) is model-invisible.
+ * Envelope contract (codex-rs hooks/src/engine/output_parser.rs): an advisory
+ * carries `additionalContext` and no permissionDecision. Codex accepts
+ * permissionDecision "allow" only together with updatedInput; otherwise it marks
+ * the hook failed and drops the context.
  *
  * Fail-open everywhere: unreadable state, unreadable goal DB ("unreadable" maps
  * to INACTIVE — a deliberate inversion of goal-active.ts's fail-closed caller
@@ -100,7 +101,6 @@ export function handleIdleEditAdvisory(raw: string): string {
     const envelope = {
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
-        permissionDecision: "allow",
         additionalContext: idleEditAdvisory(sessionId),
       },
     };
