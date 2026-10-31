@@ -159,8 +159,8 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-dev-backend` | `skills/dev-backend/` | API/server/database/backend operations guidance |
 | `cxc-dev-data` | `skills/dev-data/` | pipelines, ETL/ELT, SQL, schema/data quality |
 | `cxc-dev-debugging` | `skills/dev-debugging/` | root-cause debugging method |
-| `cxc-dev-frontend` | `skills/dev-frontend/` | UI/frontend implementation |
-| `cxc-dev-uiux-design` | `skills/dev-uiux-design/` | design judgment, UX states, logos/typography |
+| `cxc-dev-frontend` | `skills/dev-frontend/` | UI/frontend implementation, WCAG 2.2 AA verdicts, visual audit loop |
+| `cxc-dev-uiux-design` | `skills/dev-uiux-design/` | design judgment, UX states, experience audits, logos/typography |
 | `cxc-dev-testing` | `skills/dev-testing/` | test strategy, QA, CI gates |
 | `cxc-qa` | `skills/qa/` | manual surface-driving QA gate: evidence matrix, adversarial classes, teardown receipts |
 | `cxc-dev-code-reviewer` | `skills/dev-code-reviewer/` | review verdicts, findings, risk assessment |

@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C839-brightgreen" alt="3,839 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C879-brightgreen" alt="3,879 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -76,6 +76,7 @@ codex plugin remove codexclaw@codexclaw      # 卸载
 
 升级后 Codex 会将 hooks 标记为 **Modified**，需要重新批准才能激活。
 升级到 0.1.1 及以上版本会同时提供 payload CLI（`bin/cxc.mjs`）；已有安装需升级（或重新添加）才能获得新的顶层目录。
+然后打开新线程：skills、hooks 和 CLI 在会话启动时加载。`cxc --version` 打印正在运行的版本。skills 可能来自比已安装 hooks 更新的机器（在其他机器上启动的 GOAT 线程），因此 skill 可能调用已安装 CLI 没有的动词：`cxc loop pr-record` 需要 0.2.43 及以上，0.2.42 的完成门禁会忽略它写入的记录。请升级该主机；0.2.43 之后的版本遇到比自身更新的动词或记录时，会给出自身版本和此命令。
 
 CLI 分两层。每个安装都自带 payload 调度器，无需配置 PATH；当 `cxc` 不在 PATH 上时，会话启动横幅会给出准确的调用命令：
 

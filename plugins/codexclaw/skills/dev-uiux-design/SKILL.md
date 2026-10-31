@@ -32,6 +32,8 @@ Use browser fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 | User-facing decision points | [Lazy-user gate](references/lazy-user-gate.md) |
 | Vague design direction or no brief | [Intent discovery](references/intent-discovery.md) |
 | New pages/components/layouts: before frontend code | [Design Read](references/design-read.md) |
+| Auditing an existing product: personas, journeys, ideal state, gap ledger | [Experience audit](references/experience-audit.md) |
+| Platform-neutral principles for an audit or ideal state (HIG-derived) | [Universal principles](references/universal-principles.md) |
 | Concept generation before implementation | [Concept procedure](references/concept-exploration.md) |
 | After concept lock: production assets | [Asset handoff](references/asset-handoff.md) |
 | Choosing iconography during Design Read | [Icon strategy](references/icon-strategy.md) |

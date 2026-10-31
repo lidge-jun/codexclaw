@@ -1,5 +1,5 @@
  /** rate-limit.test.ts — circuit breaker + rate-limit parsing (Phase E3). */
- import { test } from "node:test";
+ import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { getEventListeners } from "node:events";
  import {
@@ -104,20 +104,31 @@ import { getEventListeners } from "node:events";
  
  // ── rateLimitSleep ────────────────────────────────────────────────────────
  
- test("rateLimitSleep: resolves after delay", async () => {
+// Node 22's test runner cancels a test whose only pending work is an unref()'d timer
+// (the code under test unrefs on purpose), so hold one referenced handle for the
+// test's lifetime; the test timeout keeps that handle from hiding a hang (#296).
+function holdEventLoop(t: TestContext): void {
+  const keep = setInterval(() => {}, 60_000);
+  t.after(() => clearInterval(keep));
+}
+
+test("rateLimitSleep: resolves after delay", { timeout: 10_000 }, async (t) => {
+   holdEventLoop(t);
    const start = Date.now();
    await rateLimitSleep(50);
    assert.ok(Date.now() - start >= 40); // ~50ms with some tolerance
  });
  
-test("rateLimitSleep: aborts on signal", async () => {
+test("rateLimitSleep: aborts on signal", { timeout: 10_000 }, async (t) => {
+   holdEventLoop(t);
    const ac = new AbortController();
    const p = rateLimitSleep(10_000, ac.signal);
    setTimeout(() => ac.abort(), 10);
    await assert.rejects(p, /aborted/i);
 });
 
-test("rateLimitSleep removes abort listeners after successful sleeps", async () => {
+test("rateLimitSleep removes abort listeners after successful sleeps", { timeout: 10_000 }, async (t) => {
+  holdEventLoop(t);
   const ac = new AbortController();
   for (let i = 0; i < 20; i += 1) await rateLimitSleep(1, ac.signal);
   assert.equal(getEventListeners(ac.signal, "abort").length, 0);

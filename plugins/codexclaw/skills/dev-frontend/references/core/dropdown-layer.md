@@ -37,7 +37,7 @@ Hand-rolled dropdown behavior is banned for production UI. Do not invent focus
 management, typeahead, roving tabindex, escape handling, or outside-click
 closing from scratch.
 ## Design System Precedence
-Design System Detection in `dev-frontend/SKILL.md` Section 12 wins.
+Design System Detection in [platform rules](platform-runtime.md#12-frontend-platform-rules) wins.
 When MUI, Carbon, Fluent, Ant Design, Chakra, Mantine, Polaris, or a comparable
 system governs the project, unify by theming that system's menus, selects,
 popovers, comboboxes, and pickers. Do not rebuild them just to get a custom

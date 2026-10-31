@@ -6,6 +6,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
 import { type InterviewTracker, reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.ts";
 import type { SourceIdentity } from "./source-identity.ts";
+import { reconstructPlanEntry, type PlanEntry } from "./plan-delta.ts";
 import { splitLines } from "./text-lines.ts";
 
 export type Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D";
@@ -181,6 +182,13 @@ export interface State {
    * other edge has a question to ask of it.
    */
   phaseEntrySource: SourceIdentity | null;
+  /**
+   * #315: the bound plan unit (absolute path + content digest) captured on entry to
+   * B. A changed digest satisfies SOURCE-DELTA-01 like a changed source, so plans
+   * kept outside the commit still count. Held through C only so a C>B rework edge
+   * knows which unit to re-record; null on every other phase.
+   */
+  phaseEntryPlan?: PlanEntry | null;
   /** Source root pinned at B entry; retained so deleting a binding cannot switch Check to native. */
   boundSourceRoot?: string;
   /**
@@ -234,6 +242,8 @@ export interface LedgerEntry {
    */
   checkEpoch?: string | null;
   closedWorkPhaseId?: string | null;
+  /** #315: B>C accepted on the plan unit alone — its path and digests before/after B. */
+  planDelta?: { path: string; before: string; after: string };
 }
 
 export const STATE_DIR = ".codexclaw";
@@ -597,6 +607,10 @@ export function readStateStrict(cwd: string, sessionId: string): { state: State;
       // found on any other phase is stale by definition and reading it back would
       // keep the invariant true only by accident.
       phaseEntrySource: parsed.phase === "B" ? reconstructSourceIdentity(parsed.phaseEntrySource) : null,
+      // #315: present only while a plan entry is held, so a state that never reached B
+      // keeps its exact persisted shape.
+      ...((parsed.phase === "B" || parsed.phase === "C") && reconstructPlanEntry(parsed.phaseEntryPlan)
+        ? { phaseEntryPlan: reconstructPlanEntry(parsed.phaseEntryPlan) } : {}),
       ...(typeof parsed.boundSourceRoot === "string" && isAbsolute(parsed.boundSourceRoot) ? { boundSourceRoot: parsed.boundSourceRoot } : {}),
       // 060: only A can hold a plan binding — minted at P>A, consumed at A>B.
       planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,

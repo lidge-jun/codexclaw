@@ -2,6 +2,10 @@
 
 Do not declare frontend work complete from code alone. Render and inspect the UI.
 
+This file owns viewports and capture mechanics. An audit that tracks many violations with
+before/after pairs and per-violation verifiers runs the [visual audit loop](visual-audit-loop.md)
+on top of it.
+
 ## Required Checks
 
 For substantial UI changes:
@@ -54,7 +58,7 @@ For substantial UI changes:
 ### CTA Integrity (MANDATORY)
 
 1. **No duplicate intent:** Two buttons linking to the same destination → merge into one. Two "Get Started" CTAs on same viewport → remove one.
-2. **Form field contrast:** Input borders must be visible against background (minimum 3:1 against surrounding bg). Test: toggle between light/dark if applicable.
+2. **Form field contrast:** When the border is what identifies the input, it needs 3:1 against the surrounding background (WCAG 1.4.11; disabled fields are exempt). Test: toggle between light/dark if applicable.
 3. **CTA hierarchy:** One primary CTA per viewport section. Secondary CTAs use ghost/outline style only.
 
 ## Tool Workflow

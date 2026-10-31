@@ -67,6 +67,11 @@ These labels are delivery requirements, never aesthetic directions.
 ## Accessibility Minimum
 
 - [ ] All images have meaningful `alt` text (or `alt=""` for decorative)
-- [ ] Color contrast passes WCAG AA (4.5:1 text, 3:1 large text)
+- [ ] Text contrast passes WCAG 1.4.3 (4.5:1 text, 3:1 large text); full AA statements follow dev-frontend [WCAG 2.2 AA](../../dev-frontend/references/core/wcag22-aa.md)
 - [ ] Skip-to-content link present
 - [ ] Forms have associated labels
+
+## Experience Audit (when one was run)
+
+- [ ] Every S1 gap in the [experience audit](experience-audit.md) gap ledger is verified fixed, or carries a wontfix decided by the user or product owner (never the agent) and is listed as open
+- [ ] Each ideal-state statement this delivery touches has its verifier evidence attached

@@ -1,7 +1,7 @@
 # Intent Discovery Ladder
 
 Use this ladder only when UX-INTENT-01 step 2 fails (one fork was insufficient)
-or the user explicitly wants guided exploration. The compact flow in SKILL.md §1
+or the user explicitly wants guided exploration. The compact flow in [intent discovery](intent-discovery.md)
 (Design Read → ONE clarifying fork → proceed) is the default; this ladder is the
 optional deepening path.
 

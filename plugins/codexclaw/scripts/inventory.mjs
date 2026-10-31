@@ -19,6 +19,7 @@
  * Usage:
  *   node plugins/codexclaw/scripts/inventory.mjs --check
  *   node plugins/codexclaw/scripts/inventory.mjs --check --tests <measured-total>
+ *   node plugins/codexclaw/scripts/inventory.mjs --check --tests <measured-total> --tests-mode floor
  *   node plugins/codexclaw/scripts/inventory.mjs --write [--tests <n>]
  *   node plugins/codexclaw/scripts/inventory.mjs --hash
  *   node plugins/codexclaw/scripts/inventory.mjs --published
@@ -33,6 +34,13 @@ export const PLUGIN_ROOT = resolve(HERE, "..");
 export const REPO_ROOT = resolve(PLUGIN_ROOT, "..", "..");
 export const INVENTORY_PATH = join(PLUGIN_ROOT, "inventory.json");
 export const SCHEMA_VERSION = 1;
+
+/**
+ * How a measured test total is compared with the published badge. `exact` is the
+ * release contract. `floor` is for PR and dev CI: a badge that lags behind new tests is
+ * reported as a notice, and only a badge that claims more tests than ran fails (#301).
+ */
+export const TESTS_MODES = Object.freeze(["exact", "floor"]);
 
 function readManifest(pluginRoot = PLUGIN_ROOT) {
   return JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"));
@@ -323,8 +331,14 @@ export function applyBlocks(inventory, options = {}) {
 }
 
 export function check(options = {}) {
-  const { pluginRoot = PLUGIN_ROOT, repoRoot = REPO_ROOT, expectedTests = null } = options;
+  const {
+    pluginRoot = PLUGIN_ROOT, repoRoot = REPO_ROOT, expectedTests = null, testsMode = "exact",
+  } = options;
+  if (!TESTS_MODES.includes(testsMode)) {
+    throw new Error("testsMode must be one of " + TESTS_MODES.join("|") + ", got " + testsMode);
+  }
   const violations = [];
+  const notices = [];
   const inventory = collectInventory(pluginRoot, repoRoot);
 
   violations.push(...checkSets(pluginRoot, repoRoot).violations);
@@ -358,15 +372,30 @@ export function check(options = {}) {
   // this comparison the tests badge is checked only against its own copies, which is
   // how it drifted to 2,026 across three versions and stopped the release gate
   // instead of CI (devlog/_plan/260830_goalplan-v1-default/040).
-  if (expectedTests != null && published.counts.tests != null &&
-      published.counts.tests !== expectedTests) {
-    violations.push(
-      "published tests=" + published.counts.tests + " but the measured suite reported " +
-        expectedTests + " — run inventory.mjs --write --tests " + expectedTests,
-    );
+  // Floor mode (#301) lets the badge lag on PRs so adding a test does not require a
+  // badge commit; the release gate still compares exactly (release-gate.ts).
+  const publishedTests = published.counts.tests;
+  if (expectedTests != null && publishedTests != null && publishedTests !== expectedTests) {
+    if (testsMode === "exact") {
+      violations.push(
+        "published tests=" + publishedTests + " but the measured suite reported " +
+          expectedTests + " — run inventory.mjs --write --tests " + expectedTests,
+      );
+    } else if (publishedTests > expectedTests) {
+      violations.push(
+        "published tests=" + publishedTests + " exceeds the measured suite total " + expectedTests +
+          " — the badge overstates; run inventory.mjs --write --tests " + expectedTests,
+      );
+    } else {
+      notices.push(
+        "published tests=" + publishedTests + " lags the measured suite total " + expectedTests +
+          " — run node plugins/codexclaw/scripts/inventory.mjs --write --tests " + expectedTests +
+          " (the release gate requires an exact match)",
+      );
+    }
   }
 
-  return { ok: violations.length === 0, violations, inventory };
+  return { ok: violations.length === 0, violations, notices, inventory };
 }
 
 function argValue(flag) {
@@ -414,23 +443,40 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   }
 
   // --tests on a check is the externally measured suite total. Bare --check keeps its
-  // old behavior so no existing caller has to change.
+  // old behavior so no existing caller has to change; --tests-mode defaults to exact.
   const expectedArg = argValue("--tests");
   const expectedTests = expectedArg == null ? null : Number(expectedArg);
   if (expectedArg != null && !Number.isInteger(expectedTests)) {
     console.error("[codexclaw inventory] --tests must be an integer");
     process.exit(1);
   }
+  // Presence and value are checked separately: a trailing `--tests-mode` with no value
+  // must be refused, not read as the default.
+  const modeGiven = process.argv.includes("--tests-mode");
+  const modeArg = argValue("--tests-mode");
+  if (modeGiven && !TESTS_MODES.includes(modeArg)) {
+    console.error("[codexclaw inventory] --tests-mode must be one of " + TESTS_MODES.join("|"));
+    process.exit(1);
+  }
+  if (modeGiven && expectedArg == null) {
+    console.error("[codexclaw inventory] --tests-mode needs --tests <measured-total>");
+    process.exit(1);
+  }
+  const testsMode = modeGiven ? modeArg : "exact";
 
-  const result = check({ expectedTests });
+  const result = check({ expectedTests, testsMode });
+  // GitHub Actions reads workflow commands from stdout; elsewhere this is a plain line.
+  for (const n of result.notices) console.log("::notice title=tests badge::" + n);
   if (result.ok) {
+    const testsNote = expectedTests == null ? "" : testsMode === "exact"
+      ? " (tests badge matches the measured " + expectedTests + ")"
+      : " (tests badge does not exceed the measured " + expectedTests + ")";
     console.log(
       "[codexclaw inventory] OK — " +
         result.inventory.skills.length + " skills, " +
         result.inventory.hooks.length + " hooks, " +
         result.inventory.components.length + " components; sets and published counts agree" +
-        (expectedTests == null ? "" : " (tests badge matches the measured " + expectedTests + ")") +
-        ".",
+        testsNote + ".",
     );
     process.exit(0);
   }
