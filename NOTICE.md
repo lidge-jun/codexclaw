@@ -45,3 +45,10 @@ unrelated or later OMO code, text, artwork or trademarks.
 
 Other separately licensed material and dependencies retain their original
 licenses and notices; the project license does not relicense them.
+
+## Downstream
+
+- [noslopdesign](https://github.com/lidge-jun/noslopdesign) redistributes the
+  skills/dev-frontend and skills/dev-uiux-design references under the MIT License,
+  rewritten by a fixed rule table and carrying the third-party credits above in its
+  own NOTICE.md. CodexClaw is the upstream and does not depend on it.

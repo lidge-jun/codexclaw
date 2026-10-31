@@ -261,6 +261,8 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 
 Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
 
+**Frontend skills downstream.** `dev-frontend` and `dev-uiux-design` references are mirrored to [noslopdesign](https://github.com/lidge-jun/noslopdesign) by a fixed rule table ([rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs)). Inside those two skills, cross-skill references may use only `dev-frontend`, `dev-uiux-design` (bare, `cxc-`-prefixed or as `../../dev-*/` links), `` `dev-backend` ``, `` `dev-testing` ``, `` `dev-security` ``, `` `dev-devops` ``, and `` `dev` §0.2 `` / `§0.4`; keep `Source:` and `Adapted from` lines at line start and do not rename the two folders. Forms outside this list are mostly caught by its leftover check, which blocks that repo's weekly sync and opens an issue there.
+
 **Visualizer maintenance — codexclaw first, Aside follows.** Shared fixes are implemented and verified here before they are ported to `aside-visualizer`; an Aside issue closes only after the downstream port is merged and its acceptance criteria are verified. Preserve Aside’s host adapters and standalone/no-Chrome paths. See the [port workflow](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md). This is a maintenance direction, not permission for independent action: ordinary artifact requests do not authorize repository work, installation, publication or a separate loop. Pick a `draft`, `standard` or `publication` assurance profile for the requested artifact.
 
 ## CLI
@@ -286,6 +288,7 @@ codexclaw is the reference implementation. The methodology and skills are ported
 | [pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative) | Methodology spec + docs-site + agent-neutral skill set |
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
+| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-frontend` + `dev-uiux-design` as `noslop-frontend` / `noslop-uiux`, synced weekly from here |
 
 ## Documentation
 
