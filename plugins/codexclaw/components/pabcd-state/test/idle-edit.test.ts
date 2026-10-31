@@ -20,7 +20,7 @@ function payload(cwd: string, sessionId: string, tool = "apply_patch"): string {
   return JSON.stringify({ hook_event_name: "PreToolUse", session_id: sessionId, cwd, tool_name: tool });
 }
 
-test("IDLE-EDIT-ADVISORY-01: IDLE + loopArmSeen -> allow envelope with additionalContext", () => {
+test("IDLE-EDIT-ADVISORY-01: IDLE + loopArmSeen -> context-only envelope", () => {
   const cwd = freshCwd();
   try {
     writeState(cwd, { ...defaultState("s1"), loopArmSeen: true });
@@ -28,7 +28,8 @@ test("IDLE-EDIT-ADVISORY-01: IDLE + loopArmSeen -> allow envelope with additiona
     assert.notEqual(out, "");
     const parsed = JSON.parse(out.trimEnd());
     assert.equal(parsed.hookSpecificOutput.hookEventName, "PreToolUse");
-    assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow");
+    // Codex rejects PreToolUse permissionDecision "allow" without updatedInput and then drops the context.
+    assert.equal(parsed.hookSpecificOutput.permissionDecision, undefined);
     assert.match(parsed.hookSpecificOutput.additionalContext, /IDLE-EDIT/);
     assert.match(parsed.hookSpecificOutput.additionalContext, /Session s1/);
     assert.match(parsed.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-loop runtime-lifecycle\.md/);

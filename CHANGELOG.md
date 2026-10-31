@@ -6,6 +6,21 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.46] - 2026-10-31
+
+### Fixed
+
+- PreToolUse advisories reach the model again: the IDLE-EDIT advisory and the SHELL-SUBST-01 advisory of the git write guard, plus the friction gate when that hook is enabled (it lives under `hooks/_deprecated/` and is not installed by default). All three answered with `permissionDecision: "allow"` and no `updatedInput`, which Codex rejects as `PreToolUse hook returned unsupported permissionDecision:allow`: it marks the hook failed and discards the advice. The friction gate also put its advice in `permissionDecisionReason`, which Codex never shows on an allow. All three now send `additionalContext` with no decision, and the tool call runs as before. (#333, thanks @LilMGenius)
+
+### Documentation
+
+- The READMEs and NOTICE (repository and plugin payload) point at noslopdesign as the standalone downstream of the frontend skills and name the reference forms it rewrites. (#312)
+- The state layout reference says the legacy-state warning covers only the ledger and goal plans, and points at the `cxc state migrate` dry run. (#305)
+
+### Compatibility
+
+- No hook declaration changed, so no hook retrust is needed beyond the usual install. Hosts that had the PreToolUse advisory hooks marked failed start receiving the advisories after the upgrade.
+
 ## [0.2.45] - 2026-10-28
 
 ### Added

@@ -498,11 +498,12 @@ async function main(): Promise<void> {
       output = handleApplyPatchLint(raw);
       if (pabcdEnabled && output === "") output = handleIdleEditAdvisory(raw);
     } else if (event === "pre-tool-use-idle-edit") {
-      // 260714 wp3: FAIL-OPEN IDLE-edit advisory (IDLE-EDIT-ADVISORY-01). Allow +
-      // additionalContext only; a crash here must never deny an edit.
+      // 260714 wp3: FAIL-OPEN IDLE-edit advisory (IDLE-EDIT-ADVISORY-01). Context-only
+      // envelope (additionalContext, no permissionDecision; #333); a crash here must never deny an edit.
       output = handleIdleEditAdvisory(raw);
     } else if (event === "pre-tool-use-friction") {
-      // 080.1: FAIL-OPEN friction advisory ("allow" + reason) for a stop-level shell signature.
+      // 080.1: FAIL-OPEN friction advisory (context-only additionalContext, no permissionDecision;
+      // #333) for a stop-level shell signature. Hook ships under hooks/_deprecated/ (opt-in).
       // Distinct from the R-9 fail-closed branch; a crash here must never deny a tool.
       output = handleFrictionPreToolUse(raw);
     } else if (event === "worktree-guard") {

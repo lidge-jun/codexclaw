@@ -2,12 +2,13 @@
  * friction-gate.ts — FAIL-OPEN PreToolUse advisory gate for repeated tool friction (080.1).
  *
  * When a shell tool ("Bash") has accumulated a `stop`-level friction signature on the
- * project-local ledger, this advises the model (permissionDecision "allow" with a reason)
+ * project-local ledger, this advises the model (additionalContext, no permissionDecision)
  * to change approach before re-running the same class of command. It is INTENTIONALLY
- * advisory (allow, not deny):
+ * advisory (never deny):
  * PreToolUse cannot see the new call's error, only the tool name, so a hard deny would be
- * too blunt and could trap a legitimate retry. Codex does not accept an "ask" decision here,
- * so this must stay schema-safe. FAIL-OPEN: any parse/read error -> "" (allow).
+ * too blunt and could trap a legitimate retry. Codex rejects "ask", an "allow" without
+ * updatedInput, and a reason sent without a decision, so the advice travels as
+ * additionalContext. FAIL-OPEN: any parse/read error -> "" (allow).
  *
  * This is a SEPARATE event arg from the R-9 fail-closed `pre-tool-use` dispatcher; a crash
  * here must never deny a tool.
@@ -33,8 +34,7 @@ export function handleFrictionPreToolUse(raw: string): string {
     return `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
-        permissionDecision: "allow",
-        permissionDecisionReason:
+        additionalContext:
           "[codexclaw friction] A shell failure has recurred to the stop threshold. Review .codexclaw/friction.jsonl and change approach before re-running the same command.",
       },
     })}\n`;

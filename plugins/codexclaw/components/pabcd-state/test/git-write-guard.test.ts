@@ -152,7 +152,7 @@ test("PreToolUse handler: deny envelope, workdir field honored, advisory envelop
   assert.equal(handleGitWriteGuardPreTool(payload("git cherry-pick a..b", { workdir: f.source })), "");
   assert.equal(handleGitWriteGuardPreTool(payload("git status")), "");
   const advise = JSON.parse(handleGitWriteGuardPreTool(payload(`echo "${BT}x${BT}"`))).hookSpecificOutput;
-  assert.equal(advise.permissionDecision, "allow");
+  assert.equal(advise.permissionDecision, undefined);
   assert.match(advise.additionalContext, /SHELL-SUBST-01 advisory/);
   assert.equal(handleGitWriteGuardPreTool("not json"), "");
   assert.equal(handleGitWriteGuardPreTool(JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "apply_patch", cwd: f.native, tool_input: { command: "x" } })), "");
