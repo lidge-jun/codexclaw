@@ -34,10 +34,11 @@ interface Rig {
 }
 
 /** tmp HOME + CODEX_HOME with worktrees/<slot>/<repo>/.git (gitfile, like a real worktree). */
-function makeRig(): Rig {
+function makeRig(pad = ""): Rig {
   // realpath: macOS tmpdir is a /var → /private/var symlink; detection canonicalizes.
   const home = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-wg-home-")));
-  const codexHome = join(home, ".codex");
+  // pad nests the rig under an extra directory so path-length effects are testable.
+  const codexHome = join(pad ? join(home, pad) : home, ".codex");
   const worktreesDir = join(codexHome, "worktrees");
   const slotRoot = join(worktreesDir, "7627");
   const checkoutRoot = join(slotRoot, "opencodex");
@@ -257,35 +258,39 @@ test("rename intent regex: ko/en positives and non-matches", () => {
   assert.equal(detectRenameIntent(""), false);
 });
 
-test("UserPromptSubmit: managed + rename intent injects once per session (dedupe marker)", () => {
-  const rig = makeRig();
-  const prev = process.env.CODEX_HOME;
-  process.env.CODEX_HOME = rig.codexHome;
-  const session = "019fcd00-0000-7000-8000-000000000003";
-  const payload = () => JSON.stringify({
-    hook_event_name: "UserPromptSubmit",
-    session_id: session,
-    cwd: rig.checkoutRoot,
-    prompt: "워크트리 이름 바꾸고 시작하자",
+// The context names the slot root, whose length depends on the machine's temp directory
+// (long on macOS), so the 250-byte budget is measured with the root replaced (#297 class).
+for (const pad of ["", "p".repeat(200)]) {
+  test(`UserPromptSubmit: managed + rename intent injects once per session (dedupe marker, pad=${pad.length})`, () => {
+    const rig = makeRig(pad);
+    const prev = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = rig.codexHome;
+    const session = "019fcd00-0000-7000-8000-000000000003";
+    const payload = () => JSON.stringify({
+      hook_event_name: "UserPromptSubmit",
+      session_id: session,
+      cwd: rig.checkoutRoot,
+      prompt: "워크트리 이름 바꾸고 시작하자",
+    });
+    try {
+      const first = handleWorktreeGuard(payload());
+      assert.match(first, /WORKTREE-GUARD-02/);
+      const context = JSON.parse(first).hookSpecificOutput.additionalContext as string;
+      assert.ok(context.includes(rig.slotRoot));
+      assert.match(context, /\$codexclaw:cxc-worktree-guardian SKILL\.md/);
+      assert.ok(Buffer.byteLength(context.replaceAll(rig.slotRoot, "<slot>")) <= 250);
+      assert.doesNotMatch(context, /git switch -c|THREAD TITLE|git worktree repair/);
+      const marker = join(rig.checkoutRoot, ".codexclaw", "worktree-guard", `${session}.json`);
+      assert.equal(existsSync(marker), true);
+      const second = handleWorktreeGuard(payload());
+      assert.equal(second, "");
+    } finally {
+      if (prev === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = prev;
+      rig.cleanup();
+    }
   });
-  try {
-    const first = handleWorktreeGuard(payload());
-    assert.match(first, /WORKTREE-GUARD-02/);
-    const context = JSON.parse(first).hookSpecificOutput.additionalContext as string;
-    assert.ok(context.includes(rig.slotRoot));
-    assert.match(context, /\$codexclaw:cxc-worktree-guardian SKILL\.md/);
-    assert.ok(Buffer.byteLength(context) <= 250);
-    assert.doesNotMatch(context, /git switch -c|THREAD TITLE|git worktree repair/);
-    const marker = join(rig.checkoutRoot, ".codexclaw", "worktree-guard", `${session}.json`);
-    assert.equal(existsSync(marker), true);
-    const second = handleWorktreeGuard(payload());
-    assert.equal(second, "");
-  } finally {
-    if (prev === undefined) delete process.env.CODEX_HOME;
-    else process.env.CODEX_HOME = prev;
-    rig.cleanup();
-  }
-});
+}
 
 test("UserPromptSubmit: unrelated prompt or non-managed cwd is silent", () => {
   const rig = makeRig();

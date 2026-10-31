@@ -6,9 +6,55 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.45] - 2026-10-28
+
+### Added
+
+- dev-uiux-design: an experience audit (evidence ids, personas, journeys, ideal state, a severity-ranked gap ledger and a handoff packet) and universal interface principles distilled from Apple's HIG without Apple-specific visuals. (#327)
+- dev-frontend: a WCAG 2.2 AA owner with all 55 A/AA criteria, the six 2.2 additions, a Playwright axe script and verdict rules that forbid conformance claims from automated runs alone; a visual audit loop with a violation ledger, a verifier and pass rule per violation, before/after captures, a closure gate, a PR before/after section and cxc-loop routing. A KWCAG verdict is kept separate: KWCAG 2.2 builds on WCAG 2.1 with 33 inspection items, so it needs its own item list or an explicit mapping (FE-WCAG22-03). (#328)
+
 ### Fixed
 
+- WCAG levels and thresholds stated wrongly in both skills: reduced motion labelled AA (it is AAA 2.3.3), large bold text at 18.5px (18.66px), Lighthouse score used as an accessibility pass, unconditional 3:1 borders, and target size without the 24px AA floor. Stale "SKILL.md §12/§14" references now link to the sections that hold those rules. (#329)
+
+### Compatibility
+
+- Skill and documentation changes only. No hook declaration, CLI command or component behavior changed, so no hook retrust is needed beyond the usual install.
+
+## [0.2.44] - 2026-10-26
+
+### Fixed
+
+- IDLE Stop now releases on an open user decision when an unmet criterion waits on that decision. Stop counts a criterion as waiting only when a decision-waiting work phase lists it in `criteriaIds`, and no CLI could set that list, so a criterion added with `add-criterion` kept every Stop blocking with "Waiting on: work-phase … awaits decision …". `cxc loop link-criterion --session <id> --work-phase <id> --criterion <id>...` links criteria to an existing pending or in-progress phase; `loop add-work-phase --criterion <id>`, `loop ask --criterion <id>` (with `--work-phase`) and the steering `add-work-phase` op's `criteriaIds` link them when the phase or question is created. When every remaining phase waits but a criterion is unlinked, the Stop block names it and prints the link command. A linked criterion still has to be met with evidence for the E8 completion check; a `pr-record` waives it as before. (#314, #317)
+- `cxc loop pr-record` refuses a checkout that holds no state for the session. The completion gate reads the record from the session's own checkout, so a record written from a fresh clone or another worktree reported success and was never read; the refusal names the missing state file and `--cwd`. (#316, #319)
+- Version skew is now named instead of silent. A record carries the `cxcVersion` that wrote it; a completion denial that meets a record from a newer cxc (schema above 1) says which build wrote it, which build is running, and the update path (`codex plugin marketplace upgrade codexclaw`, re-approve the Modified hooks, open a new thread). An unknown `cxc loop` verb says the same, for skills newer than the installed CLI. A 0.2.42 install cannot learn this retroactively: its gate ignores `pr-record` records, and the README update section and the loop runtime reference say to upgrade that host. (#316, #319)
+- A repository that forbids committing plans can now pass SOURCE-DELTA-01 on a docs-only roadmap cycle. `CODEXCLAW_PLANS_DIR` or config `state.plansDir` (absolute) moves only the devlog, and with it every plan unit, to `<plansDir>/<project id>` outside the checkout; `cxc devlog path --explain` names the source, and a destination inside the checkout or behind a symlink is ignored with a warning. On entry to B the session records the plan unit bound at P>A by canonical path and a digest of its numbered plan docs (other files, including codexclaw state under a broad unit, never count), and B>C accepts a changed digest like a changed source, on both the CLI and chat paths. The ledger row for that edge records `planDelta: { path, before, after }`, and a refusal names the unchanged plan unit. Plans hidden from git inside the checkout (local mode, an ignored symlink) count the same way. A repository that commits its plans behaves as before: a plan edit there is already a source change. (#315, #318)
+- Follow-ups to the #315 plan delta: a plan unit counts as B>C evidence only when it is a direct child of a non-symlinked `<devlog>/_plan`; a unit that is itself a symlink (plans in an excluded scratch folder) still counts unless its target is a filesystem root or contains the checkout or the plan root. A C>B rework re-checks the attested unit and its target. An unrelated directory edited during B no longer passes SOURCE-DELTA-01. `cxc state migrate --apply` in external mode with `CODEXCLAW_PLANS_DIR` or `state.plansDir` now moves legacy plans into the configured plans directory instead of skipping every one as a symlink hazard, and skips them when the plans directory is itself a symlink. (#315, #320)
+- The SOURCE-DELTA-01 refusal now names the plan unit as a way through. With a bound unit it says a changed bound plan unit counts as this B's work and that a read-only research cycle can write its result as a numbered doc (for example `040_survey.md`) in that unit's path instead of touching a tracked file; without one it says a unit counts only when it sits directly under `<devlog>/_plan`. Both the CLI and chat B>C paths use the same text. New tests pin the case from the report: a research doc added during B next to `000_plan.md` and `010_phase1.md`, in a `devlog/_plan` unit hidden by `.git/info/exclude` (repo mode) or by local mode, satisfies B>C on both paths, and a non-numbered `survey.md` does not. (#321, #322)
+
+### Compatibility
+
+- No hook declaration changed, so no hook retrust is needed beyond the usual install. Plan-unit evidence for SOURCE-DELTA-01 applies to cycles that enter B after the upgrade; a session already in B keeps its old baseline until it re-enters B.
+
+## [0.2.43] - 2026-10-22
+
+### Fixed
+
+- Review follow-ups to the recall budget (#306, #308): an index that is already over budget now evicts before admitting new sessions, so the newest work is searchable right after `CODEXCLAW_RECALL_MAX_MB` is lowered; the trimmed-history search warning uses a session's last activity instead of its rollout creation date; `cxc chat index --compact --status` compacts instead of only reporting; the doctor `memory-footprint` check follows the configured recall budget, warns when its walk was cut off at the entry cap, and names a repair for the area that actually overflowed. (#309)
+- The recall index budget is now enforced even when nobody searches. SessionStart launches one detached maintenance pass per 12 hours across all processes (stamp and create-exclusive lock under `recall/`, token handed to the child, stale after 30 minutes), only when an index exists; it waits 30 seconds off the startup path, then refreshes, evicts and compacts, and records before/after sizes. An idle machine does no memory work. `CODEXCLAW_RECALL_MAINTENANCE=off` disables it. On this machine the pass took an index from 15.2 MB to 5.9 MB under an 8 MB budget. (#308)
+- Capped messages keep a head+tail window instead of only the head, so the last lines of a long tool output (where errors land) stay searchable. (#308)
+- The recall index (`~/.codexclaw/recall/index.sqlite`) no longer grows without bound. One machine's index had reached 410 MB for 84 MB of text, and another 12 GB. It now stays under a byte budget, 48 MB by default (`CODEXCLAW_RECALL_MAX_MB`, minimum 4): stored messages are capped at 4 KB (tool output 1 KB, was 8 KB), a full index records older new sessions as metadata only, and above the budget the least recently active sessions lose their message text until the index is under 80 % of the budget. Freed pages go back to the filesystem (`auto_vacuum=INCREMENTAL`) and the WAL is truncated after each changing refresh. Trimmed sessions stay in the session list, `--scan` still searches them, and a search that reaches them says so. A refresh with nothing new writes nothing. Built from this machine's 844 MB of rollouts the index is 41 MB. (#306)
+- Schema v3: the first `cxc chat search` or `cxc chat index` after upgrading replaces an older index by deleting and recreating the file under a lock (O(1); the injection history carries over). Hooks never migrate. `cxc chat index --rebuild` now deletes the file instead of leaving deleted rows inside it. (#306)
+- SessionStart reports exhausted memory extraction jobs only when they failed in the last 7 days, so a standing pile (298 on one machine) no longer repeats into every session. `cxc memory status` still shows the whole pile, how much is recent, and how much is inert. (#306)
+- The recall SessionStart envelope has a total cap of 2,400 characters (1,400 after compaction); optional status lines are clipped and dropped first, and the recall pointer always stays. (#306)
+- A merged or green pull request now counts as the completion record. Work that had already merged with CI green could not complete its goal: SOURCE-DELTA-01 refused B>C because the checkout no longer differed, and GOAL-COMPLETE-GATE-01 then denied completion for the open cycle and the plan's stale receipts. `cxc loop pr-record --session <id> --pr <url>` checks the PR once with `gh` (merged, or open with every check finished and passing) and stores a session-scoped record. With it, the gate accepts completion despite an open cycle, unfinished work phases, unmet criteria or receipt checks, and B>C accepts an unchanged source when the record was made during that B. Unverified subagent work, unreadable state and a structurally broken plan still deny. Hooks read only the local record and never call the network. (#307)
 - `cxc state sync` applies a file another machine edited or deleted (a devlog doc, a re-recorded receipt) when the local copy is still byte-for-byte the last synced version, re-checked right before the swap; a locally edited copy is a reported conflict and is never written. This also ends the stops a `core.autocrlf=true` clone caused by committing line-ending-only changes (#302).
+
+### Added (memory)
+
+- `cxc doctor` gains a `memory-footprint` check and `cxc memory status` a `codexclaw store` line (`footprint` and `lastMaintenance` in `--json`): bytes per area of `~/.codexclaw` (recall, projects, backups, skill-cache, sessions), warning above 100 MiB in total or when the recall area is past its budget. (#308)
+- `cxc memory prune [--apply]` deletes exhausted stage-1 extraction jobs that finished over 90 days ago. The host never claims threads older than its `max_rollout_age_days` (at most 90), so these rows can never run again. Dry run by default; never younger than 90 days. (#306)
+- `cxc chat index --compact` evicts down to the budget and compacts immediately. `cxc chat index --status` and `cxc memory status` (`recallIndex` in `--json`) report the index size on disk against its budget, and SessionStart says so in one line when an index is over budget. (#306)
 
 ### Documentation
 
@@ -35,6 +81,10 @@ All notable changes to codexclaw are documented here. The format follows
 ### Fixed
 
 - On Windows the state resolver resolved the same repository to two project ids when one path used an 8.3 short name (`RUNNER~1`); it now uses the native realpath.
+
+### Compatibility
+
+- No hook declaration changed, so no hook retrust is needed beyond the usual install. The first `cxc chat search` or `cxc chat index` after upgrading recreates the recall index once (schema v3); after that, SessionStart may start the detached maintenance pass described above, which `CODEXCLAW_RECALL_MAINTENANCE=off` disables. Repositories owned outside the allowlist resolve durable state to `external` mode; `cxc state migrate` moves legacy state and is never run automatically.
 
 ## [0.2.42] - 2026-10-09
 

@@ -199,10 +199,12 @@ test("refresh-on-query picks up newly appended session lines", () => {
   assert.equal(fresh.hits.length, 1, "refresh-on-query must ingest the change");
 });
 
-test("tool outputs are capped at TOOL_TEXT_CAP in the index", () => {
+test("tool outputs are capped to a head+tail window of TOOL_TEXT_CAP in the index", () => {
   const today = dateParts(0);
   const dir = join(home, "sessions", today.y, today.m, today.d);
-  const big = "y".repeat(TOOL_TEXT_CAP + 500) + " needleinbigoutput";
+  // The middle of an oversized output is dropped; its last lines (where errors
+  // land) are kept.
+  const big = "y".repeat(TOOL_TEXT_CAP) + " needleinmiddle " + "z".repeat(TOOL_TEXT_CAP) + " needleinbigoutput";
   writeFileSync(
     join(dir, `rollout-${today.y}-${today.m}-${today.d}T03-00-00-019f0000-0000-7000-8000-00000000dddd.jsonl`),
     JSON.stringify({ timestamp: today.iso, type: "session_meta", payload: { id: "019f0000-0000-7000-8000-00000000dddd", cwd: "/proj/alpha", originator: "codex-tui" } }) +
@@ -210,9 +212,12 @@ test("tool outputs are capped at TOOL_TEXT_CAP in the index", () => {
       JSON.stringify({ timestamp: today.iso, type: "response_item", payload: { type: "function_call_output", call_id: "t", output: big } }) +
       "\n",
   );
-  const capped = viaIndex("needleinbigoutput", {});
-  assert.equal(capped.hits.length, 0, "text beyond the cap is not indexed");
-  const scan = viaScan("needleinbigoutput");
+  const middle = viaIndex("needleinmiddle", {});
+  assert.equal(middle.hits.length, 0, "the dropped middle is not indexed");
+  const tail = viaIndex("needleinbigoutput", {});
+  assert.equal(tail.hits.length, 1, "the tail of the output is indexed");
+  assert.ok(tail.hits[0]!.text.length <= TOOL_TEXT_CAP);
+  const scan = viaScan("needleinmiddle");
   assert.equal(scan.hits.length, 1, "scan path still sees the full output");
 });
 
@@ -438,7 +443,7 @@ test("index matches a child path under a parent cwd when repo_key is NULL", () =
   }
 });
 
-test("an index built before wp4 gains repo_key in place, without re-parsing msgs", () => {
+test("rows written without a repo_key are backfilled in place, without re-parsing msgs", () => {
   const root = mkdtempSync(join(tmpdir(), "recall-migrate-"));
   try {
     buildCodexHome(root);
@@ -448,29 +453,14 @@ test("an index built before wp4 gains repo_key in place, without re-parsing msgs
     const msgsBefore = (db.prepare("SELECT COUNT(*) AS n FROM msgs").get() as { n: number }).n;
     db.close();
 
-    // Rewind to a pre-wp4 index: same rows, no column. This is the shape of the
-    // operator's 12GB cache, which must migrate WITHOUT a schema-version bump
-    // (a bump drops files+msgs and re-parses the whole corpus).
+    // An older CLI sharing the index writes rows without a key; the next refresh
+    // must restore them from the threads table without touching messages.
     const raw = new DatabaseSync(path);
-    raw.exec("DROP INDEX IF EXISTS idx_files_repo_key");
-    raw.exec("ALTER TABLE files DROP COLUMN repo_key");
-    const legacyCols = (raw.prepare("PRAGMA table_info(files)").all() as Array<{ name: string }>).map(
-      (c) => c.name,
-    );
-    assert.ok(!legacyCols.includes("repo_key"), "sanity: the column is really gone");
+    raw.exec("UPDATE files SET repo_key = NULL");
     raw.close();
 
     db = openIndex(path);
     try {
-      const version = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as {
-        value: string;
-      };
-      assert.equal(version.value, "2", "the migration must not bump the schema version");
-      const cols = (db.prepare("PRAGMA table_info(files)").all() as Array<{ name: string }>).map(
-        (c) => c.name,
-      );
-      assert.ok(cols.includes("repo_key"), "ADD COLUMN ran on the existing table");
-
       // Unchanged files are skipped by (mtime, size), so the keys can only come
       // from the threads join — no JSONL head is re-read and no message moves.
       const result = ingest(root, db, 0);

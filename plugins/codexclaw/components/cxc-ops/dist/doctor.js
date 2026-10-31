@@ -20,6 +20,75 @@ import { TargetParseError, validateManifestTargets } from "./manifest-targets.js
 import { commandInvocation } from "./win-exec.js";
 import { automountRoot, filesystemTier, isWslRuntime,              } from "./wsl.js";
 
+// Cross-component dist import, LAZY + FAIL-OPEN (precedent: recall -> cxc-ops/dist):
+// a payload without the recall component still runs doctor, minus this check.
+
+
+
+
+
+let footprintModule                         = null;
+try {
+  footprintModule = (await import("../../recall/dist/footprint.js"))                   ;
+} catch {
+  footprintModule = null;
+}
+
+let budgetModule                      = null;
+try {
+  budgetModule = (await import("../../recall/dist/index-budget.js"))                ;
+} catch {
+  budgetModule = null;
+}
+
+/** WAL and shm may legitimately sit on top of the index budget between checkpoints. */
+const RECALL_AREA_SLACK_BYTES = 8 * 1024 * 1024;
+
+/** The recall area ceiling: the configured index budget (CODEXCLAW_RECALL_MAX_MB) plus slack. */
+function recallAreaLimit()         {
+  const max = budgetModule ? budgetModule.resolveIndexBudget().maxBytes : 48 * 1024 * 1024;
+  return max + RECALL_AREA_SLACK_BYTES;
+}
+
+/** A repair that can actually clear the warning, chosen by the area that caused it. */
+function footprintRepair(root        , area        )         {
+  if (area === "recall") return "cxc chat index --compact";
+  if (area === "projects") return "review external project state: cxc state path; " + join(root, "projects");
+  return "review and remove what is no longer needed under " + join(root, area === "other" ? "" : area);
+}
+
+/**
+ * memory-footprint (261022): what codexclaw keeps under $CODEXCLAW_HOME ?? ~/.codexclaw,
+ * by area. WARN above 100 MiB in total or when the recall area is past its budget; the
+ * repair is the same compaction the background maintenance pass runs.
+ */
+export function checkMemoryFootprint(
+  root         = process.env["CODEXCLAW_HOME"]?.trim() ? process.env["CODEXCLAW_HOME"] .trim() : join(homedir(), ".codexclaw"),
+  mod                         = footprintModule,
+  recallLimitBytes         = recallAreaLimit(),
+)              {
+  if (!mod) return { name: "memory-footprint", severity: "PASS", evidence: "recall component not present; footprint not measured" };
+  try {
+    const fp = mod.measureFootprint(root);
+    const line = mod.formatFootprint(fp) + " under " + root;
+    const recall = fp.areas["recall"] ?? 0;
+    if (recall > recallLimitBytes) {
+      return { name: "memory-footprint", severity: "WARN", evidence: line + "; recall is over its budget", repair: footprintRepair(root, "recall") };
+    }
+    if (fp.totalBytes > mod.FOOTPRINT_WARN_BYTES) {
+      const largest = Object.entries(fp.areas).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "other";
+      return { name: "memory-footprint", severity: "WARN", evidence: line + "; largest area: " + largest, repair: footprintRepair(root, largest) };
+    }
+    // Totals from a capped walk are lower bounds, so they cannot certify a healthy store.
+    if (fp.truncated) {
+      return { name: "memory-footprint", severity: "WARN", evidence: line + "; walk stopped at its entry cap, so the totals are incomplete", repair: "inspect " + root };
+    }
+    return { name: "memory-footprint", severity: "PASS", evidence: line };
+  } catch (err) {
+    return { name: "memory-footprint", severity: "WARN", evidence: "footprint walk failed: " + (err instanceof Error ? err.message : String(err)) };
+  }
+}
+
 
 
 
@@ -357,6 +426,9 @@ export function runDoctor(
 
   // 9. WSL residency and the filesystem tier the state tree actually sits on.
   checks.push(checkWslResidency(process.cwd(), options.wslDeps ?? {}));
+
+  // 10. Size of everything codexclaw keeps on disk (memory size budget).
+  checks.push(checkMemoryFootprint());
 
   // Read plugin version for report metadata.
   let pluginVersion                    ;

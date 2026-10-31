@@ -20,6 +20,9 @@ Release workflow.
    `node plugins/codexclaw/scripts/inventory.mjs --write --tests <n>`. Take `<n>`
    from the `tests` line of a real run, not `pass` - CI skips the repo-map live
    smoke, so `pass` is environment-dependent while `tests` is not.
+   Pull request and `dev` CI let the badge lag: it fails only when the badge claims
+   more tests than ran, and otherwise prints this exact command as a notice. The
+   release gate compares exactly, so the release commit is where the badge catches up.
 4. Confirm `dev` is protected from deletion **before** merging the promotion PR:
 
    ```sh

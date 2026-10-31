@@ -15,6 +15,7 @@ import {
   addGoalplanTask,
   askGoalplanDecision,
   decideGoalplanDecision,
+  linkGoalplanCriteria,
   openDecisionIdsForPhase,
   buildGoalplan,
   completeGoalplanTask,
@@ -52,6 +53,12 @@ import { resolveSessionSource } from "./session-source.js";
 import { parseSourceBoundReceipt } from "./source-receipt.js";
 import { applySteeringBatch } from "./steering.js";
 import { DurableStateDisabledError } from "./state-root.js";
+import { runPrRecord } from "./pr-record.js";
+import { newerThanInstallHint } from "./install-version.js";
+
+
+
+
 
 
 
@@ -139,6 +146,8 @@ const VERBS                      = new Set              ([
   "meet-criterion",
   "ask",
   "decide",
+  "link-criterion",
+  "pr-record",
 ]);
 
 
@@ -159,13 +168,15 @@ const VERB_RULES                                           = {
   validate: { allowed: new Set(["--slug", "--objective", "--session", "--cwd"]), repeatable: new Set(), usage: "validate (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]" },
   steer: { allowed: new Set(["--session", "--batch-json", "--cwd"]), repeatable: new Set(), usage: "steer --session <id> --batch-json <path-or-json> [--cwd <path>]" },
   "add-criterion": { allowed: new Set(["--session", "--criterion", "--surface", "--presented", "--cwd"]), repeatable: new Set(), usage: "add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--presented native] [--cwd <path>]" },
-  "add-work-phase": { allowed: new Set(["--session", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]" },
+  "add-work-phase": { allowed: new Set(["--session", "--id", "--title", "--depends-on", "--criterion", "--cwd"]), repeatable: new Set(["--depends-on", "--criterion"]), usage: "add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--criterion <criterion-id>]... [--cwd <path>]" },
   ready: { allowed: new Set(["--slug", "--objective", "--session", "--json", "--cwd"]), repeatable: new Set(), usage: "ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]" },
   "add-task": { allowed: new Set(["--session", "--work-phase", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]" },
   "complete-task": { allowed: new Set(["--session", "--work-phase", "--id", "--outcome", "--cwd"]), repeatable: new Set(), usage: "complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]" },
   "meet-criterion": { allowed: new Set(["--session", "--id", "--evidence", "--cwd"]), repeatable: new Set(), usage: "meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]" },
-  ask: { allowed: new Set(["--session", "--id", "--question", "--recommendation", "--option", "--work-phase", "--cwd"]), repeatable: new Set(["--option", "--work-phase"]), usage: "ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--cwd <path>]" },
+  ask: { allowed: new Set(["--session", "--id", "--question", "--recommendation", "--option", "--work-phase", "--criterion", "--cwd"]), repeatable: new Set(["--option", "--work-phase", "--criterion"]), usage: "ask --session <id> --id <id> --question <text> [--recommendation <text>] [--option <text>]... [--work-phase <id>]... [--criterion <criterion-id>]... [--cwd <path>]" },
   decide: { allowed: new Set(["--session", "--id", "--answer", "--cwd"]), repeatable: new Set(), usage: "decide --session <id> --id <id> --answer <text> [--cwd <path>]" },
+  "link-criterion": { allowed: new Set(["--session", "--work-phase", "--criterion", "--cwd"]), repeatable: new Set(["--criterion"]), usage: "link-criterion --session <id> --work-phase <id> --criterion <criterion-id>... [--cwd <path>]" },
+  "pr-record": { allowed: new Set(["--session", "--pr", "--cwd"]), repeatable: new Set(), usage: "pr-record --session <id> --pr <url|number> [--cwd <path>]" },
   help: { allowed: new Set(), repeatable: new Set(), usage: "--help" },
 };
 
@@ -181,7 +192,7 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
   }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide); run cxc loop --help`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion|ask|decide|link-criterion|pr-record); run cxc loop --help. If a skill names this verb, ${newerThanInstallHint("that skill")}`,
     };
   }
   const selected = verb                ;
@@ -250,6 +261,7 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
         break;
       }
       case "--answer": out.answer = value; break;
+      case "--pr": out.pr = value; break;
       case "--outcome": out.outcome = value; break;
       case "--schema-version": {
         const parsed = Number(value);
@@ -406,6 +418,8 @@ function runAddOp(args                 )                    {
 
   let op                         ;
   let summary        ;
+  let keyPrefix         = args.verb;
+  let keySource                    ;
   if (args.verb === "add-criterion") {
     const scenario = (args.criteria[0] ?? "").trim();
     if (scenario.length === 0) {
@@ -430,16 +444,26 @@ function runAddOp(args                 )                    {
       return { output: "loop add-work-phase: --id <id> and --title <text> are both required", code: 1 };
     }
     const dependsOn = args.dependsOn ?? [];
-    op = { kind: "add-work-phase", id, title, ...(dependsOn.length > 0 ? { dependsOn } : {}) };
+    const criteriaIds = args.criteria.map((criterionId) => criterionId.trim());
+    if (criteriaIds.some((criterionId) => !criterionId) || new Set(criteriaIds).size !== criteriaIds.length) {
+      return { output: "loop add-work-phase: --criterion requires distinct non-empty criterion ids", code: 1 };
+    }
+    op = { kind: "add-work-phase", id, title, ...(dependsOn.length > 0 ? { dependsOn } : {}), ...(criteriaIds.length > 0 ? { criteriaIds } : {}) };
     // dependsOn stays OUT of the summary so a phase registered without prerequisites keeps
     // the exact idempotency key it had before this upgrade. Re-running an old command must
     // still be recorded as a duplicate, not applied a second time.
     summary = `${id}: ${title}`;
+    // A command that links criteria gets its own key namespace and a structured key
+    // source, so no title text can collide with it and drop the link as a "duplicate".
+    if (criteriaIds.length > 0) {
+      keyPrefix = "add-work-phase-linked";
+      keySource = JSON.stringify({ id, title, criteriaIds });
+    }
   }
 
   // The idempotency key is content-derived, so re-running the same command is a
   // recorded duplicate rather than a second criterion with the same text.
-  const key = `${args.verb}-${createHash("sha256").update(summary).digest("hex").slice(0, 12)}`;
+  const key = `${keyPrefix}-${createHash("sha256").update(keySource ?? summary).digest("hex").slice(0, 12)}`;
   const result = applySteeringBatch(args.cwd, slug, {
     idempotencyKey: key,
     rationale: `cxc loop ${args.verb}`,
@@ -532,7 +556,7 @@ function runReady(args                 , plan          )                    {
   return { output: lines.join("\n"), code: 0 };
 }
 
-/** Record a host-submitted question or its answer under the goalplan write lock. */
+/** Record a host-submitted question, its answer, or a criterion link under the goalplan write lock. */
 function runDecision(args                 )                    {
   const session = (args.session ?? "").trim();
   if (!session) return { output: `loop ${args.verb}: --session <id> is required`, code: 1 };
@@ -552,9 +576,11 @@ function runDecision(args                 )                    {
       ? askGoalplanDecision(plan, {
           id, question: args.question , recommendation: args.recommendation,
           ...(args.options === undefined ? {} : { options: args.options }),
-          workPhaseIds: args.workPhaseIds ?? [], askedAt: new Date().toISOString(),
+          workPhaseIds: args.workPhaseIds ?? [], criterionIds: args.criteria, askedAt: new Date().toISOString(),
         })
-      : decideGoalplanDecision(plan, id, args.answer , new Date().toISOString());
+      : args.verb === "decide"
+        ? decideGoalplanDecision(plan, id, args.answer , new Date().toISOString())
+        : linkGoalplanCriteria(plan, args.workPhaseId ?? "", args.criteria);
     if (result.kind === "rejected") return { kind: "rejected", reason: result.reason };
     if (result.kind === "unchanged") return { kind: "unchanged", reason: result.reason };
     writeGoalplan(args.cwd, result.plan);
@@ -565,6 +591,9 @@ function runDecision(args                 )                    {
   }
   if (locked.value.kind === "rejected") return { output: `loop ${args.verb}: ${locked.value.reason}`, code: 1 };
   if (locked.value.kind === "unchanged") return { output: `loop ${args.verb}: ${locked.value.reason}; nothing to do`, code: 0 };
+  if (args.verb === "link-criterion") {
+    return { output: `loop link-criterion: ${slug} ${args.workPhaseId} now lists ${args.criteria.join(", ")}`, code: 0 };
+  }
   return { output: `loop ${args.verb}: ${slug} ${id} applied`, code: 0 };
 }
 
@@ -730,7 +759,7 @@ export function renderGoalplanHelp()         {
     "cxc loop — durable goalplan for a multi-cycle PABCD loop",
     "",
     "Usage:",
-    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "ask", "decide", "help"]         )
+    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "ask", "decide", "link-criterion", "pr-record", "help"]         )
       .map((verb) => `  cxc loop ${VERB_RULES[verb].usage}`),
     "",
     "Notes:",
@@ -749,13 +778,21 @@ export function renderGoalplanHelp()         {
     "  meet-criterion requires non-empty captured evidence for the same reason.",
     "  Send the question through the host first, then record it with ask; ask never sends a message.",
     "  Record the user's reply with decide. It changes only the decision record.",
+    "  IDLE Stop waits for the user only when every remaining phase awaits an open decision AND every",
+    "  unmet criterion is listed by one of those phases. Tie a criterion to its phase with",
+    "  add-work-phase --criterion, ask --criterion (needs --work-phase) or link-criterion. A linked",
+    "  criterion still has to be met with evidence for the E8 completion check (a pr-record waives it).",
     "  Repeat --option once per offered option; the recommendation must be one of them, and the answer stays free text.",
+    "  pr-record checks the PR once with gh (merged, or open with every check passing) and stores it as",
+    "  this session's completion record. The goal gate then accepts completion without a closed cycle or",
+    "  a fully ticked plan; unverified subagent work and a structurally broken plan still block it.",
     "",
     "steer --batch-json expects an object with:",
     '  { "idempotencyKey": "<unique>", "rationale": "<why>", "evidence": "<proof>",',
     '    "ops": [ { "kind": "annotate", "note": "..." } ] }',
     "  op kinds: annotate | add-criterion | add-work-phase (all additive — steering",
-    "  cannot weaken a completion criterion).",
+    "  cannot weaken a completion criterion). add-work-phase takes optional",
+    '  "dependsOn" and "criteriaIds" arrays of existing ids.',
   ].join("\n");
 }
 
@@ -837,7 +874,11 @@ function runGoalplanCliInner(args                 )                    {
   }
 
   if (args.verb === "steer") return runSteer(args);
-  if (args.verb === "ask" || args.verb === "decide") return runDecision(args);
+  if (args.verb === "ask" || args.verb === "decide" || args.verb === "link-criterion") return runDecision(args);
+  if (args.verb === "pr-record") {
+    const result = runPrRecord(args.cwd, (args.session ?? "").trim(), args.pr ?? "");
+    return { output: result.output, code: result.code };
+  }
 
   if (args.verb === "add-criterion" || args.verb === "add-work-phase") return runAddOp(args);
 

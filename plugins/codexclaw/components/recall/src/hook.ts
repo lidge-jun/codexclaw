@@ -230,6 +230,15 @@ export const FULL_BUDGET: RecallBudget = { chars: 1400, topN: 5, snippet: 100 };
 export const COMPACTED_BUDGET: RecallBudget = { chars: 800, topN: 2, snippet: 100 };
 
 /**
+ * Ceiling for the whole recall SessionStart envelope in characters (about 4 per
+ * token, so ~600 and ~350 tokens). The cwd block above fits inside it; the
+ * remaining room carries the optional status lines and the recall pointer.
+ */
+export const SESSION_START_CHAR_BUDGET = { full: 2400, compact: 1400 } as const;
+/** Any single optional line (memory notice, index status) is clipped to this. */
+const AUX_LINE_CHARS = 320;
+
+/**
  * Repeat-injection penalty. A thread that has already been pushed into several
  * sessions has had its chance to be useful, so it yields its slot to something
  * the agent has not seen yet. Formula from jawcode memory-quality.ts:45-59:
@@ -287,7 +296,9 @@ function openSidecarHitCounts(): HitCountStore | null {
   try {
     const path = indexPath();
     if (!existsSync(path)) return null;
-    const db = openIndex(path);
+    // Never migrate from a hook: an older index fails this open and ranking
+    // degrades to neutral until `cxc chat index` or a search migrates it.
+    const db = openIndex(path, { migrate: false });
     return {
       read: (refs) => readHitCounts(db, refs),
       bump: (refs) => bumpHitCounts(db, refs, new Date().toISOString()),
@@ -671,6 +682,7 @@ export function handleSessionStart(
 ): string {
   const parts: string[] = [];
   const compacted = source === "compact";
+  const envelopeBudget = compacted ? SESSION_START_CHAR_BUDGET.compact : SESSION_START_CHAR_BUDGET.full;
 
   // Auto-inject CWD context (the actual memory recovery)
   if (cwd) {
@@ -695,13 +707,18 @@ export function handleSessionStart(
   // banner nobody reads, and an unreadable store stays silent rather than claiming the
   // project has no memories. It goes BEFORE the session notice so the briefing still
   // ends on the recall pointer, which the SessionStart contract requires.
-  const memoryNotice = opts.memoryNotice ?? "";
-  if (memoryNotice) parts.push(memoryNotice);
-
   const dedicatedTools = opts.dedicatedTools ?? dedicatedToolsEnabled();
-  parts.push(sessionNotice(source, CXC(), status, dedicatedTools));
-
-  return buildContextOutput("SessionStart", parts.join("\n\n"));
+  const memoryNotice = clip(opts.memoryNotice ?? "", AUX_LINE_CHARS);
+  const clippedStatus = clip(status, AUX_LINE_CHARS);
+  // Whole-envelope budget: the cwd block is already capped, so only the optional
+  // lines can push past it. They drop first (memory notice, then index status);
+  // the closing recall pointer always stays.
+  const assemble = (notice: string, st: string): string =>
+    [...parts, ...(notice ? [notice] : []), sessionNotice(source, CXC(), st, dedicatedTools)].join("\n\n");
+  let text = assemble(memoryNotice, clippedStatus);
+  if (text.length > envelopeBudget) text = assemble("", clippedStatus);
+  if (text.length > envelopeBudget) text = assemble("", "");
+  return buildContextOutput("SessionStart", text);
 }
 
 /**

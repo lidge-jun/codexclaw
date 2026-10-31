@@ -254,7 +254,7 @@ Emoji as visual elements is the strongest AI-generated tell in 2026 frontend. Hu
 
 ## Banned Interaction Patterns
 - Generic circular loading spinners → skeleton loaders matching layout
-- Default browser focus rings → `focus-visible:ring-2`
+- Default focus rings restyled without checking → a `focus-visible` ring verified visible and unobscured (WCAG 2.4.7, 2.4.11)
 - Custom mouse cursors (outdated, accessibility issue)
 - Neon/outer glow `box-shadow` effects
 - Oversized gradient-fill text headers

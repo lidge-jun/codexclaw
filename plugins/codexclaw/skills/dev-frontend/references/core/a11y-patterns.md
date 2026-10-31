@@ -128,14 +128,14 @@ the visual system, not permission to remove the accessible path.
 
 ### Automated (CI)
 
-- axe-core or Lighthouse accessibility audit (score ≥ 90)
+- axe-core with the WCAG 2.2 tags in [WCAG 2.2 AA](wcag22-aa.md#automated-pass); a Lighthouse accessibility score is smoke only, never a conformance result
 - jest-axe / vitest-axe for component testing
 - Pa11y for page-level scanning
 
 ## Color & Visual
 
 - Never use color alone to convey meaning
-- 3:1 contrast for UI components and graphical objects
+- 3:1 contrast for component boundaries and states needed to identify them, and for meaningful graphics (1.4.11)
 - Support `forced-colors` (Windows High Contrast)
 - Support `prefers-contrast: more`
 

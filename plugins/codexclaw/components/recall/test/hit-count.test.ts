@@ -259,18 +259,20 @@ test.after(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-test("the table arrives without moving the schema version", () => {
-  assert.equal(INDEX_SCHEMA_VERSION, "2", "a bump re-parses the entire corpus (12GB measured)");
+test("a fresh index is created at the current schema with the hit-count table", () => {
+  assert.equal(INDEX_SCHEMA_VERSION, "3");
   const db = openIndex(idx);
   try {
     const version = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as
       | { value: string }
       | undefined;
-    assert.equal(version?.value, "2");
+    assert.equal(version?.value, "3");
     const table = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'recall_hit_counts'")
       .get();
-    assert.ok(table, "CREATE TABLE IF NOT EXISTS added it in place");
+    assert.ok(table);
+    const autoVacuum = db.prepare("PRAGMA auto_vacuum").get() as { auto_vacuum: number };
+    assert.equal(autoVacuum.auto_vacuum, 2, "INCREMENTAL, so evicted pages return to the filesystem");
   } finally {
     db.close();
   }

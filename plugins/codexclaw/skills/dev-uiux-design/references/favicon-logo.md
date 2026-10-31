@@ -149,7 +149,7 @@ Universal UX convention. Implementation:
 Rules:
 - Left-align (LTR). Always link to `/`.
 - Use SVG for the logo image when possible.
-- Click target: minimum 44x44px (WCAG 2.2 AAA). Pad with CSS if the logo is smaller.
+- Click target: 44x44px, the codexclaw touch baseline and the 2.5.5 (AAA) size; the AA floor is 24x24px under 2.5.8 ([WCAG 2.2 AA](../../dev-frontend/references/core/wcag22-aa.md)). Pad with CSS if the logo is smaller.
 - If the logo is the only content identifying the company, `alt` must name the org.
 - If adjacent text already names the org, use `alt=""` (decorative).
 
@@ -316,7 +316,7 @@ Never place a large isolated logo as the centerpiece of a 404 page — users rea
 - Lottie for complex animations adds 50-250KB. Only justified for splash screens.
 - Keep animated SVGs under 10KB.
 
-**`prefers-reduced-motion` is mandatory (WCAG 2.1 AA):**
+**`prefers-reduced-motion` is mandatory (codexclaw rule; WCAG 2.3.3 is AAA, see [product rules beyond AA](../../dev-frontend/references/core/wcag22-aa.md#product-rules-beyond-aa)):**
 
 ```css
 .logo-animated { animation: logo-entrance 1.2s ease-out; }

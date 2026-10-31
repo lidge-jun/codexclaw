@@ -128,6 +128,8 @@ import { dimensionsBackedByAnswers } from "./interview-ledger.js";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.js";
 import { resetRenderLedger } from "./render-observations.js";
 
+import { prRecordSince, readPrRecord } from "./pr-record.js";
+import { capturePlanEntry, describePlanRemedy, describePlanUnchanged, planDeltaSince } from "./plan-delta.js";
 import {
   appendLedger,
   findForeignSessionCopies,
@@ -699,6 +701,8 @@ export function runOrchestrateCli(args                                          
   // Advisory limits, stated plainly: committing work made in P also changes HEAD
   // and passes, a shared worktree attributes another session's edits to this one,
   // and no git means no opinion. It is a supporting signal, not the main defence.
+  // #315: set when B>C is accepted on the plan unit alone; recorded on the ledger row.
+  let planDelta                                    = null;
   if (state.phase === "B" && to === "C" && !state.phaseEntrySource
       && resolveSessionSource(args.cwd, sessionId) !== args.cwd) {
     return { code: 1, output: "orchestrate C: SOURCE-ROOT: bound source has no valid B baseline. Re-plan before continuing." };
@@ -709,10 +713,17 @@ export function runOrchestrateCli(args                                          
       return { code: 1, output: "orchestrate C: SOURCE-ROOT: source binding changed since B began. Re-plan and capture a new baseline; nothing was written." };
     }
     const cmp = compareSource(state.phaseEntrySource, now);
-    if (cmp.kind === "same") {
+    // A merged/green PR recorded during this B is the implementation record even
+    // when the checkout no longer differs (the change already landed).
+    // #315: so is a changed plan unit, which is how a repository that keeps its plans
+    // outside the commit shows the work of a docs-only roadmap cycle.
+    if (cmp.kind === "same" && !prRecordSince(readPrRecord(args.cwd, sessionId), state.phaseEntrySource.capturedAt)) {
+      planDelta = planDeltaSince(state.phaseEntryPlan ?? null);
+    }
+    if (cmp.kind === "same" && !planDelta && !prRecordSince(readPrRecord(args.cwd, sessionId), state.phaseEntrySource.capturedAt)) {
       return {
         code: 1,
-        output: `orchestrate C: ${renderPhaseContext(state, sessionId)}; the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). Implement inside B rather than carrying earlier work across the edge. Nothing was written.`,
+        output: `orchestrate C: ${renderPhaseContext(state, sessionId)}; the source is unchanged since B began (${describeSource(now)})${describePlanUnchanged(state.phaseEntryPlan ?? null)}, so nothing was implemented in this B (SOURCE-DELTA-01).${describePlanRemedy(state.phaseEntryPlan ?? null)} Implement inside B rather than carrying earlier work across the edge, or, if this B delivered a merged or green PR, record it: \`cxc loop pr-record --session ${sessionId} --pr <url>\`. Nothing was written.`,
       };
     }
   }
@@ -1069,6 +1080,11 @@ export function runOrchestrateCli(args                                          
   // other edge so a stale snapshot cannot outlive its phase. applyHumanTransition()
   // takes no cwd, so the capture belongs here at the call site rather than inside it.
   const entrySource = result.state.phase === "B" ? captureSessionSourceIdentity(args.cwd, sessionId, { excludeCodexclawArtifacts: true }) : null;
+  // #315: record the plan unit by path and digest on the same edge. A>B takes the unit
+  // P>A bound; a C>B rework edge re-records the unit this cycle already used.
+  const entryPlan = result.state.phase === "B"
+    ? capturePlanEntry(args.cwd, state.planUnit, state.phaseEntryPlan)
+    : result.state.phase === "C" ? state.phaseEntryPlan ?? null : null;
   // 060: A carries the binding this edge just minted; entering P or I drops it, so
   // re-planning cannot leave an old approval looking current.
   const nextUnit = planBinding ? planBinding.unit : result.state.phase === "A" ? state.planUnit : null;
@@ -1117,7 +1133,7 @@ export function runOrchestrateCli(args                                          
       // Housekeeping is fail-open. The P-to-A edge continues.
     }
   }
-  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, ...(entrySource?.sourceRoot ? { boundSourceRoot: entrySource.sourceRoot } : {}), planUnit: nextUnit, planEpoch: nextEpoch, checkEpoch: nextCheckEpoch });
+  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, phaseEntryPlan: entryPlan, ...(entrySource?.sourceRoot ? { boundSourceRoot: entrySource.sourceRoot } : {}), planUnit: nextUnit, planEpoch: nextEpoch, checkEpoch: nextCheckEpoch });
   // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
   // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).
   if (result.state.phase === "P") resetRenderLedger(args.cwd);
@@ -1128,6 +1144,7 @@ export function runOrchestrateCli(args                                          
     to: result.state.phase,
     reason: "cli",
     ...(args.attest?.did ? { evidence: args.attest.did } : {}),
+    ...(planDelta ? { planDelta } : {}),
   });
   return { code: 0, output: withArchitectHint(result.state.phase, `orchestrate ${args.verb}: current=${state.phase} -> ${result.state.phase} (${state.phase} → ${result.state.phase}, session ${sessionId})`) };
 }

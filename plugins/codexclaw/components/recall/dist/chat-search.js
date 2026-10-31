@@ -25,7 +25,7 @@ import {
 } from "./rollout.js";
 import { loadThreadMeta } from "./threads-db.js";
 import { repoKeyForCwd, repoKeysEqual, readOriginUrl,                    } from "./repo-key.js";
-import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
+import { openIndex, openIndexReadOnly, indexPath, indexStatus, filesHasColumn } from "./index-db.js";
 import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET } from "./ingest.js";
 import { queryIndex,                } from "./index-search.js";
 import { expandQueryWords } from "./synonyms.js";
@@ -248,6 +248,8 @@ function searchViaIndex(
       nowMs: opts.nowMs,
     });
     if (roWarning) result.warnings.push(roWarning);
+    const trimmed = trimmedHistoryWarning(db, shared.cutoffIso);
+    if (trimmed) result.warnings.push(trimmed);
     // Freshness metadata (evaluator round-1 gap #7): how stale is what you just read?
     const status = indexStatus(db, path);
     const fresh = measureIndexFreshness(shared.home, db, 0, { budget: BANNER_FRESHNESS_BUDGET });
@@ -387,4 +389,23 @@ function contextWindow(
     out.push({ ts: entries[i].ts, role: entries[i].role, text: entries[i].text, isMatch: i === index });
   }
   return out;
+}
+
+/**
+ * Say when the size budget trimmed sessions inside the query window. The index
+ * then answers only for newer sessions, and --scan reads the raw rollouts.
+ */
+function trimmedHistoryWarning(db                                      , cutoffIso               )                {
+  try {
+    if (!filesHasColumn(db, "evicted")) return null;
+    // Last activity (mtime), not the rollout's creation date: an old rollout that
+    // was appended to this week and then evicted is inside a 7-day window.
+    const row = db.prepare("SELECT COUNT(*) AS n, MAX(mtime_ms) AS newest FROM files WHERE evicted = 1").get()                                        ;
+    const n = Number(row.n);
+    if (n === 0 || row.newest === null) return null;
+    if (cutoffIso !== null && Number(row.newest) < Date.parse(cutoffIso)) return null;
+    return `${n} older sessions were trimmed from the index by its size budget; --scan searches them`;
+  } catch {
+    return null;
+  }
 }

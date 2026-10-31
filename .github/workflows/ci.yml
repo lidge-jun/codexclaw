@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, preview, dev]
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
 
@@ -54,12 +54,15 @@ jobs:
           fi
           echo "total=$total" >> "$GITHUB_OUTPUT"
       # The tests badge is the one published count that cannot be derived from the
-      # payload, so it is checked against what the suite just measured.
+      # payload, so it is checked against what the suite just measured. Floor mode:
+      # a badge that lags behind newly added tests only prints a notice with the exact
+      # write command, and a badge that claims more tests than ran fails. The release
+      # gate still requires an exact match (#301).
       - name: Inventory and published counts
         shell: bash
         run: |
           set -euo pipefail
-          node plugins/codexclaw/scripts/inventory.mjs --check --tests "${{ steps.suite.outputs.total }}"
+          node plugins/codexclaw/scripts/inventory.mjs --check --tests "${{ steps.suite.outputs.total }}" --tests-mode floor
       - run: node plugins/codexclaw/scripts/gate.mjs
       - name: Platform smoke
         run: node plugins/codexclaw/scripts/platform-smoke.mjs

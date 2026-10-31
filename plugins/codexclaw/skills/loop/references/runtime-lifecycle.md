@@ -43,6 +43,31 @@ The guard leaves blocked status available, subject to the host's own conditions.
 Unexpected guard errors fail open; absent delivery or an allowed call proves
 neither completion nor fresh verification.
 
+When the work already shipped as a pull request that merged, or that is open with
+every check passing, record it: `cxc loop pr-record --session <id> --pr <url>`.
+The command checks the PR once with `gh` and stores it as this session's
+completion record. The gate then accepts completion with a cycle still open or a
+plan not fully ticked, and B>C accepts an unchanged source when the record was
+made during that B (SOURCE-DELTA-01). The record never covers unverified
+subagent work or a structurally broken plan. A PR that is closed, still running
+checks, or failing any check is refused and nothing is written.
+Run it from the session's checkout (or pass `--cwd`): in repo and local state mode
+the gate reads the record there, so pr-record refuses a directory that holds no
+state for the session. External mode shares the record across the origin's checkouts.
+`pr-record` needs cxc 0.2.43+. If `cxc loop --help` does not list it, the installed
+plugin is older than these skills (`cxc --version`). If the gate still denies after a
+record was written, read the denial first: unverified subagent work, unreadable state,
+a source binding or a broken plan still deny by design, and a denial that names a
+newer record means version skew. For skew, `codex plugin marketplace upgrade codexclaw`,
+re-approve the hooks Codex marks Modified, and open a new thread. Do not record the
+PR with a newer clone's CLI: the installed hooks still cannot read it.
+
+A docs-only roadmap cycle in a repository that forbids committing plans keeps
+its plan units outside the commit (`CODEXCLAW_PLANS_DIR` or `state.plansDir`;
+`cxc devlog path` shows where). B>C accepts a change to the plan unit bound at
+P>A, recorded on entry to B by path and digest, the same way it accepts a
+source change.
+
 Before waiting on dispatched work or long external processes, read
 [Waiting on work](waiting.md), the mode-neutral owner of wait and retirement rules.
 It also owns the cross-turn preflight: the Stop-continuation bounds below mean a
