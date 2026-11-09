@@ -6,6 +6,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Lane council: `check-lane-packet.mjs --council` gives every dispatch lane of a packet set four deterministic role stances before a fan-out, after [Quorum](https://github.com/tryquorum/quorum). The Reviewer rejects an objective another lane already has and holds a reworded or contained one; the CSO holds a lane whose objective or criteria ask for merge, push, a PR, deploy, release, publish, send, destroy or pay without the packet declaring it, in English or Korean, with negation such as "do not merge" scoped to the verb it governs; the CEO holds a lane with no objective. Exit 0 pass, 2 hold, 1 invalid or rejected; `--json` carries the stances with stable rule ids. Packets gain an optional `authority.outbound` list for the actions without a field of their own. `lane-dispatch.md` documents the step as LANE-COUNCIL-01. (#338)
+
 ## [0.2.46] - 2026-10-31
 
 ### Fixed

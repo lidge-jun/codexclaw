@@ -16,13 +16,18 @@
  * an explicit mode; legacy packets without it retain their address-based default.
  *
  * Usage:
- *   node check-lane-packet.mjs <packet.json|packet-set.json> [--mode dispatch|pending|bound] [--json]
+ *   node check-lane-packet.mjs <packet.json|packet-set.json> [--mode dispatch|pending|bound] [--json] [--council]
  * A packet set is { "lanes": [ <packet>, ... ] } and is additionally checked for
  * overlapping write scopes. Exit 0 = valid, 1 = invalid or unreadable.
+ *
+ * --council (LANE-COUNCIL-01) adds role stances on the dispatch lanes of a valid packet
+ * or set (lane-council.mjs, after Quorum): exit 1 when a lane is rejected, 2 when one
+ * holds, 0 when every evaluated lane passes. It is advisory like the rest of this file.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { councilLanes, FIELD_DECLARED, OUTBOUND_LIST_CATEGORIES } from "./lane-council.mjs";
 
 const text = (v) => typeof v === "string" && v.trim().length > 0;
 const list = (v) => Array.isArray(v) && v.length > 0 && v.every(text);
@@ -155,6 +160,24 @@ export function validateLanePacket(packet, { mode } = {}) {
   const openPr = authority.openPr === true;
   if (openPr && !push) errors.push("authority.openPr without authority.push: a pull request needs a pushed branch");
   if (merge && !push) errors.push("authority.merge without authority.push: a lane that cannot push cannot land its branch");
+  // Outbound actions without a field of their own. Like the fields above, a listed
+  // category records what the packet says; it grants nothing.
+  if (authority.outbound !== undefined) {
+    if (!Array.isArray(authority.outbound) || !authority.outbound.every(text)) {
+      errors.push("authority.outbound must be a list of action categories when present: " + OUTBOUND_LIST_CATEGORIES.join(", "));
+    } else {
+      const listed = new Set();
+      for (const raw of authority.outbound) {
+        const category = raw.trim();
+        if (listed.has(category)) errors.push("authority.outbound lists " + category + " twice");
+        listed.add(category);
+        if (Object.hasOwn(FIELD_DECLARED, category))
+          errors.push("authority.outbound cannot list " + category + ": " + FIELD_DECLARED[category] + " owns it");
+        else if (!OUTBOUND_LIST_CATEGORIES.includes(category))
+          errors.push("authority.outbound has unknown category " + category + "; known: " + OUTBOUND_LIST_CATEGORIES.join(", "));
+      }
+    }
+  }
 
   const reporting = packet.reporting;
   if (!object(reporting)) {
@@ -198,13 +221,41 @@ export function validateLanePacketSet(set, options = {}) {
   return { ok: errors.length === 0, errors, lanes: set.lanes.length };
 }
 
+/**
+ * Validate, then run the council on the dispatch lanes. An invalid packet or set never
+ * reaches the council. The result is the validator's own envelope plus council.
+ */
+export function councilLanePackets(parsed, options = {}) {
+  if (object(parsed) && Array.isArray(parsed.lanes)) {
+    const result = validateLanePacketSet(parsed, options);
+    if (!result.ok) return result;
+    const entries = parsed.lanes.map((packet) => ({ packet, mode: validateLanePacket(packet, options).resolved.mode }));
+    return { ...result, council: councilLanes(entries) };
+  }
+  const result = validateLanePacket(parsed, options);
+  if (!result.ok) return result;
+  return { ...result, council: councilLanes([{ packet: parsed, mode: result.resolved.mode }]) };
+}
+
+const councilExit = (council) => (council.reject.length ? 1 : council.hold.length ? 2 : 0);
+
+function councilText(council) {
+  const lines = ["[codexclaw lane-council] rules v" + council.rulesVersion + ": pass=" + council.pass.length + " hold=" + council.hold.length + " reject=" + council.reject.length + " not-evaluated=" + council.notEvaluated.length];
+  for (const v of council.verdicts) {
+    if (v.decision !== "hold" && v.decision !== "reject") continue;
+    for (const s of v.stances.filter((s) => s.stance !== "keep"))
+      lines.push("  " + v.decision.toUpperCase() + " " + v.lane + ": " + s.rule + " (" + s.role + ") " + s.reason);
+  }
+  return lines.join("\n");
+}
+
 // Windows argv carries backslashes, so comparing basenames split on "/" silently decides
 // the CLI was never invoked and the process exits 0 with no output. Compare URLs instead.
 const invoked = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 if (invoked) {
   const args = process.argv.slice(2);
   try {
-    let file, mode, json = false;
+    let file, mode, json = false, council = false;
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
       if (arg === "--mode") {
@@ -214,6 +265,9 @@ if (invoked) {
       } else if (arg === "--json") {
         if (json) throw new Error("duplicate --json option");
         json = true;
+      } else if (arg === "--council") {
+        if (council) throw new Error("duplicate --council option");
+        council = true;
       } else if (arg.startsWith("-")) {
         throw new Error("unknown option: " + arg);
       } else {
@@ -221,13 +275,21 @@ if (invoked) {
         file = arg;
       }
     }
-    if (!file) throw new Error("usage: node check-lane-packet.mjs <packet.json> [--mode dispatch|pending|bound] [--json]");
+    if (!file) throw new Error("usage: node check-lane-packet.mjs <packet.json> [--mode dispatch|pending|bound] [--json] [--council]");
     const parsed = JSON.parse(readFileSync(file, "utf8"));
+    if (council) {
+      const result = councilLanePackets(parsed, { mode });
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else if (!result.ok) console.error("[codexclaw lane-packet] FAIL\n" + result.errors.map((e) => "  - " + e).join("\n"));
+      else console.log(councilText(result.council));
+      process.exitCode = result.ok ? councilExit(result.council) : 1;
+    } else {
     const result = Array.isArray(parsed?.lanes) ? validateLanePacketSet(parsed, { mode }) : validateLanePacket(parsed, { mode });
     if (json) console.log(JSON.stringify(result, null, 2));
     else if (result.ok) console.log("[codexclaw lane-packet] OK" + (result.resolved ? " mode=" + result.resolved.mode : ""));
     else console.error("[codexclaw lane-packet] FAIL\n" + result.errors.map((e) => "  - " + e).join("\n"));
     process.exitCode = result.ok ? 0 : 1;
+    }
   } catch (error) {
     console.error("[codexclaw lane-packet] " + error.message);
     process.exitCode = 1;

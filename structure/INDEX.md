@@ -377,3 +377,9 @@ The lane packet validator distinguishes pre-creation `dispatch`, observed creati
 with unresolved canonical ID (`pending`), and canonical `bound` addresses. Pending
 records retain creation metadata but cannot supply a tool address or authorize a
 second creation. The validator is a local contract check, not a host ID resolver.
+
+With `--council` (LANE-COUNCIL-01, `scripts/lane-council.mjs`, after Quorum) the same
+script gives each `dispatch` lane of a valid set deterministic CEO, Reviewer, QA and CSO
+stances: duplicate objectives reject, near duplicates and undeclared outbound actions
+(`authority.merge/push/openPr`, `authority.outbound`) hold. It is an advisory preflight,
+the same tier as the validator.

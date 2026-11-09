@@ -50,6 +50,7 @@ coordinator's files or inherited history. Its creation prompt or fork follow-up 
 | `authority.loop` | Default false. False means work and report |
 | `authority.push`, `authority.openPr` | Default false. A pull request needs a pushed branch, and merge needs both |
 | `authority.merge`, `authority.mergeTarget` | Default false. See below |
+| `authority.outbound[]` | Optional. Actions outside the checkout the user approved for this lane: `deploy`, `release`, `publish`, `send`, `destroy`, `pay`. Merge, push and PR keep their own fields |
 | `reporting.evidence[]`, `reporting.onBlocked` | What must come back, and what to do instead of guessing |
 
 A packet has three states. `dispatch` is before creation and cannot carry creation
@@ -150,7 +151,39 @@ Managed-worktree retention is in the host envelope: archive cleanup may delete
 or transfer a checkout. Preserve work through an authorized landing or push;
 never rely on an unowned worktree as the only copy.
 
+## LANE-COUNCIL-01 (DEFAULT) — role stances before a fan-out
+
+Before creating two or more lanes, run the packet set through
+`check-lane-packet.mjs <set.json> --council` (after
+[Quorum](https://github.com/tryquorum/quorum)). Every `dispatch` lane gets four
+deterministic stances; `pending` and `bound` lanes are not evaluated but count as
+lanes a new one must not repeat.
+
+| Role | Holds or rejects when |
+|---|---|
+| CEO | hold: no `work.objective`, so nobody can tell whether the lane is needed |
+| Reviewer | reject: the objective equals another lane's after case, spacing and punctuation are removed; hold: it is 80% similar by character bigrams (Quorum uses 60% on short Korean titles; English objectives share more bigrams) or one contains the other and the shorter has at least 12 characters |
+| QA | never; it names the field that defines done |
+| CSO | hold: the objective or criteria ask for merge, push, a PR, deploy, release, publish, send, destroy or pay, and the packet does not declare it |
+
+Dispatch pass lanes. Rewrite a rejected lane: fold it into the lane it repeats or split
+the objective. A CEO or Reviewer hold is the coordinator's to settle by writing or
+sharpening the objective. A CSO hold is the user's: ask once for every held lane in the
+set, then record the answer in `authority` and run the council again. Declaring an action
+records the user's answer; the council never treats its own pass as approval. Exit 0 =
+all evaluated lanes pass, 2 = some hold, 1 = invalid or some rejected; `--json` adds
+`council` with `rulesVersion` and a stable `rule` id per stance.
+
+Matching is lexical, English and Korean. A negation that governs the verb ("do not
+merge", "병합은 하지 마요", "merge is not allowed") suppresses that one mention only. A verb
+followed within two words by a code noun ("the delete endpoint", "send a request",
+"결제 모듈") names code, not an action. Unclear wording holds; the cost of a false hold is one
+rewrite or question.
+
 ## Known limitation
 
 The packet validator checks record coherence; it neither intercepts dispatch nor
-enforces prose authorization at the orchestration boundary.
+enforces prose authorization at the orchestration boundary. The council is an advisory
+preflight of the same kind: it reads only packet fields, so wording placed elsewhere in a
+creation prompt escapes it, and semantic duplicates below the similarity line need a
+reviewer.
