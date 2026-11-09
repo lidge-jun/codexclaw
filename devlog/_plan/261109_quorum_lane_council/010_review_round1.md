@@ -44,3 +44,15 @@ No design decision (D1-D9: module role, data shape, interface, flow) changes; th
 tunes rule data and adds tests, so the architect is not reinvoked (phase-audit.md,
 "Architect recheck after audit amendments"). The audit input is the PR review itself;
 its closure is re-checked by the same reviewer after the fixes (DISPATCH-ACTOR-01).
+
+## Result
+
+Red first: the four new tests failed on 84982d3 (16 tests, 4 fail). Green at 0cedf470:
+`lane-council.test.mjs` 16/16, `gate.mjs` OK, `check-prompt-architecture.mjs` OK, smoke set
+unchanged (exit 2, same two holds). One adjustment during B: `step` left the code-noun list
+because it suppressed "never skip the deploy step", and `submit` uses a next-word guard so
+"submit the application form" still holds while "submit button" does not.
+
+Still true: matching is lexical. The guard trades a class of false holds for misses where a
+real action's object happens to be a code noun within two words ("send the error report
+to the vendor" passes). Closure goes back to the same reviewer.
