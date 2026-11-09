@@ -81,6 +81,10 @@ const verb = (forms) => en("\\b(?:" + forms + ")\\b" + NOT_CODE);
 // Submitting reaches a form through its object ("submit the application form"), so only a
 // code noun right after it ("submit button") makes it code.
 const NOT_CODE_NEXT = "(?![-\\s]+(?:" + CODE_NOUNS + ")\\b)";
+// Deploying or deleting code is still a deploy or a deletion ("deploy the script to
+// staging", "delete the helpers directory"); only the modifier use right before a code noun
+// ("the delete endpoint", "a deploy script") names code.
+const modifierVerb = (forms) => en("\\b(?:" + forms + ")\\b" + NOT_CODE_NEXT);
 
 /**
  * Wording that asks a lane to act outside its checkout. Word boundaries keep camelCase
@@ -101,7 +105,7 @@ const PATTERNS = {
     new RegExp("\\bPR\\s*(?:을|를)?\\s*(?:올리|올려|열|생성)", "giu"),
   ],
   deploy: [
-    verb("deploy|deploys|deployed|deploying|deployment"),
+    modifierVerb("deploy|deploys|deployed|deploying|deployment"),
     en("\\broll(?:s|ed|ing)?[- ]?out\\b"),
     en("\\bgo(?:es)?\\s+live\\b"),
     verb("ship|ships|shipped|shipping"),
@@ -132,7 +136,7 @@ const PATTERNS = {
     ko("보내", "보낸", "전송", "발송", "제출", "신청"),
   ],
   destroy: [
-    verb("delete|deletes|deleted|deleting|destroy|destroys|destroyed|destroying"),
+    modifierVerb("delete|deletes|deleted|deleting|destroy|destroys|destroyed|destroying"),
     en("\\bdrop(?:s|ped|ping)?\\s+(?:the\\s+)?(?:\\w+\\s+)?(?:table|database|schema|column|collection)s?\\b"),
     en("\\brm\\s+-[a-z]*r"),
     en("\\b(?:wipe|wipes|wiped|wiping|purge|purges|purged|purging)\\b"),

@@ -59,3 +59,14 @@ error and similar left the list; a test pins five such sentences as holds (red o
 17/17 green after). Still true: matching is lexical, and a real action whose object is a
 code-only noun within two words ("send the config to the vendor") passes. Closure goes back
 to the same reviewer.
+
+## Round 2 (same reviewer, continueFrom): GO-WITH-FIXES (blockers=0)
+
+Blockers 1 and 2 confirmed closed; rebuttals on cache clearing, re-validation and
+force-push accepted. Of the two new Mediums, re-probing showed part of the cited phrases
+already held ("deploy the form", "delete the cache file") and duplicate outbound entries
+are refused (finding 13 is closed; a test pins it). The class was real: "deploy the script
+to staging", "deploy the hooks to production", "delete the helpers directory" and "destroy
+the components" passed. Deploy and delete/destroy now use the next-word guard only (the
+modifier use, "the delete endpoint"), pinned by a test that failed first (18 tests, 1 fail)
+and passes now (18/18). "삭제: 버튼" not holding is the intended KO guard behaviour.

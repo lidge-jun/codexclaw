@@ -243,3 +243,8 @@ test("the code-object guard does not swallow real objects", () => {
   for (const phrase of ["send the error report to the vendor", "send the results to the client", "send the list to the team", "publish the results", "delete the form submissions"])
     assert.ok(outboundMentions(phrase).length > 0, phrase);
 });
+
+test("deploy and destroy stay actions when their object is code", () => {
+  for (const [phrase, category] of [["deploy the script to staging", "deploy"], ["deploy the hooks to production", "deploy"], ["delete the helpers directory", "destroy"], ["destroy the components", "destroy"]])
+    assert.ok(outboundMentions(phrase).some((m) => m.category === category), phrase);
+});
