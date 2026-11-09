@@ -162,7 +162,7 @@ lanes a new one must not repeat.
 | Role | Holds or rejects when |
 |---|---|
 | CEO | hold: no `work.objective`, so nobody can tell whether the lane is needed |
-| Reviewer | reject: the normalized objective equals another lane's; hold: it is 80% similar (character bigrams) or contains the other |
+| Reviewer | reject: the objective equals another lane's after case, spacing and punctuation are removed; hold: it is 80% similar by character bigrams (Quorum uses 60% on short Korean titles; English objectives share more bigrams) or one contains the other and the shorter has at least 12 characters |
 | QA | never; it names the field that defines done |
 | CSO | hold: the objective or criteria ask for merge, push, a PR, deploy, release, publish, send, destroy or pay, and the packet does not declare it |
 
@@ -175,8 +175,9 @@ all evaluated lanes pass, 2 = some hold, 1 = invalid or some rejected; `--json` 
 `council` with `rulesVersion` and a stable `rule` id per stance.
 
 Matching is lexical, English and Korean. A negation that governs the verb ("do not
-merge", "병합은 하지 마요") suppresses that one mention only, and code nouns ("release
-notes", "결제 모듈") are not actions. Unclear wording holds; the cost of a false hold is one
+merge", "병합은 하지 마요", "merge is not allowed") suppresses that one mention only. A verb
+followed within two words by a code noun ("the delete endpoint", "send a request",
+"결제 모듈") names code, not an action. Unclear wording holds; the cost of a false hold is one
 rewrite or question.
 
 ## Known limitation

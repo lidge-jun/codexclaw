@@ -50,7 +50,7 @@ the coordinator runs and follows.
 
 | ID | Decision | Disposition |
 |---|---|---|
-| D1 | Pure module `scripts/lane-council.mjs` (`councilLane`, `councilLaneSet`), no I/O; CLI validates first, invalid exits 1 before the council | accept |
+| D1 | Pure module `scripts/lane-council.mjs` (`councilLane`, `councilLanes`; the CLI entry is `councilLanePackets` in check-lane-packet.mjs), no I/O; CLI validates first, invalid exits 1 before the council | accept |
 | D2 | Only `dispatch` packets receive verdicts; `pending`/`bound` lanes already exist and are reported `not-evaluated`, but they are Reviewer peers: a dispatch lane is compared with every created lane and with the dispatch lanes before it | accept (audit M2 wording) |
 | D3 | `{lane, decision, stances[{role, stance, rule, reason}]}` plus `rulesVersion`; stable rule ids | accept |
 | D4 | `authority.outbound` is validated by `validateLanePacket`: known categories only; `merge`, `push`, `pr` refused there because `authority.merge/push/openPr` own them | accept |

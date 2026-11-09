@@ -62,10 +62,23 @@ export function similarity(a, b) {
 }
 
 // A Korean action noun followed by a code noun names code, not an action: "결제 모듈
-// 리팩터" refactors the payment module; "결제" alone pays.
-const KO_NOT_ACTION = "(?!\\s*(?:모듈|기능|화면|로직|코드|버그|테스트|페이지|버튼|흐름|폼|내역|로그|설정|스크립트|단계|노트|문서|알림|API|api))";
+// 리팩터" refactors the payment module, "게시판" is a board, "전송 속도" is a speed; "결제"
+// alone pays. A colon or dash between the two words does not change that.
+const KO_NOT_ACTION = "(?![\\s:·-]*(?:모듈|기능|화면|로직|코드|버그|테스트|페이지|버튼|흐름|폼|내역|로그|설정|스크립트|단계|노트|문서|알림|판|물|속도|목록|상태|이력|방식|형식|실패|오류|에러|함수|핸들러|엔드포인트|큐|API|api))";
 const ko = (...words) => new RegExp("(?:" + words.join("|") + ")" + KO_NOT_ACTION, "gu");
 const en = (source) => new RegExp(source, "giu");
+
+// English verbs that double as code words ("the delete endpoint", "send a request",
+// "publish the type definitions", "merge the two arrays", "pay attention") are not actions
+// when a code noun follows within two words. Deploy targets (docs, site, page, app) and
+// "step" are left off this list on purpose: "deploy the docs site" is a deploy, and "never
+// skip the deploy step" asks for one.
+const CODE_NOUNS = "endpoints?|buttons?|keys?|handlers?|requests?|validation|validators?|events?|methods?|functions?|routes?|quer(?:y|ies)|flags?|logic|modals?|dialogs?|forms?|fields?|icons?|hooks?|utils?|helpers?|types?|typings|definitions?|configs?|attention|arrays?|lists?|objects?|maps?|dicts?|results?|components?|specs?|scripts?|sort|conflicts?|queues?|base|notifications?|speed|rate|timeouts?|retr(?:y|ies)|errors?|counters?|payloads?";
+const NOT_CODE = "(?![-\\s]+(?:[\\w'-]+\\s+){0,2}?(?:" + CODE_NOUNS + ")\\b)";
+const verb = (forms) => en("\\b(?:" + forms + ")\\b" + NOT_CODE);
+// Submitting reaches a form through its object ("submit the application form"), so only a
+// code noun right after it ("submit button") makes it code.
+const NOT_CODE_NEXT = "(?![-\\s]+(?:" + CODE_NOUNS + ")\\b)";
 
 /**
  * Wording that asks a lane to act outside its checkout. Word boundaries keep camelCase
@@ -74,69 +87,80 @@ const en = (source) => new RegExp(source, "giu");
  */
 const PATTERNS = {
   merge: [
-    en("\\bmerg(?:e|es|ed|ing)\\b(?!\\s+(?:conflicts?|sort|queue|base)\\b)"),
-    en("\\bland(?:s|ed|ing)?\\s+(?:the\\s+|this\\s+|that\\s+|a\\s+)?(?:branch|pr|pull\\s+request|change|fix|patch)\\b"),
+    verb("merge|merges|merged|merging"),
+    en("\\bgh\\s+pr\\s+merge\\b"),
+    en("\\bland(?:s|ed|ing)?\\s+(?:the\\s+|this\\s+|that\\s+|these\\s+|a\\s+)?(?:branch(?:es)?|prs?|pull\\s+requests?|changes?|commits?|fix(?:es)?|patch(?:es)?|work)\\b"),
     ko("머지", "병합"),
   ],
-  push: [en("\\bpush(?:es|ed|ing)?\\b(?!\\s+notifications?\\b)"), ko("푸시")],
+  push: [verb("push|pushes|pushed|pushing"), ko("푸시")],
   pr: [
     en("\\b(?:open|opens|opened|opening|create|creates|created|creating|file|raise|submit)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:draft\\s+)?(?:pr|pull\\s+request)s?\\b"),
+    en("\\bgh\\s+pr\\s+create\\b"),
     new RegExp("\\bPR\\s*(?:을|를)?\\s*(?:올리|올려|열|생성)", "giu"),
   ],
   deploy: [
-    en("\\bdeploy(?:s|ed|ing|ment)?\\b"),
+    verb("deploy|deploys|deployed|deploying|deployment"),
     en("\\broll(?:s|ed|ing)?[- ]?out\\b"),
     en("\\bgo(?:es)?\\s+live\\b"),
-    en("\\bship(?:s|ped|ping)?\\b"),
+    verb("ship|ships|shipped|shipping"),
+    en("\\bupload(?:s|ed|ing)?\\b[^.;\\n]{0,30}?\\bto\\s+(?:prod|production|staging|live|s3|npm|pypi|the\\s+(?:server|store))\\b"),
+    en("\\breleas(?:e|es|ed|ing)\\s+(?:it\\s+|this\\s+|them\\s+|the\\s+[\\w-]+\\s+)?to\\s+(?:prod|production|staging|users|customers)\\b"),
     ko("배포"),
   ],
   release: [
     en("\\b(?:cut|cuts|publish|tag|create|draft|make)\\s+(?:a\\s+|an\\s+|the\\s+)?(?:new\\s+)?release\\b"),
+    en("\\bgh\\s+release\\s+create\\b"),
     en("\\bgit\\s+tag\\b"),
     en("\\btag(?:s|ged|ging)?\\s+v?\\d"),
     ko("릴리스", "릴리즈"),
   ],
-  publish: [en("\\bpublish(?:es|ed|ing)?\\b"), ko("게시", "발행")],
+  publish: [verb("publish|publishes|published|publishing"), ko("게시", "발행")],
   send: [
-    en("\\bsend(?:s|ing)?\\b"),
+    verb("send|sends|sending|sent"),
     en("\\be-?mail(?:s|ed|ing)?\\s+(?:to|the|a|an|them|him|her)\\b"),
+    en("\\be-?mailed\\b"),
     en("\\bpost(?:s|ed|ing)?\\b[^.;\\n]{0,40}?\\b(?:to|on|in)\\s+(?:slack|discord|teams|twitter|x|linkedin|reddit|github|the\\s+(?:channel|issue|pr|pull\\s+request|forum|thread))\\b"),
     en("\\bapprov(?:e|es|ed|ing)\\s+(?:the\\s+|this\\s+|a\\s+)?(?:pr|pull\\s+request)\\b"),
     en("\\bcomment(?:s|ed|ing)?\\s+on\\s+(?:the\\s+|this\\s+|a\\s+)?(?:pr|pull\\s+request|issue)\\b"),
     // Quorum also holds submit/apply/dm. "submit a PR" is the pr category, and bare
     // "apply" is left out: "apply the patch" is everyday lane wording.
-    en("\\bsubmit(?:s|ted|ting)?\\b(?!\\s+(?:a\\s+|an\\s+|the\\s+)?(?:draft\\s+)?(?:pr|pull\\s+request)s?\\b)"),
+    en("\\bsubmit(?:s|ted|ting)?\\b(?!\\s+(?:a\\s+|an\\s+|the\\s+)?(?:draft\\s+)?(?:pr|pull\\s+request)s?\\b)" + NOT_CODE_NEXT),
     en("\\bappl(?:y|ies|ied|ying)\\s+for\\b"),
-    en("\\bdms?\\b"),
+    en("\\bdms?\\s+(?:the\\s+|a\\s+|an\\s+)?@?\\w"),
     ko("보내", "보낸", "전송", "발송", "제출", "신청"),
   ],
   destroy: [
-    en("\\bdelet(?:e|es|ed|ing)\\b"),
+    verb("delete|deletes|deleted|deleting|destroy|destroys|destroyed|destroying"),
     en("\\bdrop(?:s|ped|ping)?\\s+(?:the\\s+)?(?:\\w+\\s+)?(?:table|database|schema|column|collection)s?\\b"),
     en("\\brm\\s+-[a-z]*r"),
     en("\\b(?:wipe|wipes|wiped|wiping|purge|purges|purged|purging)\\b"),
     en("\\breset\\s+--hard\\b|\\b(?:hard|state)\\s+reset\\b|\\breset\\s+(?:the\\s+)?(?:state|database|db)\\b"),
+    // cxc-dev Safety Rules list cache clearing as Destruction (ESCALATE).
     en("\\bclear(?:s|ed|ing)?\\s+(?:the\\s+)?(?:\\w+\\s+)?caches?\\b"),
     en("\\bforce[- ]?push(?:es|ed|ing)?\\b|\\bpush\\s+(?:--force|-f)\\b"),
     ko("삭제", "초기화", "지우", "지워"),
   ],
   pay: [
-    en("\\b(?:pay|pays|paid|paying|purchase|purchases|purchased|purchasing|buy|buys|bought|buying)\\b"),
+    verb("pay|pays|paid|paying|purchase|purchases|purchased|purchasing|buy|buys|bought|buying"),
     en("\\btransfer(?:s|red|ring)?\\s+(?:the\\s+)?(?:funds|money|payments?)\\b"),
     ko("결제", "구매", "송금"),
   ],
 };
 
 // Negation counts only when it governs this one verb: directly before it in English
-// ("do not merge", "never deploy", "without publishing"), directly after it in Korean
-// ("병합은 하지 마요", "배포 금지"). "never skip the deploy step" and "do not merge until CI
-// passes, then merge" still hold, because another mention stands un-negated.
-const EN_NEGATION_BEFORE = /(?:\b(?:do|does|did|must|should|shall|will|can|could|may)\s+not|\b(?:don['’]t|doesn['’]t|didn['’]t|mustn['’]t|shouldn['’]t|won['’]t|can['’]t|cannot|never|not|without|no)|\bavoid)\s+$/iu;
+// ("do not merge", "never deploy", "make sure not to deploy", "dont publish"), directly
+// after it in English ("merge is not allowed") and Korean ("병합은 하지 마요", "배포 금지").
+// "never skip the deploy step" and "do not merge until CI passes, then merge" still hold,
+// because another mention stands un-negated.
+const EN_NEGATION_BEFORE = /(?:\b(?:do|does|did|must|should|shall|will|can|could|may)\s+not|\b(?:don['’]?t|doesn['’]?t|didn['’]?t|mustn['’]?t|shouldn['’]?t|won['’]?t|can['’]?t|cannot|never|not|without|no)|\bavoid)\s+(?:to\s+)?$/iu;
+const EN_NEGATION_AFTER = /^\s+(?:is|are|was|stays?|remains?)\s+(?:not\s+allowed|forbidden|prohibited|out\s+of\s+scope|not\s+in\s+scope|off[- ]limits)\b/iu;
 const KO_NEGATION_AFTER = /^\s*(?:은|는|을|를|도|만)?\s*(?:(?:하지|지)\s*(?:마|말|않)|금지|안\s*(?:함|해|한다|하)|(?:하면|해서는)\s*안\s*(?:돼|되|됨|된다))/u;
 
 function negated(text, start, end) {
-  return EN_NEGATION_BEFORE.test(text.slice(Math.max(0, start - 40), start)) || KO_NEGATION_AFTER.test(text.slice(end, end + 24));
+  const after = text.slice(end, end + 32);
+  return EN_NEGATION_BEFORE.test(text.slice(Math.max(0, start - 40), start)) || EN_NEGATION_AFTER.test(after) || KO_NEGATION_AFTER.test(after);
 }
+
 
 /** Un-negated outbound mentions in text: one entry per category, first match kept. */
 export function outboundMentions(value) {
@@ -225,6 +249,7 @@ export function decide(stances) {
  * must not repeat: [{ lane, objective }].
  */
 export function councilLane(packet, peers = []) {
+  if (!filled(packet?.lane)) throw new TypeError("councilLane needs a validated packet with a lane id; run validateLanePacket first");
   const stances = [...ceo(packet), ...reviewer(packet, peers), ...qa(packet), ...cso(packet)];
   return { lane: packet.lane.trim(), decision: decide(stances), stances };
 }

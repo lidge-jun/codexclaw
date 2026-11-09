@@ -166,9 +166,12 @@ export function validateLanePacket(packet, { mode } = {}) {
     if (!Array.isArray(authority.outbound) || !authority.outbound.every(text)) {
       errors.push("authority.outbound must be a list of action categories when present: " + OUTBOUND_LIST_CATEGORIES.join(", "));
     } else {
+      const listed = new Set();
       for (const raw of authority.outbound) {
         const category = raw.trim();
-        if (category in FIELD_DECLARED)
+        if (listed.has(category)) errors.push("authority.outbound lists " + category + " twice");
+        listed.add(category);
+        if (Object.hasOwn(FIELD_DECLARED, category))
           errors.push("authority.outbound cannot list " + category + ": " + FIELD_DECLARED[category] + " owns it");
         else if (!OUTBOUND_LIST_CATEGORIES.includes(category))
           errors.push("authority.outbound has unknown category " + category + "; known: " + OUTBOUND_LIST_CATEGORIES.join(", "));

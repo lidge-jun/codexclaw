@@ -6,7 +6,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { validateLanePacket, validateLanePacketSet, councilLanePackets } from "../scripts/check-lane-packet.mjs";
-import { outboundMentions, similarity, NEAR_DUPLICATE, RULES_VERSION } from "../scripts/lane-council.mjs";
+import { councilLane, outboundMentions, similarity, NEAR_DUPLICATE, RULES_VERSION } from "../scripts/lane-council.mjs";
 
 // LANE-COUNCIL-01: role stances on dispatch packets before a fan-out, after Quorum
 // (tryquorum/quorum rules.ts decide(), dedup.ts). These pin the verdicts a coordinator acts
@@ -197,3 +197,44 @@ test("CLI: --council exits 0 pass, 2 hold, 1 reject or invalid; without it nothi
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+
+// PR review round 1 (#339): everyday dev wording must not hold, and the destructive and
+// outbound wording the first lists missed must.
+const MUST_PASS = [
+  "fix the delete endpoint", "add a delete button", "delete key handler", "send a request to the server",
+  "send email validation", "publish the type definitions", "publish eslint config", "pay attention to errors",
+  "ship the feature flag code", "merge the two arrays in the util", "push the button in the UI", "submit button",
+  "dm", "게시판 글 목록", "전송 속도 개선", "결제: 모듈 정리", "make sure not to deploy", "dont merge",
+  "cant publish yet", "merge is not allowed", "deploy is out of scope",
+];
+const MUST_HOLD = {
+  destroy: ["destroy the environment", "destroyed caches", "clear the npm cache"],
+  send: ["sent the summary", "emailed summary"],
+  pr: ["gh pr create --fill"],
+  merge: ["gh pr merge 12", "land the changes", "do not forget to merge the PR"],
+  release: ["gh release create v2"],
+  deploy: ["upload to prod", "release it to production"],
+};
+
+test("everyday dev wording does not hold", () => {
+  for (const phrase of MUST_PASS) assert.deepEqual(outboundMentions(phrase), [], phrase);
+});
+
+test("destructive and outbound wording the first lists missed holds", () => {
+  for (const [category, phrases] of Object.entries(MUST_HOLD))
+    for (const phrase of phrases)
+      assert.ok(outboundMentions(phrase).some((m) => m.category === category), category + ": " + phrase + " -> " + JSON.stringify(outboundMentions(phrase)));
+});
+
+test("authority.outbound refuses inherited names and repeated entries", () => {
+  for (const outbound of [["toString"], ["constructor"], ["deploy", "deploy"]]) {
+    const p = lane("x"); p.authority = { outbound };
+    const r = validateLanePacket(p);
+    assert.equal(r.ok, false, JSON.stringify(outbound));
+    assert.doesNotMatch(r.errors.join(" "), /native code/);
+  }
+});
+
+test("councilLane refuses a packet without a lane id with a contract error", () => {
+  assert.throws(() => councilLane({ work: { objective: "x" } }), /validated packet/);
+});
