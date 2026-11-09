@@ -238,3 +238,8 @@ test("authority.outbound refuses inherited names and repeated entries", () => {
 test("councilLane refuses a packet without a lane id with a contract error", () => {
   assert.throws(() => councilLane({ work: { objective: "x" } }), /validated packet/);
 });
+
+test("the code-object guard does not swallow real objects", () => {
+  for (const phrase of ["send the error report to the vendor", "send the results to the client", "send the list to the team", "publish the results", "delete the form submissions"])
+    assert.ok(outboundMentions(phrase).length > 0, phrase);
+});

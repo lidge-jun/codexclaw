@@ -53,6 +53,9 @@ unchanged (exit 2, same two holds). One adjustment during B: `step` left the cod
 because it suppressed "never skip the deploy step", and `submit` uses a next-word guard so
 "submit the application form" still holds while "submit button" does not.
 
-Still true: matching is lexical. The guard trades a class of false holds for misses where a
-real action's object happens to be a code noun within two words ("send the error report
-to the vendor" passes). Closure goes back to the same reviewer.
+Follow-up (C1, same unit): the first guard list held nouns a real action also takes as its
+object, so "send the error report to the vendor" passed. Report, results, list, form,
+error and similar left the list; a test pins five such sentences as holds (red on 0cedf470,
+17/17 green after). Still true: matching is lexical, and a real action whose object is a
+code-only noun within two words ("send the config to the vendor") passes. Closure goes back
+to the same reviewer.

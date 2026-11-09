@@ -73,7 +73,9 @@ const en = (source) => new RegExp(source, "giu");
 // when a code noun follows within two words. Deploy targets (docs, site, page, app) and
 // "step" are left off this list on purpose: "deploy the docs site" is a deploy, and "never
 // skip the deploy step" asks for one.
-const CODE_NOUNS = "endpoints?|buttons?|keys?|handlers?|requests?|validation|validators?|events?|methods?|functions?|routes?|quer(?:y|ies)|flags?|logic|modals?|dialogs?|forms?|fields?|icons?|hooks?|utils?|helpers?|types?|typings|definitions?|configs?|attention|arrays?|lists?|objects?|maps?|dicts?|results?|components?|specs?|scripts?|sort|conflicts?|queues?|base|notifications?|speed|rate|timeouts?|retr(?:y|ies)|errors?|counters?|payloads?";
+// Nouns a real action also takes as its object (report, results, list, form, error) stay
+// off: "send the error report to the vendor" must hold.
+const CODE_NOUNS = "endpoints?|buttons?|keys?|handlers?|requests?|validation|validators?|events?|methods?|functions?|routes?|quer(?:y|ies)|flags?|logic|modals?|dialogs?|fields?|icons?|hooks?|utils?|helpers?|types?|typings|definitions?|configs?|attention|arrays?|objects?|maps?|dicts?|components?|scripts?|sort|conflicts?|queues?|base|notifications?";
 const NOT_CODE = "(?![-\\s]+(?:[\\w'-]+\\s+){0,2}?(?:" + CODE_NOUNS + ")\\b)";
 const verb = (forms) => en("\\b(?:" + forms + ")\\b" + NOT_CODE);
 // Submitting reaches a form through its object ("submit the application form"), so only a
