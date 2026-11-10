@@ -154,7 +154,7 @@ test("applyGoalModeInterviewGuard: active goal -> deny request_user_input", () =
   assert.match(hso.additionalContext, /goal-active=active/);
   assert.match(hso.permissionDecisionReason, /Interview.*request_user_input/);
   assert.match(hso.permissionDecisionReason, /\$codexclaw:cxc-dev async-questions\.md/);
-  assert.match(hso.permissionDecisionReason, /silence is not approval/);
+  assert.match(hso.permissionDecisionReason, /ask with request_user_input_async/);
   assert.ok(Buffer.byteLength(hso.additionalContext) <= 200);
 });
 

@@ -63,7 +63,7 @@ function cxcInvocation(moduleUrl        )         {
 
 const REQUEST_USER_INPUT_TOOL = "request_user_input";
 const GOAL_MODE_DENY_REASON =
-  "Blocking Interview / request_user_input denied. Owner: $codexclaw:cxc-dev async-questions.md; silence is not approval.";
+  "Blocking Interview / request_user_input denied while a goal is active; ask with request_user_input_async if exposed, else in text. Owner: $codexclaw:cxc-dev async-questions.md";
 
 const UPDATE_GOAL_TOOL_NAME = "update_goal";
 
