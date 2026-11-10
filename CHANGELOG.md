@@ -6,6 +6,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The goal-mode interview guard now names the route when it denies `request_user_input` during an active goal: ask with `request_user_input_async` when the host exposes it, otherwise in plain text. Its old reason ended with "silence is not approval" and named no alternative, so an agent with an approval question retried the blocked tool or stopped, and the user saw only "Blocked by hook".
+
 ## [0.2.46] - 2026-10-31
 
 ### Fixed
