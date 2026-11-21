@@ -6,6 +6,18 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **dev-design merge.** `dev-frontend` and `dev-uiux-design` are merged into **`dev-design`** (`cxc-dev-design`), with direction, copy, build and audit modes. The old names remain as non-implicit redirect stubs. The subagent surface map sends frontend/uiux to `dev-design`. (#341)
+- **Hero alignment.** FE-HERO-ALIGN-01: centered heroes by default; a left-aligned hero needs a counterweight; split 50:50. The anti-center ban is removed and FE-HERO-SPLIT-01 is narrowed to generic boxed screenshots.
+- **Color and edges.** FE-COLOR-RESTRAINT-01 keeps controls neutral and puts color only in data and focus. FE-SIDE-ACCENT-01 bans one-sided accent bars. Hangul display tracking and the weight guidance are corrected from the 2026-11-21 survey and owner A/B tests.
+
+### Added
+
+- **dev-design references.** A copy module (process, registers, tells), slop consensus 2026, platform 2026 (Baseline features with guards) and agent action UX.
+- **dev-design lint.** `scripts/ui-lint.mjs` and `scripts/copy-lint.mjs` are zero-dependency, with optional `--render` and honest NOT_RUN reporting. Fixtures and `test/design-lint.test.mjs` are included.
+- **dev-visualizer.** `scripts/look.mjs` is a render check at 390/1280 with a print pass. Also adds `reference/diagram-types.md` and the VIZ-BRAND-01 brand gate.
+
 ## [0.2.46] - 2026-10-31
 
 ### Fixed
