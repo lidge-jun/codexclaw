@@ -27,6 +27,7 @@ Before selecting depth or claiming completion, read [dev](../dev/SKILL.md#01-pat
 | Components, direction intake, dials or objective/style classification | [Design intake](references/core/design-intake.md) |
 | Typography, color, layout, assets, icons or cutouts | [Implementation](references/core/implementation.md) |
 | New/redesigned surfaces or visual audits | [Anti-slop enforcement](references/core/anti-slop-enforcement.md) |
+| Visual audits and pre-ship checks: cross-source tells, second-order defaults, stacking | [Slop consensus 2026](references/core/slop-consensus-2026.md) |
 | Performance, accessibility, forms, state, platform or errors | [Platform and runtime](references/core/platform-runtime.md) |
 | WCAG 2.2 AA questions or any accessibility conformance statement | [WCAG 2.2 AA](references/core/wcag22-aa.md) |
 | Auditing a rendered UI: violation ledger, before/after evidence, fix proof | [Visual audit loop](references/core/visual-audit-loop.md) |

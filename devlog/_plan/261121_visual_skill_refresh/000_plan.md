@@ -14,10 +14,11 @@ through its existing weekly sync; this unit does not touch it.
 Research: [001 OSS survey](001_oss_survey.md), [002 web platform 2026](002_web_platform_2026.md),
 [003 copywriting](003_copywriting_research.md), [004 color restraint directive](004_color_restraint_directive.md),
 [005 current gaps with anchors](005_current_gaps.md), [006 Apple HIG examples](006_apple_hig_examples.md),
-[007 site survey: YC P26, Korea, foreign](007_site_survey.md), [008 external reviews and dispositions](008_external_reviews.md).
+[007 site survey: YC P26, Korea, foreign](007_site_survey.md), [008 external reviews and dispositions](008_external_reviews.md),
+[009 slop consensus: X, deslop repos, vendor guides, slop-cop run](009_slop_consensus.md).
 
 Catalog (third-party screenshots and Apple illustrations, kept out of the repo): Aside
-session artifact `visual-catalog/visual-catalog-2026-11-21.pdf` (v2, 30 pages) with its HTML
+session artifact `visual-catalog/visual-catalog-2026-11-21.pdf` (v2, 33 pages) with its HTML
 source `catalog.html`; raw probes in the session `tmp/cap/` and `tmp/hig/`.
 
 ## Loop-spec

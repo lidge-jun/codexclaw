@@ -5,6 +5,9 @@ Synthesized from taste-skill, redesign-skill, Anthropic frontend-design, and Koo
 
 ---
 
+
+Tells that independent sources agreed on after this list was written (nested cards, slop in a box, one-word headline accents, template chrome, decorative status dots, orbs, fake data viz, redundant UI copy), the second-order default palettes with coordinates, and the stacking rule live in [slop-consensus-2026.md](slop-consensus-2026.md) (FE-SLOP-CONSENSUS-01).
+
 ## Typography Slop Signals
 - Unexamined default typography: browser defaults, framework defaults, or "Inter everywhere" without a reason
 - Latin-first font choices applied to Hangul without testing CJK rhythm, line-height, and fallback behavior
@@ -333,7 +336,7 @@ Slop signals:
 ---
 
 ## Iconography Audit
-- **Lucide/Feather exclusively** → Use Phosphor, Heroicons, or custom set
+- **Mixed icon sets or strokes** → one set (the project's own; lucide is an acceptable default) at one stroke weight. See [slop-consensus-2026.md](slop-consensus-2026.md) for the 2026-11 source disagreement
 - **Rocketship for "Launch", shield for "Security"** → less cliché: bolt, fingerprint, spark, vault
 - **Inconsistent stroke widths** → standardize one stroke weight globally
 - **Missing favicon** → always include branded favicon

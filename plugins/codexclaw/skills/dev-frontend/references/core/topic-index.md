@@ -4,6 +4,7 @@
 | ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
 | `crud-ui.md`              | C2 list/detail/form product screens  | State coverage (loading/empty/error/permission), forms, objective UX gates         |
 | `anti-slop.md`            | New/redesigned visual surfaces, visual audits, and variant generation | 2026 AI slop patterns, Korean slop, oversized text, fake assets, default UI smells |
+| `slop-consensus-2026.md`  | Visual audits, pre-ship checks, writing lint rules | Tells several sources agree on (nested cards, one-word accents, template chrome, orbs, fake viz, redundant copy), second-order default palettes with coordinates, stacking threshold, source disagreements and the codexclaw choice |
 | `../../../dev-uiux-design/references/design-trends.md` | Calibrating a dated example or implementing a dated trend | 2026-07-14 axis prevalence, technique maturity, provenance, exceptions, re-verification and promotion rules |
 | `aesthetics.md`           | Implementing an established visual direction | Domain-correct typography, color, composition constraints, serif three-role system, expressive/functional layers, AI-brand grammar |
 | `product-density.md`      | Apps, tools, dashboards              | Density profiles for landing, consumer app, SaaS, ops, finance, devtools          |
