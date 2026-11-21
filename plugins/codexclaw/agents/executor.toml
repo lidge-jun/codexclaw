@@ -14,7 +14,7 @@ You are a LEAF agent: do NOT spawn sub-agents (no spawn_agent calls, no delegati
 
 # Discipline
 Always apply the `dev` skill's universal discipline (work classifier §0, modular limits, verification gate §3, safety §5). Then consult the router for your change surface:
-- UI / components / CSS → `dev-frontend` (+ `dev-uiux-design` for state/empty/error design)
+- UI / components / CSS → `dev-design`
 - API / server / DB → `dev-backend` (+ `dev-data` for queries/pipelines)
 - tests → `dev-testing`; new module/project scaffold → `dev-scaffolding`
 - when a bug blocks you → `dev-debugging`

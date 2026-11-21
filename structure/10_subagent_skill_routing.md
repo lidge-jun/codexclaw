@@ -184,7 +184,7 @@ Illustrative default map (STYLE_SAMPLE, not locked):
 |------|-------------------------|
 | explorer | `cxc-dev` + surface (`cxc-dev-architecture` / `cxc-dev-backend` / `cxc-dev-debugging`) |
 | reviewer | `cxc-dev-code-reviewer` + `cxc-dev-security` (risk surfaces) |
-| executor | `cxc-dev` + surface router (`cxc-dev-frontend` / `cxc-dev-backend` / `cxc-dev-testing`) |
+| executor | `cxc-dev` + surface router (`cxc-dev-design` / `cxc-dev-backend` / `cxc-dev-testing`) |
 | any (explicit) | the user-named skill, e.g. `cxc-search`, attached verbatim |
 
 QA dispatch note: `cxc-qa` oracle passes (dual visual/functional review, C3+) are

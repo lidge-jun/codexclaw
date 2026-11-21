@@ -29,12 +29,12 @@
  | `dev-data` | Data pipelines, ETL, SQL optimization, schema evolution |
  | `dev-debugging` | 5-phase root-cause debugging methodology |
  | `dev-devops` | Containers, K8s, CI/CD, IaC, SRE |
- | `dev-frontend` | Frontend/UI implementation, responsive, motion, React/Vue/Svelte |
+ | `dev-design` | Frontend/UI implementation, responsive, motion, React/Vue/Svelte |
  | `dev-pabcd` | cli-jaw PABCD orchestration workflows |
  | `dev-scaffolding` | Project setup, feature scaffolding, structural audits |
  | `dev-security` | XSS, CSRF, auth, OWASP, threat model |
  | `dev-testing` | Unit/integration/E2E/contract tests, TDD, coverage |
- | `dev-uiux-design` | UI/UX direction, design judgment, empty/error states |
+ | `dev-design` | UI/UX direction, design judgment, empty/error states |
  | `browser` | Chrome browser control via CDP |
  | `design` | cli-jaw Design workspace (panel UX, artifact lifecycle) |
  | `desktop-control` | Unified desktop + browser automation |

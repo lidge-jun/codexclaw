@@ -3,7 +3,7 @@
  *
  * A token-first system: one source of truth for color, space, type, radius,
  * and motion, consumed by every component. Dark by default with an automatic
- * light mode. Follows dev-uiux-design discipline: semantic tokens (not raw
+ * light mode. Follows dev-design discipline: semantic tokens (not raw
  * hex in components), visible focus, explicit loading/empty/error states.
  * ========================================================================== */
 

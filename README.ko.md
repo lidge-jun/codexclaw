@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C879-brightgreen" alt="3,879 tests">
-  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
+  <img src="https://img.shields.io/badge/tests-3%2C901-brightgreen" alt="3,901 tests">
+  <img src="https://img.shields.io/badge/skills-30-blue" alt="30 skills">
   <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
@@ -28,7 +28,7 @@ codexclaw는 Codex 런타임을 체계적인 개발 환경으로 바꾼다. 별�
 
 ## 주요 기능
 
-**Dev Skill Family** — 표준 부모 스킬(`dev`)이 관리하는 12개 작업 영역별 라우터(`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-uiux-design`)로 구성된다. 모든 라우터는 부모 스킬의 규칙 등급, 검증 게이트, 안전 규칙을 물려받는다. 고유 규칙 ID는 155개다.
+**Dev Skill Family** — 표준 부모 스킬(`dev`)이 관리하는 12개 작업 영역별 라우터(`dev-architecture`, `dev-backend`, `dev-design`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-design`)로 구성된다. 모든 라우터는 부모 스킬의 규칙 등급, 검증 게이트, 안전 규칙을 물려받는다. 고유 규칙 ID는 155개다.
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done을 증명 기반 전환 게이트가 있는 파일 기반 FSM으로 구현했다. `cxc orchestrate` 명령으로 단계를 진행하며, 각 전환에는 구조화된 근거가 붙는다. 영속적인 goalplan 원장이 여러 사이클에 걸쳐 작업 단계, 성공 기준, 수집한 증거를 추적한다.
 
@@ -208,9 +208,9 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 | Surface | Router | Also loads |
 |---------|--------|------------|
 | Backend / API | `dev-backend` | `dev-security` for auth |
-| Frontend / UI | `dev-frontend` | `dev-uiux-design` for direction |
+| Frontend / UI / design | `dev-design` | direction, copy, build and audit modes in one skill |
 | Database / data | `dev-data` | `dev-backend` for migrations |
-| Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
+| Tests / QA | `dev-testing` | `dev-design` for browser QA |
 | Security | `dev-security` | surface-specific router |
 | Architecture | `dev-architecture` | `dev-scaffolding` for structure |
 | Debugging | `dev-debugging` | surface-specific router |
@@ -221,7 +221,7 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 
 각 라우터는 필요할 때만 불러오는 자체 모듈형 참고 자료를 갖추고 있으며, 부모 스킬의 검증 게이트, 규칙 등급, 안전 규칙을 물려받는다.
 
-**프런트엔드 스킬 다운스트림.** `dev-frontend`와 `dev-uiux-design`의 레퍼런스는 고정된 치환 규칙([rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs))으로 [noslopdesign](https://github.com/lidge-jun/noslopdesign)에 복제된다. 두 스킬 안에서 다른 스킬을 가리킬 때는 `dev-frontend`, `dev-uiux-design`(그대로, `cxc-`를 붙여서, 또는 `../../dev-*/` 링크로), `` `dev-backend` ``, `` `dev-testing` ``, `` `dev-security` ``, `` `dev-devops` ``, `` `dev` §0.2 ``, `§0.4` 형태만 쓴다. `Source:`, `Adapted from` 줄은 줄 맨 앞에 두고, 두 폴더 이름은 바꾸지 않는다. 목록에 없는 형태는 대부분 남은 참조 검사에 걸려 그 레포의 주간 동기화를 막고 이슈를 연다.
+**디자인 스킬 다운스트림.** `dev-design`의 레퍼런스는 고정된 치환 규칙([rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs))으로 [noslopdesign](https://github.com/lidge-jun/noslopdesign)에 `noslop-design`으로 복제된다. `dev-design` 안의 다른 스킬 참조는 `dev-design`(맨이름 또는 `cxc-` 접두), `` `dev-backend` ``, `` `dev-testing` ``, `` `dev-security` ``, `` `dev-devops` ``, `` `dev` §0.2 `` / `§0.4`만 쓰고, `loop`, `qa`, `dev-visualizer`, `kwrite`로 가는 링크는 그쪽 치환 규칙도 함께 추가한다. `Source:`·`Adapted from` 줄은 줄 맨 앞에 두고 폴더 이름은 바꾸지 않는다. 이 밖의 형태는 대부분 잔여물 검사에 걸려 그 저장소의 주간 동기화가 멈추고 이슈가 열린다.
 
 **비주얼라이저 유지보수 — codexclaw 수정 후 Aside 이식.** 공통 기능은 codexclaw에서 먼저 수정하고 검증한다. 이후 `aside-visualizer`에 이식하고, 그 저장소의 납품 브랜치에 병합한 뒤 완료 조건을 검증해야 Aside 이슈를 닫는다. Aside 전용 어댑터와 독립 설치·Chrome 없는 PDF 경로는 보존한다. 자세한 순서는 [이식 절차](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)에 적었다. 일반 산출물 요청이 저장소 수정·설치·공개·별도 루프까지 허용하는 것은 아니다. 산출물의 검증 깊이는 `draft`, `standard`, `publication` 중에서 고른다.
 
@@ -248,7 +248,7 @@ codexclaw는 참조 구현이다. 방법론과 스킬은 에이전트에 종속�
 | [pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative) | Methodology spec + docs-site + agent-neutral skill set |
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
-| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-frontend` + `dev-uiux-design` as `noslop-frontend` / `noslop-uiux`, synced weekly from here |
+| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-design` as `noslop-design` (0.3; `noslop-frontend` / `noslop-uiux` are redirects), synced weekly from here |
 
 ## 문서
 

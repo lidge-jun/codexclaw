@@ -31,7 +31,7 @@ Four layers must remain distinct:
 
 Installed skill count is not a context-cost proxy. References are never bulk-preloaded. A subagent receives only the skills needed for its bounded task. C0/C1 tasks should usually read no specialist reference; high-risk work must not miss the relevant router merely to minimize tokens.
 
-`dev-frontend` and `dev-uiux-design` are maintainer-owned personal harnesses with established users. Their design grammar, implicit visibility, and lazy-loaded references are not normalization targets. They may be measured for activation economy, but their semantic direction remains maintainer-owned.
+`dev-design` are maintainer-owned personal harnesses with established users. Their design grammar, implicit visibility, and lazy-loaded references are not normalization targets. They may be measured for activation economy, but their semantic direction remains maintainer-owned.
 
 ## PABCD boundary
 

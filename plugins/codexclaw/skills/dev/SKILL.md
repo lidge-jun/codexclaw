@@ -57,18 +57,18 @@ Read active SKILL.md fully; references only when applicable. Resolve a skill's r
 | Change surface | Primary router | Also load |
 |---------------|----------------|-----------|
 | Backend / API / server | `dev-backend` | `dev-security` for auth/input |
-| Frontend / UI / web | `dev-frontend` | `dev-uiux-design` for vague/open visual direction, UX-state meaning, IA, brand, concept gen |
+| Frontend / UI / web / design direction | `dev-design` | its direction mode for vague briefs, UX-state meaning, IA, brand, concept gen |
 | App database / OLTP / transactional schema | `dev-backend` | `dev-security` for access; `dev-testing` for migrations |
 | Analytics / ETL / data quality / analytical backfills | `dev-data` | `dev-backend` for API integration |
-| Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
+| Tests / QA | `dev-testing` | `dev-design` for browser QA |
 | Security / auth / secrets | `dev-security` | surface-specific router |
 | Architecture / modules / deps | `dev-architecture` | `dev-scaffolding` for new structure |
 | Debugging / crashes / perf / comprehending unknown systems | `dev-debugging` | surface-specific router; `references/logic-analysis.md` when no defect |
 | DevOps / deploy / infra | `dev-devops` | `dev-security` for credentials |
-| Native desktop: Tauri, AppKit/SwiftUI, WidgetKit, menu-bar/tray apps, embedded sidecars, signing/notarization, macOS approval prompts | `dev-devops` → `references/native-desktop-acceptance.md` and `references/macos-system-approvals.md` | `dev-testing` for suites and CI matrix; `cxc-qa` for gui/cli verdicts; `dev-frontend` for web-view UI; `dev-security` for entitlements and credentials; `dev-debugging` runtimes/swift.md |
+| Native desktop: Tauri, AppKit/SwiftUI, WidgetKit, menu-bar/tray apps, embedded sidecars, signing/notarization, macOS approval prompts | `dev-devops` → `references/native-desktop-acceptance.md` and `references/macos-system-approvals.md` | `dev-testing` for suites and CI matrix; `cxc-qa` for gui/cli verdicts; `dev-design` for web-view UI; `dev-security` for entitlements and credentials; `dev-debugging` runtimes/swift.md |
 | Scaffolding / docs / setup | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams / charts / visual documents / reports / PDF composition | `dev-visualizer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |
+| Diagrams / charts / visual documents / reports / PDF composition | `dev-visualizer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-design` retain implementation/design ownership |
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 

@@ -119,7 +119,7 @@ Split smells (heuristics, not hard gates):
 
 ## 10. Cross-Cutting Scaffolding
 
-This section owns scaffold file placement only. Behavior, policy, and verification come from the owning surface skill (`dev-backend`, `dev-frontend`, `dev-devops`, `dev-security`).
+This section owns scaffold file placement only. Behavior, policy, and verification come from the owning surface skill (`dev-backend`, `dev-design`, `dev-devops`, `dev-security`).
 
 ### Health Endpoints
 Backend scaffolds should propose health routes (skip if the mature repo already handles health checks per §2):

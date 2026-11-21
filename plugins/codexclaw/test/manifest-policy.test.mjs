@@ -45,17 +45,18 @@ test("skill SKILL.md frontmatter carries no forbidden fields (license/keywords)"
 });
 
 // Implicit set after 2026-07-05 consolidation (dev + 5 lightweight workflow skills;
-// skill-hub merged into dev) and the 2026-07-09 design expansion (dev-frontend +
-// dev-uiux-design go implicit so anti-slop design grammar reaches every
-// UI-generating session without relying on DEV-ROUTE-01 routing).
+// skill-hub merged into dev) and the 2026-07-09 design expansion (dev-design +
+// dev-design go implicit so anti-slop design grammar reaches every
+// UI-generating session without relying on DEV-ROUTE-01 routing). 2026-11-21: both merged
+// into dev-design; the old names are non-implicit redirect stubs.
 const IMPLICIT_SET = [
-  "dev", "dev-frontend", "dev-uiux-design",
+  "dev", "dev-design",
   "interview", "loop", "pabcd", "recall", "search",
 ];
 // dev-* routers allowed to be implicit (design-surface exception).
-const IMPLICIT_DEV_ROUTERS = new Set(["dev-frontend", "dev-uiux-design"]);
+const IMPLICIT_DEV_ROUTERS = new Set(["dev-design"]);
 
-test("S3: implicit set is exactly {dev,+7}; other dev-* routers are on-demand", () => {
+test("S3: implicit set is exactly {dev,+6}; other dev-* routers are on-demand", () => {
   const skillsDir = join(pluginRoot, "skills");
   const implicit = [];
   for (const name of readdirSync(skillsDir)) {

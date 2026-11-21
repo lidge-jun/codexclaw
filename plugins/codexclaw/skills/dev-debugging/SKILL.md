@@ -11,7 +11,7 @@ metadata:
 **Boundary**: This skill covers how to reason about bugs. For test harness,
 reproduction frameworks, and verification tooling, see `dev-testing`. For
 domain-specific context (API errors, hydration issues, query performance),
-consult `dev-backend` or `dev-frontend`. Comprehension without a defect —
+consult `dev-backend` or `dev-design`. Comprehension without a defect —
 understanding how an unknown app, API, AI tool, or codebase works — routes to
 `references/logic-analysis.md`.
 

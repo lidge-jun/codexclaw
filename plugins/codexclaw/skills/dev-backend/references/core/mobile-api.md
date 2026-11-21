@@ -4,7 +4,7 @@
 **Applies to**: REST/GraphQL APIs serving mobile clients (iOS, Android, cross-platform)
 **When to read**: Building or modifying APIs consumed by mobile apps, change-surface: mobile-native consumers
 **Canonical owner**: `dev-backend` — API design and server-side patterns for mobile
-**Non-goals**: Framework selection (→ `dev-frontend/references/stacks/mobile-native.md`), native UX (→ `dev-uiux-design/references/mobile-native-ux.md`), general API design (→ `api-design.md`)
+**Non-goals**: Framework selection (→ `dev-design/references/stacks/mobile-native.md`), native UX (→ `dev-design/references/direction/mobile-native-ux.md`), general API design (→ `api-design.md`)
 
 ---
 

@@ -41,14 +41,14 @@ This matrix clarifies who defines, implements, and verifies each security contro
 | Input validation schema | `dev-security` §1 | Domain skill (backend/frontend/data) | `dev-testing` §2 |
 | Auth flow (login, session, token) | `dev-security` §2 | `dev-backend` §4 middleware | `dev-testing` §1.3 risk priorities |
 | Authorization (RBAC/ABAC) | `dev-security` §3 | `dev-backend` service layer | `dev-testing` §2 + `dev-code-reviewer` |
-| Security headers (CSP, CORS, HSTS) | `dev-security` §5 | `dev-backend` middleware + `dev-frontend` compliance | `dev-testing` + static analysis |
+| Security headers (CSP, CORS, HSTS) | `dev-security` §5 | `dev-backend` middleware + `dev-design` compliance | `dev-testing` + static analysis |
 | Rate limiting | `dev-security` §6 | `dev-backend` §4 middleware | Load testing + monitoring |
 | PII/data classification | `dev-security` + `dev-data` §7 | `dev-data` pipeline + `dev-backend` API | `dev-testing` + audit logs |
 | Secrets management | `dev-security` §4 | All skills (runtime env) | gitleaks + `dev-code-reviewer` |
 | Dependency security | `dev-security` §7 | CI pipeline owner | `npm audit` / `pip-audit` in CI |
 | Agentic AI safety | `dev-security` `../references/agentic-ai-security.md` | Agent builder | Scenario testing (`dev-testing`) |
 
-Reference this matrix from `dev-backend` and `dev-frontend` when ownership is unclear.
+Reference this matrix from `dev-backend` and `dev-design` when ownership is unclear.
 
 ## When to Activate
 
@@ -64,7 +64,7 @@ Activate this skill when you are:
 Use this skill together with the domain skill, not instead of it:
 - Credential delivery, CI secret injection, image scan gates, signing execution, and release proof: load `dev-devops`.
 - API architecture and middleware placement: See `../../dev-backend/SKILL.md` §4.
-- Frontend rendering patterns and anti-slop UI guardrails: See `../../dev-frontend/SKILL.md` §§4-5.
+- Frontend rendering patterns and anti-slop UI guardrails: See `../../dev-design/SKILL.md` §§4-5.
 - Test strategy and execution flow: See `dev-testing`.
 - Review severity and review flow: See `../../dev-code-reviewer/SKILL.md` §§1-2.
 - Security-sensitive RCA and incident forensics: see `dev-debugging`.

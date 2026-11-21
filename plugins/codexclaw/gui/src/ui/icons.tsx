@@ -1,7 +1,7 @@
 /**
  * icons.tsx — inline SVG icon set (Phase 6 redesign).
  *
- * NO emoji in UI (dev-frontend §5, STRICT: emoji-as-icon is the #1 AI-slop
+ * NO emoji in UI (dev-design §5, STRICT: emoji-as-icon is the #1 AI-slop
  * signal). Stroke icons are Lucide-style (24 viewBox, stroke-width 2, round
  * caps, currentColor); Telegram/Discord are simplified brand marks (filled).
  * Zero-dep: hand-inlined paths, no icon library import.

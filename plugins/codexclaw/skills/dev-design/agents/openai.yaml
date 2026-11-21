@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-dev-design"
+  short_description: "Design direction, copy, frontend build and audits for anti-slop UI."
+policy:
+  allow_implicit_invocation: true
