@@ -18,6 +18,7 @@ All notable changes to codexclaw are documented here. The format follows
 
 - **dev-design references.** A copy module (process, registers, tells), slop consensus 2026, platform 2026 (Baseline features with guards) and agent action UX.
 - **dev-design lint.** `scripts/ui-lint.mjs` and `scripts/copy-lint.mjs` are zero-dependency, with optional `--render` and honest NOT_RUN reporting. Fixtures and `test/design-lint.test.mjs` are included.
+- **Korean spec lines.** Spec and fact lines (table cells, definitions, list items, captions) end in nouns ("512GB 이상 권장", "미지원"), never verb endings. `copy-lint` reports `copy-spec-ending-ko`.
 - **dev-visualizer.** `scripts/look.mjs` is a render check at 390/1280 with a print pass. Also adds `reference/diagram-types.md` and the VIZ-BRAND-01 brand gate.
 
 ## [0.2.46] - 2026-10-31
