@@ -107,7 +107,7 @@ For CSS text wrapping implementation (`text-wrap`, `ch` units), see `typography-
 ### Rules
 - **Max 1 accent color.** Saturation < 80%.
 - **THE LILA BAN**: "AI Purple/Blue" aesthetic is BANNED. No purple button glows, no neon gradients.
-- **Neutral bases**: Zinc, Slate, Stone. Not plain gray.
+- **Neutral bases**: achromatic or cool (zinc, slate) for tools; warm stone only when the brief asks for warmth (FE-NEUTRAL-RAMP-01 in [color-system.md](color-system.md)).
 - **High-contrast singular accents**: Emerald, Electric Blue, Deep Rose, Amber.
 - **Consistency**: ONE palette for entire project. No warm/cool gray mixing.
 - **CSS Variables**: All colors defined as `--color-*` variables.
