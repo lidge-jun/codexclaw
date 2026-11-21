@@ -248,7 +248,7 @@ Before delivering any page, read all visible text aloud (mentally). Check:
 - Bureaucratic labels where simple Korean works
 - Honorific overuse in everyday product actions
 - Korean text clipped inside fixed-width buttons
-- Negative letter-spacing blindly applied to Hangul
+- Negative letter-spacing applied to Hangul body or UI text (display type from 40px up is the exception; see korea-2026.md)
 - Cute visual assets treated as a Korean default rather than a domain decision
 - Childish copy in finance, public service, auth, payment, security, B2B, admin, or developer tools
 - Oversized ultra-bold Hangul hero: Latin-poster sizing/weight on long Korean copy (100px+ / weight 800-900 / line-height ~0.9) reads as a heavy graphic mass even on landing/campaign surfaces — Korean premium services size heroes ~56-72px / weight 700 / line-height 1.25-1.4 (see `korea-2026.md` § Korean Hero / Large Display Type)
@@ -449,7 +449,7 @@ indiscriminate combination.
 - **FE-TYPO-FLOOR-01**: Typography floors (STRICT thresholds):
   - Body line-height: >= 1.3 (1.5 preferred for readability)
   - Body font-size: >= 12px (never smaller for readable prose)
-  - Letter-spacing: never below -0.03em (destructive tracking floor)
+  - Letter-spacing: never below -0.03em on body and UI text; display type from 40px up may go to -0.045em (owner A/B 2026-11-21)
   - Wide positive tracking (> 0.05em) on body copy is also a tell
   - Single font family with no role differentiation (heading/body/code/label all
     the same family, weight, and scale) is a flat-hierarchy signal

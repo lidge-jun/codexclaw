@@ -40,7 +40,7 @@ For government, public-service, finance, healthcare, education administration, o
 
 - Use CJK-safe stacks first: Pretendard, SUIT, Noto Sans KR, Apple SD Gothic Neo, system sans fallback.
 - Latin display fonts are optional accents, not the default for Hangul.
-- Avoid negative letter-spacing as a default for Korean text.
+- Avoid negative letter-spacing on Korean body and UI text. Large Korean display type is the exception (see Tracking below).
 - Body line-height should usually sit around 1.55-1.75.
 - Large Korean headings need optical restraint; avoid hero-scale type inside tools.
 - Test labels with long Hangul strings before delivery.
@@ -77,9 +77,11 @@ Rules (DEFAULT):
   `line-height: 0.9-1.0`; dense Hangul needs air between lines.
 - **Breaks**: `word-break: keep-all` + manual `<br>` at 어절/meaning boundaries;
   never split inside a word.
-- **Tracking**: default `normal` (0). Mild negative (`-0.01` to `-0.02em`) on
-  large display is an observed premium practice but optional and QA-gated; keep
-  body Korean at normal.
+- **Tracking**: body and UI Korean stay `normal` (0). Korean display type from
+  40px up defaults to `-0.02` to `-0.035em`: the owner preferred `-0.035em` over 0
+  on a 60px/700 Hangul headline in a blind A/B (2026-11-21), and Kakao corp ships
+  -3px at 70px (about -0.043em). Do not go past `-0.045em`; check that 받침 and
+  adjacent syllables do not touch at the rendered size.
 - **Structure over scale**: short Korean headline + supporting copy + whitespace +
   imagery, or an English display accent, beats a giant Hangul wall. This is how
   Toss/Woowa/Naver read premium.

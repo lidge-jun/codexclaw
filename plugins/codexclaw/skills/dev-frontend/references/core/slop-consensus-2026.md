@@ -75,9 +75,9 @@ bright element". The neutral ramp may lean slightly toward the product's materia
 
 | Topic | Positions | Choice |
 |---|---|---|
-| Letter spacing | OpenAI: "letter spacing must be 0, not negative". impeccable: floor -0.04em. Survey: 82% of YC and foreign headlines use negative tracking. | Display text from 28px up: -0.01 to -0.03em. Body and Hangul: 0. |
+| Letter spacing | OpenAI: "letter spacing must be 0, not negative". impeccable: floor -0.04em. Survey: 82% of YC and foreign headlines use negative tracking. | Latin display from 28px up: -0.01 to -0.03em. Hangul display from 40px up: -0.02 to -0.035em (owner blind A/B, 2026-11-21). Body and UI text in any script: 0. |
 | Card radius | OpenAI: 8px or less. impeccable: 12 to 16px. Survey: median non-pill CTA radius 6 to 11px. | Tools and dense apps: 8px or less. Marketing: 16px or less. Radius steps follow hierarchy. |
 | Icon set | OpenAI: lucide inside buttons. heydamir: the project's set, else lucide. Older codexclaw line: avoid "Lucide exclusively". | Use the project's set; lucide is an acceptable default. The tell is mixing sets or strokes, not the library. |
 | Status dots | heydamir: a status dot can be a product's signature. Others: decorative dots are a tell. | Only for real, changing state or encoded categories, always with a text label. |
-| Hero text | OpenAI: H1 is the brand, product or literal offer; value props go in supporting copy. Korean leaders already do this ("동네를 여는 문, 당근"). | Prefer a literal H1 that names the thing; wp2 copy module carries the details. |
+| Hero text | OpenAI: H1 is the brand, product or literal offer; value props go in supporting copy. In the owner's blind A/B (2026-11-21) a brand-only H1 ("GOAT") lost to a value headline twice, so a bare name is not enough. | The H1 states what the visitor gets; the brand may close it ("동네를 여는 문, 당근"). Round 2 of the A/B isolates wording from structure before wp2 fixes copy rules. |
 | Viewport-scaled type | OpenAI: do not scale font size with viewport width. codexclaw: `clamp()` with vw in places. | Open; resolved in the wp4 platform refresh. |
