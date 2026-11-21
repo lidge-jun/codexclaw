@@ -64,6 +64,26 @@ Inspected licenses and source details:
 - [Benchmark MIT](https://github.com/NicolasMartalog/html-to-pdf-benchmark/blob/1a290622403ffbecc2065d6e00b0e25bae34f59e/LICENSE).
 - [Noto Sans OFL-1.1](https://github.com/notofonts/noto-cjk/blob/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/LICENSE).
 
+## Refresh, 2026-11-21
+
+Re-inspected with GitHub API metadata and shallow clones on 2026-11-21. Star counts are
+repository-wide snapshots from that day. The ideas below were reimplemented in our own words
+and code: `scripts/look.mjs`, `reference/diagram-types.md` and the brand gate in
+[artifact composition](artifact-composition.md). No file was copied.
+
+| Source | Snapshot | Pattern taken | Adaptation boundary |
+|---|---|---|---|
+| [visual-explainer](https://github.com/nicobailon/visual-explainer) 0.15 (`kit/look.mjs`) | 11,205 stars, MIT, pushed 2026-11-05 | Render the page headless at a phone width and a desktop width. Report script errors, sideways scroll, labels under 12px, overlapping text and glued headings. Then look once at a contact sheet. One claim per figure, a verb on every edge, a mark for every number. | `look.mjs` is independently written and adds a print mode with REPORT-VIZ-01 floors and SVG shape-escape checks. Its slide, video, PPTX and in-page reply features are not adopted. |
+| [diagram-design](https://github.com/cathrynlavery/diagram-design) | 69,422 stars, MIT, pushed 2026-11-19 | A catalog of about 50 diagram types chosen by question; a style-guide gate on first use; target density about 4/10, split above 9 nodes; "the best move is usually deletion". | Our catalog is about 20 types written for reports and explainers. Its coral house style and Mermaid/draw.io importers are not adopted. |
+| [open-design](https://github.com/nexu-io/open-design) | 108,730 stars, Apache-2.0, pushed 2026-11-21 | DESIGN.md as the brand contract read before every render. | Comparator only. Nothing is copied; Apache notices would apply if anything were. |
+| [baoyu-skills](https://github.com/JimLiu/baoyu-skills) | 27,761 stars, MIT | Bitmap infographics from image models (layout × style grid) | A different route (raster). Not adopted; facts in a generated image cannot be verified as text. |
+| [open-slide](https://github.com/open-slide/open-slide) | 9,819 stars, MIT | Slides on a fixed 1920×1080 canvas for agents | Comparator for any future slide route; not adopted. |
+| [design-slop-cop](https://github.com/AdrianKrebs/design-slop-cop) | 19 stars, MIT, pushed 2026-07-07 | 14 computed-style checks scored over 1,390 Show HN pages | Used as a measurement tool in the 2026-11-21 survey (devlog 009). It informs the house rules owned by `dev-design`, not this skill's code. |
+
+The house rules this skill now follows (neutral controls, color only in data, no one-sided
+accent bars) come from the 2026-11-21 owner A/B tests and the site survey, both recorded in
+the codexclaw devlog `261121_visual_skill_refresh`. `dev-design` owns those rules.
+
 ## How the synthesis fits together
 
 The reader's question chooses the representation. Audience and document genre

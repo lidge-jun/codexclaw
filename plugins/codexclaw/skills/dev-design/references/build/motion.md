@@ -2,6 +2,8 @@
 
 Rules for meaningful, performant animation. One signature moment + a small number of supporting reveals > 10 scattered effects.
 
+Native mechanics first (`@starting-style`, scroll-driven animations in all engines since Firefox 159, view transitions): status and guards in [platform 2026](platform-2026.md).
+
 ---
 
 ## Domain Gates

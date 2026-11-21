@@ -67,6 +67,15 @@
       "gate": "npm test (manifest-policy)"
     },
     {
+      "skill": "dev-design",
+      "upstream": null,
+      "destination": "plugins/codexclaw/skills/dev-design/SKILL.md",
+      "status": "local-only",
+      "owner": "maintainer",
+      "deltas": ["Merged dev-frontend and dev-uiux-design (2026-11-21): personal design harness with direction, copy, build and audit modes"],
+      "gate": "npm test (manifest-policy, design-lint)"
+    },
+    {
       "skill": "dev-diagram-viewer",
       "upstream": null,
       "destination": "plugins/codexclaw/skills/dev-diagram-viewer/SKILL.md",
@@ -78,10 +87,9 @@
       "skill": "dev-frontend",
       "upstream": null,
       "destination": "plugins/codexclaw/skills/dev-frontend/SKILL.md",
-      "status": "local-only",
-      "owner": "maintainer",
-      "deltas": ["Personal frontend harness with accumulated design preferences"],
-      "gate": "npm test (manifest-policy)"
+      "status": "deprecated-redirect",
+      "redirectTo": "dev-design",
+      "gate": null
     },
     {
       "skill": "dev-scaffolding",
@@ -111,10 +119,9 @@
       "skill": "dev-uiux-design",
       "upstream": null,
       "destination": "plugins/codexclaw/skills/dev-uiux-design/SKILL.md",
-      "status": "local-only",
-      "owner": "maintainer",
-      "deltas": ["Personal UX judgment harness with design grammar"],
-      "gate": "npm test (manifest-policy)"
+      "status": "deprecated-redirect",
+      "redirectTo": "dev-design",
+      "gate": null
     },
     {
       "skill": "pabcd",

@@ -6,7 +6,7 @@ Sources: Apple HIG Materials + aside.com rendered measurements + dcinside
 practitioner notes (verified 2026-07-07; evidence:
 `devlog/_fin/260707_liquid_glass_motion_trends/000_research.md`).
 Design judgment (is glass domain-correct at all?) is owned by
-direction mode - this file owns material recipes. Top-bar composition,
+direction mode owns the style judgment; this file owns material recipes. Top-bar composition,
 slots, and scroll choreography live in `references/core/top-bar.md`.
 
 ---

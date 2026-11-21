@@ -10,7 +10,7 @@ Do not promote a dated signal into an ism or duplicate a compositional-pattern c
 
 ## Axis-frequency snapshot
 
-**observed_at:** 2026-07-14  
+**observed_at:** 2026-07-14 (not re-crawled; 2026-11-21 additions are signal rows below with their own date)  
 **corpus:** 45 live sites / 8 galleries  
 **interpretation:** Rows on one axis may overlap and do not sum to 45. These are design-prior observations, not market-share estimates. Pattern-family rows are omitted and linked in the final row of each relevant table.
 
@@ -107,6 +107,8 @@ These rows track implementation-sensitive signals, not reusable pattern-family f
 | Adaptive overlay chrome technique | 2026-07-14 | see family | see family | see family | Contrast flicker across media, state desynchronization, compositing cost. Count/gallery/maturity are canonical at `compositional-patterns.md` § Adaptive Overlay Chrome; this row tracks only the tone-adaptation technique and its risks |
 | Fluorescent single-color fields | 2026-07-14 | not separately coded | not separately coded | Signature pending recode | Contrast, glare, one-note theming, OLED energy; parent axis count/maturity are canonical at the pattern-family row `Single saturated brand field` (6/45, Established) — this fluorescent narrowing needs its own coding on re-crawl before threshold-based promotion |
 | Soft-focus future-health imagery | 2026-07-14 | not separately coded | not separately coded | Signature pending recode | Stock-image sameness, low text contrast, large media transfer, meaning lost without imagery; cross-link only when `compositional-patterns.md` Atmospheric Product Portrait fully matches |
+| Neutral controls, color only in data and imagery | 2026-11-21 | YC P26 191, Korea 30, foreign 33 first viewports | Hand-checked hero CTAs neutral 76/131 YC, 4/7 Korea, 11/17 foreign; one-sided card accent 2/254; accent hue bins ≤1 on 79-90%; design-slop-cop High tier 17% YC vs 0% Korea vs 9% foreign (devlog 261121 007, 009) | Owner-validated house default (FE-COLOR-RESTRAINT-01) | Color-only status; contrast of white-on-photo primaries; a world-less all-gray page is itself a default |
+| Centered short heroes; left heroes with a counterweight | 2026-11-21 | same 254 | Centered 45% YC, 59% Korea, 58% foreign; 90% of left heroes have a visual right, full-bleed media or product below (devlog 261121 010c) | Owner-validated (FE-HERO-ALIGN-01) | Long copy centered hurts scanning; empty right side |
 <!-- SIGNAL_ROWS_END -->
 
 ## Signature ledger

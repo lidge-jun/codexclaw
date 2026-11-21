@@ -16,14 +16,14 @@ still ship as compatibility surfaces.
 - `dev-code-reviewer/`
 - `dev-data/`
 - `dev-debugging/`
-- `dev-devops/`
 - `dev-design/`
+- `dev-devops/`
 - `dev-diagram-viewer/`
-- `dev-frontend/` (deprecated redirect to dev-design)
+- `dev-frontend/`
 - `dev-scaffolding/`
 - `dev-security/`
 - `dev-testing/`
-- `dev-uiux-design/` (deprecated redirect to dev-design)
+- `dev-uiux-design/`
 - `dev-visualizer/`
 - `goalplan/`
 - `interview/`

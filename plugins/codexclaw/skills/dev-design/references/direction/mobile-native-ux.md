@@ -3,7 +3,7 @@
 **Last reviewed**: 2026-06-16
 **Applies to**: iOS 18+, Android 15+, cross-platform (RN/Flutter/KMP)
 **When to read**: Native mobile app UX decisions, platform conventions, deep linking, app store submission, native mobile product work
-**Canonical owner**: direction mode — platform UX judgment (when/why)
+**Canonical owner**: `dev-design` direction mode — platform UX judgment (when/why)
 **Non-goals**: Framework selection and code patterns (→ `dev-design/references/stacks/mobile-native.md`), push/offline API (→ `dev-backend/references/core/mobile-api.md`), mobile web UX (→ `dev-design/references/build/mobile-ux.md`)
 
 ---

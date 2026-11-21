@@ -142,19 +142,13 @@ Rotate: never the same palette twice in consecutive projects.
 ## Spatial Composition
 
 ### Layout Diversification
-- **ANTI-CENTER BIAS**: When DESIGN_VARIANCE > 4, centered Hero/H1 is BANNED.
-  Carve-out: FE-HERO-LIGHT-CENTER-01 (canonical in `layout-discipline.md`) is
-  the sanctioned named exception at any variance when its conditions hold:
-  headline weight <= 400 plus a full-width authored real-media backdrop. Bold
-  centered heroes remain banned above variance 4.
-  A second sanctioned variant also passes at any variance (canonical in
-  `layout-discipline.md` FE-HERO-LIGHT-CENTER-01, Authored-Field Centered
-  Statement): the background or proof object is the primary authored content,
-  the centered overlay carries <= 3 semantic elements, line breaks are
-  deliberate, and no equal-card row follows. Evidence: Vectr, Fin, Michael
-  Pumo (2026-07-14 award crawl).
+- **Hero alignment**: follow FE-HERO-ALIGN-01 in [layout discipline](layout-discipline.md):
+  short heroes centered by default; left alignment only with a counterweight (visual right,
+  full-bleed media, or product directly below); never a left headline alone. The earlier
+  "centered hero BANNED above DESIGN_VARIANCE 4" rule was retired 2026-11-21 (owner A/B 4/4
+  centered; centered is the majority on shipped sites).
 - **ANTI-HERO-IN-TOOLS**: Apps, dashboards, admin, finance flows, and developer tools should not start with landing-page hero composition.
-- Force: "Split Screen" (50/50), "Left-aligned content / Right asset", "Asymmetric white-space"
+- Variety comes from the section below the hero (split, full-bleed band, product-as-stage, editorial), not from forcing a hero shape.
 - **Grid over Flex-Math**: NEVER `w-[calc(33%-1rem)]`. ALWAYS CSS Grid.
 - **NO 3-Column Card Layouts**: Generic "3 equal cards" is BANNED. Use 2-column zig-zag, asymmetric grid, or horizontal scroll.
 

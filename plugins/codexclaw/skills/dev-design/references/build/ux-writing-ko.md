@@ -60,3 +60,22 @@ Examples:
 - Keep button text short, but do not clip long Korean text. Wrap or resize responsibly.
 - Do not use all-caps English as a visual crutch in Korean UI.
 
+## Product Microcopy
+
+Plain and specific in task UI; marketing devices stay out ([copy registers](../copy/copy-registers.md), product register).
+
+| Rule | Avoid | Prefer |
+| --- | --- | --- |
+| Buttons start with the action (verb or verb + object) | `확인`, `진행`, `OK` | `초대 보내기`, `파일 올리기` |
+| Links name the destination | `여기를 클릭`, `자세히` | `요금제 비교 보기`, `설치 문서` |
+| Settings describe the ON state | `알림 끄기` toggle | `새 댓글 알림` (켜면 받음) |
+| Errors sit next to the field and say the fix | top banner `입력값 오류` | field: `이메일 주소에 @가 빠졌어요` |
+| Undo beats confirmation for reversible actions | `정말 삭제하시겠습니까?` | delete, then toast `삭제했어요 · 되돌리기` |
+| Confirm only irreversible or costly actions, and name the action | `확인` / `취소` | `3개 파일 영구 삭제` / `취소` |
+| Empty states say why and point forward | `데이터가 없습니다` | `아직 연결한 기기가 없어요` + `기기 연결하기` |
+| Placeholders show an example, never replace the label | label-less `입력하세요` | label `회사 이메일`, placeholder `name@company.com` |
+| Success names what happened | `처리가 완료되었습니다` | `초대를 보냈어요` |
+| One name per action across the flow | button `게시`, toast `업로드 완료` | button `게시`, toast `게시했어요` |
+
+Inventory existing strings before rewriting so one vocabulary survives (same noun for the same thing on every screen).
+

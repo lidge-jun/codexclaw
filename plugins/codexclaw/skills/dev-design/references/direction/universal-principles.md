@@ -11,7 +11,7 @@ UX-PRINCIPLES-01 (DEFAULT): when a gap ledger row in [experience audit](experien
 rests on one of these principles, cite its P- or J-id so a reviewer can trace the claim. A
 principle is a question to ask of the rendered product. It is never a conformance verdict:
 WCAG 2.2 AA has its own owner in
-[build mode WCAG 2.2 AA](../build/wcag22-aa.md).
+[WCAG 2.2 AA](../build/wcag22-aa.md) in build mode.
 
 HIG pages live at `https://developer.apple.com/design/human-interface-guidelines/<slug>`.
 
@@ -70,3 +70,19 @@ HIG pages live at `https://developer.apple.com/design/human-interface-guidelines
 | Help | J-22 | Help is short, close to the task and actionable | Help uses on-screen terms and leads to the next action. | offering-help |
 | Leaving | J-23 | Work and place survive leaving | After reload or return, drafts, position and playback resume where reasonable. | launching, multitasking, file-management |
 | Leaving | J-24 | Notifications and rating prompts respect the task | Promotions and rating prompts never interrupt work; notification types are user-controllable. | managing-notifications, ratings-and-reviews |
+
+## Apple controls versus the house color rule (read 2026-11-21)
+
+Apple's control guidance, set against FE-COLOR-RESTRAINT-01 in the build mode's
+[color system](../build/color-system.md). Where the two differ, the house rule governs
+authored web chrome by owner directive; record the difference instead of citing Apple as
+support. Details: devlog 261121 006 §4.
+
+| Topic | Apple (HIG page) | House rule |
+|---|---|---|
+| Prominent buttons | One or two per view may take the accent as their fill (buttons). | Primary is theme-relative ink. Exactly one brand-colored primary only when the brief names it; color on the fill, label white or ink. |
+| Toolbars | Reduce backgrounds and tinted controls; symbols inside a group need no border of their own (toolbars). Apple still tints one prominent Done/Submit. | Related actions share one neutral container with borderless monochrome glyphs; a standalone icon button may have a neutral fill, no outline ring. The prominent toolbar action stays ink. |
+| Destructive actions | Destructive style only for an outcome people did not deliberately choose; Cancel whenever an alert offers a destructive action (alerts). | Danger hue only for unexpected loss; the label names the consequence; a safe exit always. |
+| Native and user-chosen color | iOS switches are green by default; macOS sidebar icons follow the user's system accent; charts use several series colors with non-color redundancy (toggles, sidebars, charts). | Native, system and user-chosen colors and data encodings sit outside the chrome color budget. |
+| One color, one meaning | Avoid the same color meaning different things nearby (color). | Applied locally: neighboring uses must not mislead; not a global one-to-one map. |
+| Icon weight | Match interface icon and text weight in general (icons). | Our CSS mapping (about 1.5px stroke at 400, 1.75 to 2px at 500-600) is a house adaptation. |

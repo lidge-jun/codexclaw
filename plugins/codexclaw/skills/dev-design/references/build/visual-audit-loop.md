@@ -1,7 +1,7 @@
 # Visual audit loop
 
 Read when auditing a rendered UI for design, anti-slop or accessibility violations and fixing
-them; when someone asks for before/after evidence; or when a direction mode
+them; when someone asks for before/after evidence; or when direction mode
 [experience audit](../direction/experience-audit.md) hands over a gap
 ledger. Viewports and capture mechanics come from
 [visual verification](visual-verification.md), rendered rule ids from [anti-slop](anti-slop.md)

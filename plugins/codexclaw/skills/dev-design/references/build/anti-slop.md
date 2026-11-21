@@ -24,12 +24,12 @@ Tells that independent sources agreed on after this list was written (nested car
 - **Browser defaults or Inter everywhere** → Replace with a deliberate stack that fits the product and locale
 - **Headlines lack presence** → Increase size, tighten letter-spacing, reduce line-height
 - **Body text too wide** → Limit to ~65ch. Increase line-height
-- **Only Regular (400) + Bold (700)** → Introduce Medium (500), SemiBold (600), or extremes (100 vs 900)
+- **Only Regular (400) + Bold (700)** → Use a clear step: 400 body, 500-600 headings and labels. About 80% of 2026 leader headlines sit at 400-600 (survey 2026-11-21); the owner direction uses 600
 - **Numbers in proportional font** → Use mono or `font-variant-numeric: tabular-nums` for data
 - **Missing letter-spacing** → Negative for large headers, positive for small caps/labels
 - **All-caps subheaders everywhere** → Try lowercase italic, sentence case, or small-caps
 - **Orphaned words** → Fix with `text-wrap: balance` or `text-wrap: pretty`
-- **Only safe weights (400/500/600)** → Go to extremes: 100-200 (thin) vs 800-900 (black)
+- **Flat hierarchy (every text the same weight)** → Build contrast with size and one weight step (400 vs 600), not with 100-200 vs 800-900 extremes; extremes read as poster costume on product pages
 - **No `text-wrap` on any heading** → Apply `text-wrap: balance` globally to all h1-h6 (see `typography-wrapping.md`)
 - **No `max-width` in `ch` units on headings or paragraphs** → h1: 50ch, h2: 55ch, p: 65ch
 - **Heading breaks mid-phrase** → Review heading text at 390px, 768px, 1440px for balanced semantic breaks
@@ -227,6 +227,8 @@ UI copy must describe the product value, user job, data, or state. It must not d
 
 ### Copy Self-Audit (MANDATORY — pre-delivery)
 
+Full drafting procedure, registers and lint ids: [copy process](../copy/copy-process.md), [copy tells](../copy/copy-tells.md) (FE-COPY-TELLS-01). FE-APHORISM-01 contrast frames are WARN within the owner register's device budget, not FAIL.
+
 Before delivering any page, read all visible text aloud (mentally). Check:
 - No em-dashes (—) anywhere
 - No "We believe" / "Our mission" / "Reimagine" / "Elevate" filler
@@ -252,7 +254,7 @@ Before delivering any page, read all visible text aloud (mentally). Check:
 - Cute visual assets treated as a Korean default rather than a domain decision
 - Childish copy in finance, public service, auth, payment, security, B2B, admin, or developer tools
 - Oversized ultra-bold Hangul hero: Latin-poster sizing/weight on long Korean copy (100px+ / weight 800-900 / line-height ~0.9) reads as a heavy graphic mass even on landing/campaign surfaces — Korean premium services size heroes ~56-72px / weight 700 / line-height 1.25-1.4 (see `korea-2026.md` § Korean Hero / Large Display Type)
-- Split-hero template (FE-HERO-SPLIT-01): left bold headline + right boxed screenshot/device-mockup card is the exhausted Stripe->Linear template lineage ("Linear Design" is a reproducible kit category, 2026) — never choose it unprompted; build it only on explicit user request (paid-conversion LPs are the one context to *propose* it). Default: make the product visual the stage (full-width, background, environment, or interactive demo), never a right-column card (see `layout-discipline.md` § Hero Composition Grammar)
+- Split-hero tell (FE-HERO-SPLIT-01): a boxed, generic screenshot or device-mockup card that shows nothing real, parked in the right column. A split hero with a real product state, photography or an authored graphic is a normal majority pattern (43% of left heroes, 2026-11-21 survey). See `layout-discipline.md` § Hero Composition Grammar and FE-HERO-ALIGN-01
 For this rule, an edge-to-edge, grid-crossing, interactive or media aperture that performs the product premise is not a "split hero."
 - "tasteslop" serif shortcut: adopting a display serif purely as an AI-premium signal, without editorial structure (long-form typography, page-like surfaces, restrained palette), is the named 2026 backlash tell — serif direction is domain-gated and must be earned, at light display weights 330-400, never pasted onto a SaaS layout (see `aesthetics.md` § Serif Discipline)
 
@@ -476,6 +478,8 @@ indiscriminate combination.
   - Non-specific action verbs: "Elevate", "Transform", "Unleash", "Revolutionize"
   Fix: use locale-appropriate specific names, organic non-round numbers, and
   concrete verbs that describe the actual product action.
+
+  Lint ids: FE-CONTENT-REALISM-01 → copy-default-cast, copy-invented-figure; FE-APHORISM-01 → copy-contrast, copy-two-fragment (see [copy tells](../copy/copy-tells.md)).
 
 ### Interaction Tells
 

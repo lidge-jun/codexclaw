@@ -2,7 +2,7 @@
 
 Design guidance for favicons, product logos, and brand identity elements in web applications. Covers decision-making and design rationale.
 
-Read build mode references for CSS implementation details.
+Read the build references (`../build/`) for CSS implementation details.
 Read `logo-trust-sections.md` for partner/client logo bars (separate concern).
 
 ---

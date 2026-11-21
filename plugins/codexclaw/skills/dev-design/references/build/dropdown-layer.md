@@ -3,7 +3,8 @@
 Canonical owner for the unified dropdown DESIGN LAYER: visual skin and scope.
 ARIA and keyboard patterns stay in `a11y-patterns.md`; material rules stay in
 `liquid-glass.md`; mobile sheet behavior stays in `mobile-ux.md`; form workflow
-gates stay in `crud-ui.md`.
+gates stay in `crud-ui.md`. Positioning and open/close mechanics default to native popover +
+anchor positioning and customizable select per FE-PLATFORM-2026-01 in [platform 2026](platform-2026.md).
 ---
 ## Unified Skin (FE-DROPDOWN-LAYER-01, DEFAULT)
 On projects with a custom design surface, recommend one unified custom dropdown

@@ -38,11 +38,11 @@ Before coding, validate the design direction from direction mode (or a concrete 
   moment; supporting scroll reveals may exist alongside it per
   `motion.md` FE-MOTION-BUCKET-01)
 
-When user intent is vague ("깔끔하게", "모던하게", "just make it look good"), read the direction mode and run the User Intent Discovery Protocol before making routing decisions.
-If the user cannot answer these questions, use the direction mode's structured preference elicitation flow. Offer product references ("Notion 느낌? Linear 느낌?") and visual comparisons.
+When user intent is vague ("깔끔하게", "모던하게", "just make it look good"), run direction mode's User Intent Discovery Protocol before making routing decisions.
+If the user cannot answer these questions, use direction mode's structured preference elicitation flow. Offer product references ("Notion 느낌? Linear 느낌?") and visual comparisons.
 
-**Concept pass before code (pointer — canonical: direction mode §2.5 UX-CONCEPT-GEN-01):**
-for C2+ expressive or brand-visible surfaces, load direction mode §2.5 before
+**Concept pass before code (pointer — canonical: [dev-design SKILL.md § Visual Concept Exploration](../../SKILL.md#visual-concept-exploration-ux-concept-gen-01-default) UX-CONCEPT-GEN-01):**
+for C2+ expressive or brand-visible surfaces, run that concept pass before
 implementation. It owns direction discovery, concept branching (open direction: 5
 distinct isms → lock one → refine; concrete direction: 3-5 contextual variants),
 synthesis, and direction lock. Resume here after `DESIGN.md` is locked.

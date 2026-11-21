@@ -8,67 +8,65 @@
 5. Banned inside hero: tagline below CTAs, trust strip, pricing teaser, feature bullets
 6. "Used by" logo wall → separate section directly below hero
 
-## Hero Composition Grammar (verified 2026-07-09)
+## Hero Composition Grammar (revised 2026-11-21)
 
-The classic SaaS split hero — left bold headline + subcopy + CTA, right boxed
-product screenshot/mockup card — is the exhausted Stripe(2020)->Linear(2023)
-template lineage; "Linear Design" is now a reproducible kit/template category
-(LogRocket 2026-02-03). Treat it as a slop signal on brand/product homepages.
-**FE-HERO-SPLIT-01: never choose a split hero unprompted — build one ONLY when
-the user explicitly requests a split/2-column hero.** The one context where it
-is worth *proposing* is a conversion-focused paid-acquisition landing page
-where 5-second clarity beats brand memorability (Unbounce anatomy) — but even
-there, suggest it and let the user decide; no universal A/B evidence favors
-either shape (VWO). "This looks like a landing page" is NOT an exception.
+### Alignment (FE-HERO-ALIGN-01, DEFAULT, owner A/B + survey 2026-11-21)
 
-For this rule, an edge-to-edge, grid-crossing, interactive or media aperture that performs the product premise is not a "split hero."
+- **Short heroes are centered by default.** A headline of two short lines, one sub-line
+  and one or two buttons sits on the center axis, with the product, a photo or nothing
+  below it. Owner blind A/B: centered won 4 of 4 head-to-heads (with the product below,
+  copy only, same layout with only alignment changed). Survey of 254 first viewports
+  (devlog 010c): centered on 58% of foreign leaders, 59% of Korean companies, 45% of YC P26.
+- **Left alignment needs a counterweight.** Use it for longer copy, B2B explanation or
+  when a visual earns the other half, and only with one of: a visual on the right, full-bleed
+  photo or video behind the text, or the product directly below. 90% of left-aligned heroes
+  in the survey carry one (split 43%, full-bleed 28%, product below 19%).
+- **Never a left headline alone on an empty right side.** Type-alone left heroes were 10%
+  of the survey, all YC P26, none at Korean or foreign leaders.
+- **Split default 50:50.** The owner preferred 50:50 over 55:45 and, on the right side, an
+  authored graphic over a generic boxed screenshot: balance matters more than filling the
+  slot with any product picture.
+- Apps, dashboards and tools do not open with a hero at all (ANTI-HERO-IN-TOOLS in
+  [aesthetics](aesthetics.md)).
 
-Core inversion (DEFAULT): **the product visual is the STAGE, not a polite
-right-column card.** Choose from the verified replacement menu (heroes
-live-checked 2026-07-09):
+### Split heroes (FE-HERO-SPLIT-01, DEFAULT)
+
+A split hero (copy left, visual right) is a normal, majority pattern, not slop. The tell is
+narrower: **a boxed, generic screenshot or device-mockup card that shows nothing real**
+(a dashboard of placeholder bars, a fake window with traffic-light dots, a stock phone
+frame) parked in the right column. Fix it by showing a real product state, an authored
+graphic or photography, letting the visual bleed or cross the grid, or switching to the
+centered layout with the product below. An edge-to-edge, grid-crossing, interactive or
+media aperture that performs the product premise is fine in any position.
 
 | Composition | Shape | Verified users |
 | --- | --- | --- |
-| Centered stacked over media | centered headline + CTA over full-width media/video/canvas | OpenAI, Dia, Framer, Raycast |
-| Product-as-stage | headline spans the width; huge product UI rises full-width BELOW, not beside | Linear, Cursor |
-| Editorial opener | large text-led mission headline, no screenshot; editorial modules follow | Anthropic |
-| Evolved split | copy left + giant animated canvas/visual behind/right — never a boxed screenshot card | Stripe, Vercel |
-| Full-bleed consumer hero | centered copy over full-bleed photography/brand imagery | Toss |
+| Centered over media | centered headline + CTA over full-width media/video/canvas | OpenAI, Dia, Framer, Raycast, Toss |
+| Centered, product below | centered copy, product UI rising full-width below | Linear-style launch pages, Korean service sites |
+| Product-as-stage (left) | headline spans the width; product UI full-width directly below | Linear, Cursor, Supabase, Ramp |
+| Editorial opener | large text-led statement, editorial modules follow | Anthropic |
+| Split | copy left, real visual or authored graphic right, about 50:50 | Stripe, Vercel, 43% of left heroes |
 
-Rules (DEFAULT):
-- Without an explicit user request for a split hero (FE-HERO-SPLIT-01), do not
-  place a boxed screenshot, media, or device-mockup card in a right column of
-  the hero. If the product must appear in the first viewport, make it
-  full-width, background, environment, or an interactive demo surface.
-- **FE-HERO-LIGHT-CENTER-01 (DEFAULT): Light Centered Display Hero.** A centered
-  hero headline is allowed as an intentional named pattern when the headline is
-  LIGHT weight (300-400, explicitly not bold), set over a full-width real media
-  or motion backdrop (photography, generated texture, or video; never a
-  gradient wash), with generous whitespace and a minimal copy stack (FE-HERO-01
-  copy budget still applies). Evidence: OpenAI announcement grammar; aside.com
-  measured 2026-07-10 with a custom display variable font, weight 400, 36px,
-  centered, over soft sky photography. The generic centered BOLD hero plus
-  template composition remains banned. This exception exists ONLY when the
-  light-weight headline and authored-media backdrop conditions both hold.
-  A second sanctioned variant is the **Authored-Field Centered Statement**: centered
-  copy may sit over a background or proof object only when that authored field is
-  the primary content, the overlay contains no more than 3 semantic elements,
-  headline line breaks are deliberately authored, and the next section is not an
-  equal-card row. Evidence: Vectr's restrained statement over an isometric
-  landscape, Fin's serif statement over an authored canvas, and Michael Pumo's
-  statement within radical negative space. This variant does not legalize a
-  generic centered BOLD hero; without authored-field primacy and all four gates,
-  the generic composition remains banned.
-  Composition ownership lives here; type exemplar details live in
-  `aesthetics.md` / `design-isms.md`.
-- Korean note: "left bold Pretendard headline + right mockup" is the same dead
-  template in Korean surfaces; Toss itself uses centered copy over full-bleed
-  imagery, not a split.
+### Light centered display (FE-HERO-LIGHT-CENTER-01, DEFAULT)
+
+A named centered variant that predates FE-HERO-ALIGN-01 and stays valid: a LIGHT headline
+(300-400) over a full-width real media or motion backdrop (photography, generated texture
+or video, never a gradient wash), generous whitespace and a minimal copy stack (FE-HERO-01
+budget). Evidence: OpenAI announcement grammar; aside.com measured 2026-07-10 (display
+variable font, 400, 36px, centered over sky photography). The **Authored-Field Centered
+Statement** variant: centered copy over a background or proof object that is itself the
+primary content, at most 3 semantic elements in the overlay, deliberate line breaks, no
+equal-card row next (Vectr, Fin, Michael Pumo, 2026-07-14 crawl). Bold centered heroes are
+also allowed under FE-HERO-ALIGN-01; this entry only names the light variant. Type exemplar
+details live in [aesthetics](aesthetics.md) and the direction mode's design-isms.
+
+- Korean note: Toss, KakaoBank and Daangn use centered or full-bleed brand heroes; a "left
+  bold Pretendard headline + right placeholder mockup" fails FE-HERO-SPLIT-01's narrow tell.
 - Replacement trend labels: story-driven heroes, scrollytelling, immersive 3D,
   dimensionality/layers (SaaSFrame / Figma / Digidop / Contra, 2025-2026).
 
 Sources: LogRocket "Linear Design" (2026-02-03); Nordcraft "why do all websites
-look the same" (2024-09-03); Rectangle "The Linear effect" (2023-01-10); live
+look the same" (2024-09-03); owner A/B round 4 and 254-site alignment survey (devlog 010c, 2026-11-21); Rectangle "The Linear effect" (2023-01-10); live
 hero inspections of openai.com, linear.app, cursor.com, anthropic.com,
 stripe.com, vercel.com, raycast.com, diabrowser.com, framer.com, toss.im
 (2026-07-09); Unbounce landing-page anatomy; VWO A/B testing guide.
@@ -81,8 +79,8 @@ stripe.com, vercel.com, raycast.com, diabrowser.com, framer.com, toss.im
 ## Section Layout Repetition Ban
 - Each layout family (3-col cards, split-text-image, full-width-quote, etc.) at most ONCE per page
 - 8-section page needs ≥4 different layout families
-- Cross-ref: aesthetics.md § Spatial Composition also bans 3-col cards and
-  centered heroes, except the named FE-HERO-LIGHT-CENTER-01 pattern above.
+- Cross-ref: aesthetics.md § Spatial Composition also bans generic 3-col cards; hero
+  alignment follows FE-HERO-ALIGN-01 above.
 
 ## Zigzag Alternation Cap
 - Max 2 consecutive left-image/right-text alternating sections

@@ -28,7 +28,7 @@ Mode boundaries and handoffs: [direction roles](references/direction/role-bounda
 Owner blind A/B and a 254-site survey back these; details in each rule.
 - Neutral controls, color only in data and focus: FE-COLOR-RESTRAINT-01 in [color system](references/build/color-system.md).
 - No one-sided accent bars: FE-SIDE-ACCENT-01 in [anti-slop](references/build/anti-slop.md).
-- Short heroes are centered; a left-aligned hero needs a counterweight: FE-HERO-ALIGN-01 in [layout discipline](references/build/layout-discipline.md).
+- Short heroes are centered; a left-aligned hero needs a counterweight (visual right, full-bleed media or product below), split 50:50: FE-HERO-ALIGN-01 in [layout discipline](references/build/layout-discipline.md).
 - Korean marketing copy follows the owner register: [copy registers](references/copy/copy-registers.md).
 
 ## References

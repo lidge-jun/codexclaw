@@ -125,6 +125,20 @@ Sources: hangeul.naver.com MaruBuri (명조/부리 category, 5 weights);
 notofonts/noto-cjk Serif KR; live checks 2026-07-09 found no myeongjo-led
 Korean AI product home (Brunch-class editorial products observed on sans).
 
+### Korean leaders, measured 2026-11-21 (devlog 261121 007, 009, 010c)
+
+- **Heroes**: Toss and KakaoBank open with full-bleed brand film or photography and often
+  no CTA (17 of 30 Korean sites had no hero CTA); of Korean pages with a hero, 10 of 17 are
+  centered, and the rest carry a counterweight (FE-HERO-ALIGN-01). Portals (Naver, Kurly,
+  Musinsa, Yanolja) are dense photo grids with quick-menu icon docks, not heroes.
+- **Type**: Pretendard on 14 of 30; otherwise a house face (Toss Product Sans, Karrot Sans,
+  KakaoBig). Median hero weight 600.
+- **Slop**: 0 of 30 Korean sites reached design-slop-cop's High tier (4+ of 14 patterns),
+  against 17% of YC P26 and 20% of Show HN; no hero eyebrow pill, no one-word font switch,
+  no colored side or top stripe.
+- **Copy**: headlines are short and often close on the brand ("동네를 여는 문, 당근", "차가
+  필요할 땐, 쏘카"); the owner's register is in the copy mode's registers file.
+
 ## Korean Formats
 
 - Dates: `2026년 5월 10일`, `5월 10일`, `오후 9:41`.

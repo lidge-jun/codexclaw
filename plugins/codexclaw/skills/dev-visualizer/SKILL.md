@@ -2,7 +2,7 @@
 name: cxc-dev-visualizer
 description: "Use for visual explanations and documents. Triggers: diagrams, charts, interactive models, HTML reports, infographics, 시각화, 그려줘, 문서 만들어줘, 보고서, PDF 생성."
 metadata:
-  last-verified: "2026-09-20"
+  last-verified: "2026-11-21"
   short-description: "Visual documents, SVG/HTML explainers and PDF delivery, verified in proportion."
   keywords: [diagram, visualization, visualize, document, report, SVG, HTML, PDF, interactive, cover, contents, storyline]
 ---
@@ -23,6 +23,7 @@ implementation, and available format-specific skills own document mechanics.
 | Every artifact: caller scope and requested outcome | [Scope](reference/scope-and-maintenance.md), [authoring routes](reference/authoring-routes.md) |
 | Choosing HTML, SVG, inline output, PDF, document format or scientific plotting | [Authoring routes](reference/authoring-routes.md) |
 | Before composing/styling/building any visual | [Artifact composition](reference/artifact-composition.md) |
+| Choosing a diagram or chart type, density and labels | [Diagram types](reference/diagram-types.md) |
 | Human-readable reports and documents | [Reader documents](reference/reader-documents.md), [report writing](reference/report-writing.md) |
 | Research reports, analytical exhibits or English/bilingual output | [Research/language/exhibit routes](reference/artifact-composition.md#report-evidence-language-and-analytical-exhibits) |
 | Computed/exported tiers, or any artifact in doubt | [Computed verification](reference/computed-verification.md) |
@@ -41,11 +42,11 @@ Spend the round trip where the visible result is computed rather than written.
 |---|---|
 | An inline visual in this conversation, or a fenced diagram the host renders | Reread the source once and send it. The reader's screen is the render. |
 | A small static HTML/SVG page in ordinary flow — prose, tables, hand-placed shapes, no runtime data, no library, no export | Reread the source, save it, return the link. |
-| Anything whose visible result is computed — marks drawn from data, connector geometry derived from rendered bounds, a runtime library or webfont, an input that changes the output | DIAGRAM-RENDER-VERIFY-01 in full. |
-| PDF, print output, or a multi-page paged report | DIAGRAM-RENDER-VERIFY-01 with a stated assurance profile. Merely saving or sharing a simple static HTML/SVG file does not promote it to this tier. |
+| Anything whose visible result is computed — marks drawn from data, connector geometry derived from rendered bounds, a runtime library or webfont, an input that changes the output | DIAGRAM-RENDER-VERIFY-01 in full. Default render check: `node scripts/look.mjs <file>` (390 and 1280 px, or print width for an `@page size` document): fix every `✗`, then look at its contact sheet once. |
+| PDF, print output, or a multi-page paged report | `look.mjs` on the HTML source, then DIAGRAM-RENDER-VERIFY-01 with a stated assurance profile. Merely saving or sharing a simple static HTML/SVG file does not promote it to this tier. |
 
 Two rules hold in every tier. An unrun check is never written up as a passed one:
-"not rendered — static HTML in normal flow" is honest, "verified" is not. And a
+"not rendered — static HTML in normal flow" is honest, "verified" is not; `look.mjs` exiting `NOT_RUN` (code 3) means not rendered. And a
 defect promotes the artifact: once the reader reports something wrong, or a first
 render shows it, render each further fix before sending it. Nothing here is enforced
 by a hook, and the calling task's own verification gate still governs its work.

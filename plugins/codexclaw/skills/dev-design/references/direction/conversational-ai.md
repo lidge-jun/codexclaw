@@ -15,6 +15,9 @@ In scope: the state model of one turn, what actions are available in each
 state, how uncertainty is expressed, and Korean copy decisions specific to
 generated output.
 
+When the assistant takes actions (runs tasks, edits, sends, pays, waits for a login), the
+action surface follows [agent action UX](agent-action-ux.md) UX-AGENT-ACTION-01.
+
 Out of scope: a product's voice, its domain vocabulary, and any rule specific
 to one service. Those belong in that project's `DESIGN.md`. This file must
 stay usable by a support assistant, a coding tool, and a fortune-reading app
