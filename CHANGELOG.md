@@ -6,6 +6,8 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.47] - 2026-11-21
+
 ### Changed
 
 - **dev-design merge.** `dev-frontend` and `dev-uiux-design` are merged into **`dev-design`** (`cxc-dev-design`), with direction, copy, build and audit modes. The old names remain as non-implicit redirect stubs. The subagent surface map sends frontend/uiux to `dev-design`. (#341)
