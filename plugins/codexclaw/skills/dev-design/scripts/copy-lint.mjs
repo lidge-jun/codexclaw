@@ -45,7 +45,7 @@ export function segmentsOf(file, src) {
   while ((m = re.exec(t))) {
     if (m[4] !== undefined) {
       const text = decode(m[4]).replace(/\s+/g, " ").trim();
-      if (text) segs.push({ text, line: lineAt(src, m.index + (m[4].length - m[4].trimStart().length)), tag: [...stack].reverse().find((x) => /^(h[1-6]|button|a|li|label|title|figcaption|blockquote|footer)$/.test(x)) || "p" });
+      if (text) segs.push({ text, line: lineAt(src, m.index + (m[4].length - m[4].trimStart().length)), tag: [...stack].reverse().find((x) => /^(h[1-6]|button|a|li|label|title|figcaption|blockquote|footer|dd|dt|td|th|figcaption)$/.test(x)) || "p" });
       continue;
     }
     const tag = m[2].toLowerCase();
@@ -88,6 +88,9 @@ export function lintCopy(file, src, { year = new Date().getFullYear() } = {}) {
     if ((m = t.match(HYPE_EN)) && !ko) addOnce("h" + m[0].toLowerCase(), "WARN", "copy-hype-word", s.line, `hype word "${m[0]}"; name the fact it stands for`);
     if ((m = t.match(HYPE_KO))) addOnce("hk" + m[0], "WARN", "copy-hype-word", s.line, `hype word "${m[0]}"`);
     if ((m = t.match(STOCK))) add("WARN", "copy-stock-phrase", s.line, `stock phrase "${m[0]}"`);
+    // copy-registers §7: spec/feature/label lines end on the noun, not a sentence ending
+    if (ko && /^(dd|dt|td|th|li|figcaption|small|span)$/.test(s.tag) && t.length <= 80 && /(?:이다|입니다|합니다|한다|됩니다|된다|습니다|있다)[.]?$/.test(t.trim()))
+      add("WARN", "copy-spec-ending-ko", s.line, `spec line ends on a sentence ending: "${t.trim().slice(-20)}"; end on the noun (e.g. "512GB 이상 권장")`);
     for (const r of TRANSLATIONESE) if ((m = t.match(r))) addOnce("t" + r, "WARN", "copy-translationese-ko", s.line, `translationese "${m[0]}"`);
     for (const x of t.matchAll(/—/g)) em.push(s.line);
     for (const x of t.matchAll(/!/g)) if (s.tag === "p" && !/^[!]/.test(t)) ex.push(s.line);

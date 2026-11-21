@@ -58,6 +58,21 @@ Patterns worth borrowing (from the capture):
 Where the owner differs from Apple: no trailing period, plain over witty, negative tracking
 on large Hangul. The owner's choice governs owner surfaces.
 
+## 7. Spec, feature and fact lines (Korean)
+
+Owner rule (2026-11-21): spec sheets, requirement tables, feature rows, footers and labels end
+on the noun or a noun-form ending, never on a sentence ending.
+
+| Write | Not |
+|---|---|
+| 저장 공간 512GB 이상 권장 | 저장 공간은 512GB 이상 권장이다 / 권장합니다 |
+| 한국어 음성·자막 지원 | 한국어 음성과 자막을 지원한다 / 지원합니다 |
+| Nintendo Switch 2 전용 | Nintendo Switch 2 전용입니다 |
+| 설정에서 원작 배치로 되돌리기 가능 | 되돌릴 수 있습니다 |
+
+Applies to `dt`/`dd`, table cells, list items, badges, captions and legal footers. Body
+sentences and headline beats follow their own register. Lint id `copy-spec-ending-ko`.
+
 ## 2. Product and app UI microcopy
 
 Plain, verb-first, specific. Labels name the action ("저장", "초대 보내기"), errors say what

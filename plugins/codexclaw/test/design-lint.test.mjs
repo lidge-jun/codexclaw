@@ -32,6 +32,7 @@ const BAD = {
   "transition-all.html": ["FE-AI-TELL-01"],
   "ai-residue-copy.html": ["copy-residue", "copy-default-cast", "copy-invented-figure", "copy-stale-year", "copy-meta", "copy-em-dash", "copy-stock-phrase"],
   "korean-translationese.html": ["copy-translationese-ko", "copy-imperative-chain-ko", "copy-honorific-overuse-ko", "copy-hype-word"],
+  "spec-ending-ko.html": ["copy-spec-ending-ko"],
 };
 
 for (const [name, expected] of Object.entries(BAD)) {

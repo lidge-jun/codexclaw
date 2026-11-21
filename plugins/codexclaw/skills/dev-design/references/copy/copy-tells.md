@@ -47,6 +47,7 @@ lives there. The ids below are the lint ids that implement them.
 | `copy-exclaim` | WARN | Exclamation marks in body copy (more than 1 per page) | Period or nothing |
 | `copy-vague-cta` | INFO | "Click here", "Submit", "확인" as the only label on a task button | Name the action in product UI; generic two-word marketing CTAs ("더 알아보기") are fine in the owner register |
 | `copy-headline-period` | INFO | Trailing period on a display headline | Owner register: remove; other registers: leave |
+| `copy-spec-ending-ko` | WARN | A spec, requirement, feature-row or label line ending in a sentence ending (~이다, ~입니다, ~합니다, ~한다) | End on the noun: "512GB 이상 권장", "한국어 지원" (copy-registers §7) |
 | `copy-headline-length-ko` | INFO | Korean display headline over 24 characters | Cut to one idea (owner register median about 14) |
 | `copy-rhythm` | INFO | Every card or paragraph the same length and arc | Spend words where the brief knows most |
 
