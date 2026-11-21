@@ -56,7 +56,7 @@ machine-made. For a printed or PDF report these are not used:
 | Reflex part | What a reader sees | Use instead |
 |---|---|---|
 | Row of big-number "stat cards" | a SaaS landing page | a small key-figures table: 지표 · 기준 · 현재 · 변화, or the number inside the sentence |
-| Callout box with a colored left border, tinted rounded panel | a chatbot answer | an indented paragraph with a run-in bold heading and a hairline |
+| Callout box with a colored left border, tinted rounded panel | a chatbot answer | an indented paragraph with a run-in bold heading, no box and no side rule |
 | Numbered circles, icon bullets, badge chips | a slide template | plain numbered list or prose |
 | Box-and-arrow SVG as the default figure | a diagram of nothing | a chart with data (bar, line, dot), directly labeled, or no figure |
 | Uppercase tracked eyebrow, decorative colored rule bar, gradient | a startup deck | the issuer name in small text and a 0.6pt rule |

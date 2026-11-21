@@ -164,7 +164,7 @@ function List<T>({ items, renderItem }: ListProps<T>) {
 import { cn } from '@/lib/utils';
 <button className={cn(
   'px-4 py-2 rounded',
-  variant === 'primary' && 'bg-emerald-500 text-white',
+  variant === 'primary' && 'bg-foreground text-background',
   disabled && 'opacity-50 cursor-not-allowed'
 )} />
 ```

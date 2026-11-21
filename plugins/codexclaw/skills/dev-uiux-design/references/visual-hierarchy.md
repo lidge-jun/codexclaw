@@ -42,10 +42,10 @@ Level 1 (primary):    var(--color-text-primary)    — full contrast, used spari
 Level 2 (secondary):  var(--color-text-secondary)  — 70-80% of primary contrast
 Level 3 (tertiary):   var(--color-text-tertiary)   — 50-60% of primary contrast
 Level 4 (disabled):   var(--color-text-disabled)    — 35-40% of primary contrast
-Accent:               var(--color-accent)           — reserved for ONE interactive element per viewport
+Accent:               var(--color-accent)           — reserved for focus, links in prose and the data that carries the claim
 ```
 
-- Accent color on max 1-2 elements per viewport (CTA + link, not more)
+- Accent color on max 1-2 elements per viewport (focus plus one data series or link); a button fill only when the brief names a brand-colored primary
 - If everything is accent-colored, nothing is — the "purple wash" anti-pattern
 - Heading color ≠ body color unless intentionally monochrome
 - Background color creates hierarchy: white surface > gray surface > dark surface for cards

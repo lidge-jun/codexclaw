@@ -3,7 +3,7 @@
 Read `aesthetics.md` for full guidelines. Summary:
 
 - **Typography**: Use domain-appropriate typography. For Korean-first UIs, prioritize CJK-safe stacks before Latin display fonts. Apply `text-wrap: balance` on all headings **AND short descriptors** (hero subtitle, card description, caption — anything 1-3 lines). Use `text-wrap: pretty` only on body paragraphs (4+ lines). `pretty` has no effect on short text and will leave Korean orphans like "합니다." or "화." on a line alone. See `typography-wrapping.md` for full rules.
-- **Color**: Max 1 accent. Use neutral bases (Zinc/Slate) with singular high-contrast accent — avoid purple-on-white. One-note means the ENTIRE page is dominated by variations of a single hue family. One accent color with neutral bases is correct, not one-note.
+- **Color**: Max 1 accent. Use neutral bases (Zinc/Slate) with singular high-contrast accent — avoid purple-on-white. One-note means the ENTIRE page is dominated by variations of a single hue family. One accent color with neutral bases is correct, not one-note. Buttons, tabs and nav stay neutral (ink primary, glyph-only toolbar actions); hue goes to data, focus and links ([color-system.md](color-system.md) FE-COLOR-RESTRAINT-01).
 - **Layout**: Match the product surface. Avoid centered-card/hero patterns in repeated-use tools.
 - **Motion**: See `motion.md`. One signature moment + a few
   supporting reveals > 10 scattered effects; landing-bucket floor/ceiling per

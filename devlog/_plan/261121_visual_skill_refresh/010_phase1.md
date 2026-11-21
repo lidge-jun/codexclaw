@@ -154,3 +154,22 @@ darker (lighter in dark mode) plus weight or a filled glyph. Never a hue tint, n
 - `node plugins/codexclaw/scripts/gate.mjs` exit 0.
 - editorial-report.html rendered once at 1280: primary button ink, scenario box with a full
   hairline, no blue side bar.
+
+## Result (2026-11-21)
+
+Applied as written, with one amendment to C5: besides the comment, the FE-COLOR-TOKEN-01
+sample itself now makes `--primary` ink (`--gray-950`, near-white in `.dark`) and moves the
+blue to `--accent`; the hover mix targets `--background` instead of black so it works in both
+themes. A token sample that kept `--primary: var(--blue-600)` would have contradicted the new
+rule two sections later.
+
+Evidence:
+- `rg -n 'border-left: ?[0-9]|left/top accent bar|small accent bar|left accent border' plugins/codexclaw/skills/dev-*` -> exit 1, no hits.
+- `rg -n 'bg-(primary|emerald-500) text-white' plugins/codexclaw/skills/dev-*` -> exit 1, no hits.
+- FE-SIDE-ACCENT-01 defined once (anti-slop.md heading), FE-COLOR-RESTRAINT-01 defined once
+  (color-system.md heading); `check-prompt-architecture.mjs` -> `[prompt-architecture] OK`;
+  `gate.mjs` -> `[codexclaw gate] OK`.
+- editorial-report.html rendered at 1100px through a loopback server: computed `.scenario`
+  border 1px rgb(200,205,211) on all sides, transparent background; `button.primary`
+  background rgb(32,37,44) (ink), text white; secondary button neutral with border. Blue
+  remains only on the data figures and the range input.

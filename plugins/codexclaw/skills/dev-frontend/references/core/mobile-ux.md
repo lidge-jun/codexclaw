@@ -44,7 +44,7 @@ On landing/marketing pages longer than 2 screen heights, the primary CTA scrolls
 ```html
 <div class="fixed bottom-0 inset-x-0 p-4 bg-white/90 backdrop-blur-sm border-t
             pb-[calc(1rem+env(safe-area-inset-bottom))] z-40 md:hidden">
-  <button class="w-full h-12 rounded-lg bg-primary text-white font-semibold">
+  <button class="w-full h-12 rounded-lg bg-foreground text-background font-semibold">
     Get Started
   </button>
 </div>

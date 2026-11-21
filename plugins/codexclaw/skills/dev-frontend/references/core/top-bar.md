@@ -53,8 +53,8 @@ Keep the bar sparse enough that the pill still reads as one piece of chrome:
   surface.
 - Controls: only include controls that earn their place in the first viewport
   (for example theme, language, account, or search when essential).
-- CTA: one filled pill CTA is allowed. It must not create a row of competing
-  primary actions.
+- CTA: one filled CTA is allowed, filled with ink (inverted neutral), not a
+  hue. It must not create a row of competing primary actions.
 
 Mobile collapses to logo + menu trigger. The menu opens a sheet or drawer with
 a complete tap path; do not rely on hover behavior on touch devices.

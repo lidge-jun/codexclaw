@@ -82,9 +82,11 @@ Ambient / expressive / translucent / media-like surface
   -> gradient allowed if it encodes brand mood, light, depth, or material.
 Opaque + functional (repeated cards, panels, sidebars, badges, task UI)
   -> NO gradient fill. Emphasize with exactly ONE channel:
-     flat alpha/step tint | 1px accent border or ring | left/top accent bar |
+     flat alpha/step tint | 1px accent border or ring |
      elevation shadow | semantic status token.
 ```
+
+A one-sided accent bar is not a channel (FE-SIDE-ACCENT-01).
 
 The material-field exemption above applies only to ambient, expressive, or
 media-like fields such as the RISK, Sky Clock, and Augen evidence; an opaque
@@ -93,12 +95,28 @@ functional panel is NEVER exempt from this rule.
 What premium systems do instead (measured 2026-07-09): Primer
 `--bgColor-accent-muted` flat fill + `--borderColor-accent-muted`; Radix accent
 steps 3-5 for component backgrounds, 6-8 for borders; shadcn flat `--accent`
-surface tokens; Geist neutral surface + accent border on selected; Stripe Apps
-neutral panel body + small accent bar. Korean premium services (Toss, Kakao,
+surface tokens; Geist neutral surface + accent border on selected. Korean premium services (Toss, Kakao,
 Naver, Channel Talk, Daangn — live-measured) all use flat tint/border on
 functional panels; their gradients live only in hero backgrounds and
 illustrations. See `color-system.md` § Accent Surface Emphasis for token
 recipes.
+
+## One-Sided Accent Ban (FE-SIDE-ACCENT-01, DEFAULT, user contract 2026-11-21)
+
+No colored or heavier edge on one side of a box to mark emphasis, selection or category:
+cards, callouts, notes, alerts, quotes, pills, chips, nav items, list rows, stat tiles, table
+rows. Every implementation counts: a `border-left` / `border-inline-start` (or any single
+side) wider or more saturated than the others, a one-sided `inset` box-shadow, an absolutely
+positioned `::before` / `::after` bar, a gradient stripe inside `background`. It reads as a
+chatbot answer or a template card, and on a pill it fights the radius.
+
+Use one channel instead: a full 1px neutral border, one neutral surface step, a leading glyph
+or run-in label, or weight. Selected states follow FE-COLOR-RESTRAINT-01 in
+[color-system.md](color-system.md).
+
+Narrow exception: a per-row marker that encodes data (a diff gutter, a calendar category) is
+data, not emphasis, and also carries a non-color cue. The only other documented reason to
+deviate is a brief that explicitly asks for a side bar.
 
 ## One-Note Theme Ban (FE-ONENOTE-01, DEFAULT)
 
@@ -109,7 +127,7 @@ Full-page single-hue theming where background, borders, text accents, badges, gl
 - Symptom check: sample 5 random UI elements (border, badge, accent text, glow, image tint); if 4+ share one hue ±30°, the page is one-note
 - Generated imagery color-matched to the theme hue compounds the problem — the image must carry its own palette or add contrast, not echo the wash
 
-**Do instead**: neutral dark base (Zinc-950/`#0a0a0a`) + ONE accent applied to <10% of surface area (primary CTA, active states, key data). Imagery and charts supply the remaining color variation.
+**Do instead**: neutral dark base (Zinc-950/`#0a0a0a`) + ONE accent applied to <10% of surface area (focus rings, links in prose, key data; buttons and active states stay neutral per FE-COLOR-RESTRAINT-01 in color-system.md). Imagery and charts supply the remaining color variation.
 
 ### Bounded Authored Field Exemption
 

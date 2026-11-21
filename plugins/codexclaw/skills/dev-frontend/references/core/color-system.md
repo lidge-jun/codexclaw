@@ -27,19 +27,24 @@ never primitives; hardcoded colors in component CSS are a review finding
 ```css
 :root {
   /* primitives */
+  --gray-950: oklch(0.21 0 0);
   --blue-600: oklch(0.58 0.22 260);
-  /* semantic */
+  /* semantic: primary is ink; the one hue is the accent (focus, links, data) */
   --background: oklch(1 0 0);
-  --primary: var(--blue-600);
+  --primary: var(--gray-950);
   --primary-foreground: oklch(0.99 0 0);
+  --accent: var(--blue-600);
 }
 .dark {
   --background: oklch(0.145 0 0);
-  --primary: oklch(0.70 0.18 260);
+  --primary: oklch(0.96 0 0);
+  --primary-foreground: oklch(0.18 0 0);
+  --accent: oklch(0.70 0.18 260);
 }
+/* --primary stays ink unless the brief names a brand primary (FE-COLOR-RESTRAINT-01) */
 .button-primary {
   --button-bg: var(--primary);
-  --button-bg-hover: color-mix(in oklch, var(--primary) 88%, black);
+  --button-bg-hover: color-mix(in oklch, var(--primary) 88%, var(--background));
   background: var(--button-bg);
   color: var(--primary-foreground);
 }
@@ -59,14 +64,14 @@ one channel per surface:
 2. **Border/ring emphasis** — neutral surface, accent moves to the edge:
    selected -> `border-color: var(--accent-border)` (Geist pattern), or
    Tailwind-style `ring-2` + shadow for an emphasized tier.
-3. **Left/top accent bar** — neutral panel body, brand color confined to a
-   small stable indicator (`border-left: 3px solid var(--brand)`; Stripe Apps
-   pattern).
-4. **Elevation** — shadow tokens (`--shadow-resting-*` / `--shadow-floating-*`,
+3. **Elevation** — shadow tokens (`--shadow-resting-*` / `--shadow-floating-*`,
    Primer pattern) instead of decorative fills.
-5. **Semantic status token** — `background/border/text` role triplets per
+4. **Semantic status token** — `background/border/text` role triplets per
    status (information/success/warning/danger; Atlassian pattern) when the
    emphasis carries meaning.
+
+One-sided accent bars are not a channel (FE-SIDE-ACCENT-01 in
+[anti-slop.md](anti-slop.md)).
 
 ```css
 /* flat tint + border, derived from semantic tokens — no wash */
@@ -80,6 +85,63 @@ Field note (live-measured 2026-07-09): Toss/Kakao/Naver/Channel Talk/Daangn all
 style functional highlighted cards as flat solid/pastel tints with border 0-1px
 and little or no shadow; gradients appear only in hero backgrounds and
 illustration mockups.
+
+## Neutral Controls and Color Budget (FE-COLOR-RESTRAINT-01, DEFAULT, user contract 2026-11-21)
+
+What is clicked stays neutral; what is measured or signalled may carry hue. Reference: a
+native macOS utility toolbar (Activity Monitor). Its actions are monochrome glyphs in neutral
+circles, its view switcher is a neutral segmented control whose selected segment is one gray
+step darker, and color appears only in the CPU chart and the figures that match it.
+
+Color budget per rendered screen:
+
+- Neutrals: ink, one muted text step, two or three surface/border steps.
+- At most one accent hue, spent on focus rings, links inside prose, the selected data series
+  or the one number that carries the claim.
+- Semantic status hues only where a state is shown, each with a non-color cue.
+- Check: list every distinct non-neutral hue on the rendered screen. More than one
+  non-semantic hue, or a hue that only decorates, fails.
+
+Buttons:
+
+| Tier | Treatment |
+|---|---|
+| Primary, one per view | Ink fill: foreground color as background, background color as text. Not a brand hue. |
+| Secondary | Neutral surface, 1px neutral border, ink text. |
+| Tertiary and toolbar | Glyph or text on a transparent or neutral ground; hover moves one neutral step. |
+| Destructive | Neutral button with an explicit verb ("Delete 3 files"); the danger hue appears only on the confirming control inside the confirmation surface. |
+
+A hue-filled button is allowed only when the brief names a brand-colored primary: then one per
+screen, no gradient, no glow, every other button neutral. Different hues per button and
+colored chips used as actions are not allowed.
+
+Icon controls:
+
+- Monochrome SVG glyphs from one library or one authored set, one stroke weight, painted with
+  `currentColor` so the control's text color drives them. No multicolor icons or emoji as
+  actions.
+- The glyph sits in a neutral shape (circle or rounded square in the chrome's own gray) that
+  moves one neutral step on hover and press; 44x44px target; an accessible name, plus a
+  tooltip when the glyph is not self-evident.
+- Related actions share one neutral capsule instead of separate colored buttons.
+
+Selected and active states (tabs, segmented controls, nav items, chips): one neutral step
+darker (lighter in dark mode) plus weight or a filled glyph. Never a hue tint, never a side bar
+(FE-SIDE-ACCENT-01 in [anti-slop.md](anti-slop.md)).
+
+```css
+:root { --fg: oklch(0.21 0 0); --bg: oklch(0.99 0 0); --surface-2: oklch(0.955 0 0);
+        --surface-3: oklch(0.92 0 0); --line: oklch(0.88 0 0); --focus: var(--accent); }
+.btn         { background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+.btn:hover   { background: var(--surface-2); }
+.btn-primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.icon-btn    { inline-size: 44px; block-size: 44px; border: 0; border-radius: 999px;
+               display: grid; place-items: center; background: var(--surface-2); color: var(--fg); }
+.icon-btn:hover { background: var(--surface-3); }
+.icon-btn svg   { inline-size: 20px; block-size: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; }
+.segmented [aria-selected="true"] { background: var(--surface-3); font-weight: 600; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+```
 
 ## Modern Color Functions (baseline status 2026-07-07)
 

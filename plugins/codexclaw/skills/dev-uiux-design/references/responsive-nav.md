@@ -33,7 +33,7 @@ For navigation components, prefer `@container` so the same nav adapts in a sideb
 ### Sidebar
 - Expanded: 256px fixed width. Collapsed: 64px (icons only).
 - Item height: 36px. Horizontal padding: 12px.
-- Active state: 8% primary color background + 3px left accent border.
+- Active state: one neutral surface step darker, medium-weight label and a filled glyph. No hue tint and no side bar (FE-COLOR-RESTRAINT-01 in dev-frontend's color-system.md).
 - Transition: 200ms ease-in-out.
 - Group sections with subtle separators and 10px uppercase section labels.
 
