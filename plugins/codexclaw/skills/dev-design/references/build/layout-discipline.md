@@ -110,6 +110,36 @@ A bento is one composed object, not a pile of cards. Catch these failures before
 
 **Pre-ship check**: screenshot the bento, squint. If it reads as one interlocking slab, pass. If it reads as boxes floating near each other, recompose spans before touching colors.
 
+### App Bento (FE-BENTO-APP-01, DEFAULT, owner review 2026-11-21)
+
+Home screens, personal boards and overview pages legitimately need a bento: several unlike
+things (focus list, calendar, decisions, agent runs) share one viewport. The slop is not the
+grid; it is a marketing bento's grammar inside a tool. Rules:
+
+- **Size classes, not free spans.** Pick 2-3 fixed cell sizes (Apple widget model: S, M, L) on
+  one column grid, and design each module's content for its size. A module never stretches to
+  fill leftover height.
+- **Height comes from content, and columns end together.** No fixed-height module with empty
+  interior (a day calendar showing eight empty hours, a 545px list holding four rows). Trim to
+  the range that has data or collapse it. Ragged column bottoms read as floating boxes.
+- **One container grammar.** Either every module is a panel or none is; no card inside a card
+  (nest with a hairline or a label, never a second fill and radius), and no page that switches
+  to bare columns halfway down.
+- **Tool radius and chrome.** 6-8px panels, 12px gutters, 13px section labels with a count,
+  12px meta. 14px+ radius and 20px+ module titles are consumer-card styling.
+- **Every module must earn its cell.** Delete or merge modules that duplicate the sidebar,
+  show only zero counts, or list connector health that needs no action; demote them to a status
+  line. Order by what needs the user now (decisions, overdue) before ambient context.
+- **Semantic color budget.** Red marks one thing (needs action now). Overdue times, collector
+  warnings and "not checked" states in the same red turn the screen into alarm noise; use ink-2
+  for stale and reserve red for the single most urgent class.
+- **Default-stack tell.** `#0a0a0a` page + `#171717` cards + `white/10` borders + Inter + Geist
+  Mono is the stock shadcn dark theme. Ship at least one deliberate departure (type pairing,
+  surface model, or density) so the board reads as this product.
+
+Check: at 1440x900 the first viewport answers "what needs me now"; no module has more than 30%
+empty interior; column bottoms align within 24px; one nesting level.
+
 ## Section Content Limits
 - Default per section: short headline (≤8 words) + sub-paragraph (≤25 words) + one visual/CTA
 - Long lists (>5 items): use cards/tabs/accordion/scroll-snap/carousel, not default <ul>

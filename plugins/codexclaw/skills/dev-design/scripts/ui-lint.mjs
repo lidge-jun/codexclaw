@@ -57,6 +57,13 @@ function sides(d, tokens) {
   return S;
 }
 
+function oklch(c) {
+  const lin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const r = lin(c.r), g = lin(c.g), b = lin(c.b);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b), q = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * q, A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * q, B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * q;
+  return { L, C: Math.hypot(A, B), H: ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360 };
+}
 function colorKey(c) { return c ? `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}` : ""; }
 
 export function lintStatic(file, text) {
@@ -148,6 +155,17 @@ export function lintStatic(file, text) {
   }
   if (fams.size > 1) add("WARN", "FE-COLOR-RESTRAINT-01", 1, `${fams.size} non-semantic accent hue families in tokens (${[...fams.values()].join(", ")}); budget is one`);
 
+  // FE-NEUTRAL-RAMP-01: warm (stone/greige) neutrals in a work tool
+  const isTool = /<table\b|role=["'](grid|table|treegrid)["']|data-density=["'](compact|tool)["']/i.test(text);
+  if (isTool) {
+    const warm = [];
+    for (const [k, v] of Object.entries(tokens)) {
+      const c = colorIn(v, tokens); if (!c || isChromatic(c)) continue;
+      const o = oklch(c); if (o.C > 0.003 && o.H >= 40 && o.H <= 120 && o.L > 0.6) warm.push(`${k} ${String(v).trim()}`);
+    }
+    if (warm.length) add("WARN", "FE-NEUTRAL-RAMP-01", 1, `warm-tinted neutrals in a work tool (${warm.slice(0, 4).join(", ")}); use achromatic or cool grays`);
+  }
+
   if (isMarkup) {
     const tag = (re, cb) => { let m; while ((m = re.exec(text))) cb(m); };
     // Tailwind / class tokens
@@ -211,6 +229,8 @@ function pageProbe(vw) {
   const desc = (el) => el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : "");
   const responsive = !!document.querySelector('meta[name="viewport"][content*="width=device-width"]');
   const sw = document.documentElement.scrollWidth;
+  const rows = [...document.querySelectorAll("tbody tr, [role=row]")].filter(vis).map((r) => r.getBoundingClientRect().height).sort((a, b) => a - b);
+  if (vw >= 1024 && rows.length >= 5) { const med = rows[Math.floor(rows.length / 2)]; if (med > 44) out.push({ kind: "density", msg: `median table row ${Math.round(med)}px > 44px for a work tool (FE-DENSITY-01: 32-40px, one line)` }); }
   if (sw > innerWidth + 8) out.push({ kind: responsive ? "overflow" : "overflowWarn", msg: `horizontal overflow ${sw}px > ${innerWidth}px${responsive ? "" : " (no responsive viewport meta; desktop-only page)"}` });
   const inView = (r) => r.bottom > 0 && r.right > 0 && r.left < innerWidth && r.top < innerHeight * 3 && r.width > 2 && r.height > 2;
   const all = [...document.querySelectorAll("body *")].filter(vis).slice(0, 5000);
@@ -284,7 +304,7 @@ export async function lintRender(targets) {
   try { browser = await chromium.launch(process.platform === "darwin" && existsSync(exe) ? { executablePath: exe } : {}); }
   catch (e) { try { browser = await chromium.launch(); } catch (e2) { return { notRun: "could not launch a browser: " + String(e2.message).slice(0, 100), findings: [] }; } }
   const findings = [];
-  const ID = { overflow: ["FAIL", "FE-VISUAL-AUDIT-02"], overflowWarn: ["WARN", "FE-VISUAL-AUDIT-02"], small: ["WARN", "FE-TYPO-FLOOR-01"], overlap: ["WARN", "FE-VISUAL-AUDIT-02"], side: ["FAIL", "FE-SIDE-ACCENT-01"], btnhue: ["FAIL", "FE-COLOR-RESTRAINT-01"] };
+  const ID = { density: ["WARN", "FE-DENSITY-01"], overflow: ["FAIL", "FE-VISUAL-AUDIT-02"], overflowWarn: ["WARN", "FE-VISUAL-AUDIT-02"], small: ["WARN", "FE-TYPO-FLOOR-01"], overlap: ["WARN", "FE-VISUAL-AUDIT-02"], side: ["FAIL", "FE-SIDE-ACCENT-01"], btnhue: ["FAIL", "FE-COLOR-RESTRAINT-01"] };
   for (const t of targets) {
     const url = /^https?:/.test(t) ? t : pathToFileURL(resolve(t)).href;
     for (const vw of [390, 1280]) {
