@@ -8,7 +8,7 @@
 | SBOM/signing depth | [dev-security SBOM](../../dev-security/references/supply-chain-sbom.md) | Supply-chain evidence policy beyond image scan gates |
 | Architecture module boundaries | `dev-architecture` | Coupling taxonomy, barrel discipline |
 | Scaffolding conventions | `dev-scaffolding` | File naming, project structure |
-| Frontend build/bundle | `dev-frontend` | Vite/webpack config, SSR |
+| Frontend build/bundle | `dev-design` | Vite/webpack config, SSR |
 
 **dev-devops owns**: container builds, deploy pipelines, K8s manifests, IaC modules, SRE/incident response, edge infra, ML infra. DevOps owns operational scan execution and release gates; `dev-security` owns security policy, severity thresholds, and required evidence.
 **dev-backend owns**: application-layer observability code, API design, health check implementation.

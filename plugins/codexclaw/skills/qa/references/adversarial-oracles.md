@@ -22,9 +22,9 @@ Surface-specialized class details: `http-api-qa.md` (wire), `cli-tui-qa.md`
   passes (`spawn_agent`, explorer role, DISPATCH-TASK-01 packet; paste the
   captures/screenshot paths + script/tool observations into each prompt —
   do not make the oracle re-derive context):
-  Both passes are rubric-bound: attach `cxc-dev-frontend` (anti-slop +
+  Both passes are rubric-bound: attach `cxc-dev-design` (anti-slop +
   visual-verification checklist ARE the rubric) and, for design-direction
-  judgments only, `cxc-dev-uiux-design`; every PASS cites the rule ids it
+  judgments only, `cxc-dev-design`; every PASS cites the rule ids it
   checked (QA-VISUAL-COMPANION-01, `visual-qa.md`). Capture the
   objective evidence layer FIRST (viewport matrix, DOM text extraction for
   text/CJK claims, console errors — QA-VISUAL-METRIC-01).

@@ -89,10 +89,10 @@ deterministic.
 Flipping a skill to `allow_implicit_invocation:true` auto-renders it into every turn's
 context. Strong for the highest-traffic skills, but each costs context budget, so it is
 a deliberate trade, not a default. Since 2026-07-09 the implicit set is
-`{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design}` (~30
+`{dev, search, interview, pabcd, recall, loop, dev-design}` (~30
 tokens of metadata per skill); `dev` remains the only skill whose BODY carries always-on
 discipline — the others are metadata rows that make on-demand loading discoverable.
-`dev-frontend` and `dev-uiux-design` are the design-surface exception (anti-slop grammar
+`dev-design` are the design-surface exception (anti-slop grammar
 must reach every UI-generating session); every other `dev-*` router stays implicit-off.
 
 ### E7 — Prose (guidance only)

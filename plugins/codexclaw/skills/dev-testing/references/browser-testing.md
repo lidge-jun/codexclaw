@@ -42,7 +42,7 @@ python ../scripts/with_server.py \
 - If a failure looks like data-shape drift, go back to **§2 Backend & API Testing** or **§3 Contract Testing**.
 ### 4.7 Exploratory browser QA (TEST-CU-QA-01)
 
-Browser QA loads `dev-frontend` for rendered implementation context.
+Browser QA loads `dev-design` for rendered implementation context.
 Follow [portable browser routing](../../dev/references/browser-routing.md)
 (QA-TOOL-LADDER-01). Suitable available Aside, native browsers, and agbrowse may
 drive built UI; no one optional tool is required. Inspect -> act -> re-inspect,

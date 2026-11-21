@@ -16,7 +16,7 @@ our output looks good. Rendered trials are required separately.
 |---|---|---|---|
 | [visual-explainer](https://github.com/nicobailon/visual-explainer/blob/7163c3e10660912e0b89e1af465db9f387282b88/plugins/visual-explainer/SKILL.md) | 9,664 stars; HEAD 2026-08-28 | Select representation by question; explain mechanisms; separate overview/detail; compose prose and tables | Do not adopt automatic HTML replacement of requested Markdown tables, fixed home paths, or compulsory zoom controls for tiny diagrams |
 | [agent-html-skills / playground](https://github.com/f-labs-io/agent-html-skills/blob/d4f259ea4959aecd1240a10c60a950dfb6d1a3f5/plugins/html-skills/skills/html-interactive-playground/SKILL.md) | 55; 2026-09-02 | Visible parameters/units, immediate model consequences, reset and comparison sweeps | Do not import its Claude receiver, submission server, clipboard or publishing assumptions |
-| [taste-skill](https://github.com/Leonxlnx/taste-skill/blob/ccbc15639c97057cbfcf32ecebc38ef716e4bb37/skills/taste-skill/SKILL.md) | 85,154; 2026-08-24 | Audience/page kind before layout variance, density and motion | Marketing/portfolio style constraints do not govern data reports; existing `dev-uiux-design` remains the taste owner |
+| [taste-skill](https://github.com/Leonxlnx/taste-skill/blob/ccbc15639c97057cbfcf32ecebc38ef716e4bb37/skills/taste-skill/SKILL.md) | 85,154; 2026-08-24 | Audience/page kind before layout variance, density and motion | Marketing/portfolio style constraints do not govern data reports; existing `dev-design` remains the taste owner |
 | [design-taste / editorial-minimal](https://github.com/madebymustafa/design-taste/blob/c4a6bff0871eb4b15371b0e7d2751628b0ed4608/skills/editorial-minimal/SKILL.md) | 1; 2026-08-15 | Text measure, asymmetric hierarchy, rows and restrained rules | An optional genre, not evidence of broad adoption or a universal document look |
 | [explainer-pack / aesthetic](https://github.com/Angelopvtac/explainer-pack/blob/09fd3f1de384d71858f0ba678af2abc5721907d1/skills/Explainer/References/Aesthetic.md) | 1; 2026-05-23 | Separate UI accent and semantic colors; direct labels; print tokens | Its skill's conflicting light-theme guidance is rejected; source popularity is limited |
 | [visualise](https://github.com/bentossell/visualise/blob/35cd185b58af5db2f9d0fe13d9872b544a467483/SKILL.md) | 480; 2026-03-12 | Question-first SVG/HTML selection and local calculations | Renderer is not included; no host contract can be inferred; copy clearance incomplete |
@@ -63,6 +63,26 @@ Inspected licenses and source details:
 - [Vivliostyle AGPL-3.0](https://github.com/vivliostyle/vivliostyle-cli/blob/0db54ab6005ad20987de5ed36a8d543f82665f36/LICENSE).
 - [Benchmark MIT](https://github.com/NicolasMartalog/html-to-pdf-benchmark/blob/1a290622403ffbecc2065d6e00b0e25bae34f59e/LICENSE).
 - [Noto Sans OFL-1.1](https://github.com/notofonts/noto-cjk/blob/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/LICENSE).
+
+## Refresh, 2026-11-21
+
+Re-inspected with GitHub API metadata and shallow clones on 2026-11-21. Star counts are
+repository-wide snapshots from that day. The ideas below were reimplemented in our own words
+and code: `scripts/look.mjs`, `reference/diagram-types.md` and the brand gate in
+[artifact composition](artifact-composition.md). No file was copied.
+
+| Source | Snapshot | Pattern taken | Adaptation boundary |
+|---|---|---|---|
+| [visual-explainer](https://github.com/nicobailon/visual-explainer) 0.15 (`kit/look.mjs`) | 11,205 stars, MIT, pushed 2026-11-05 | Render the page headless at a phone width and a desktop width. Report script errors, sideways scroll, labels under 12px, overlapping text and glued headings. Then look once at a contact sheet. One claim per figure, a verb on every edge, a mark for every number. | `look.mjs` is independently written and adds a print mode with REPORT-VIZ-01 floors and SVG shape-escape checks. Its slide, video, PPTX and in-page reply features are not adopted. |
+| [diagram-design](https://github.com/cathrynlavery/diagram-design) | 69,422 stars, MIT, pushed 2026-11-19 | A catalog of about 50 diagram types chosen by question; a style-guide gate on first use; target density about 4/10, split above 9 nodes; "the best move is usually deletion". | Our catalog is about 20 types written for reports and explainers. Its coral house style and Mermaid/draw.io importers are not adopted. |
+| [open-design](https://github.com/nexu-io/open-design) | 108,730 stars, Apache-2.0, pushed 2026-11-21 | DESIGN.md as the brand contract read before every render. | Comparator only. Nothing is copied; Apache notices would apply if anything were. |
+| [baoyu-skills](https://github.com/JimLiu/baoyu-skills) | 27,761 stars, MIT | Bitmap infographics from image models (layout × style grid) | A different route (raster). Not adopted; facts in a generated image cannot be verified as text. |
+| [open-slide](https://github.com/open-slide/open-slide) | 9,819 stars, MIT | Slides on a fixed 1920×1080 canvas for agents | Comparator for any future slide route; not adopted. |
+| [design-slop-cop](https://github.com/AdrianKrebs/design-slop-cop) | 19 stars, MIT, pushed 2026-07-07 | 14 computed-style checks scored over 1,390 Show HN pages | Used as a measurement tool in the 2026-11-21 survey (devlog 009). It informs the house rules owned by `dev-design`, not this skill's code. |
+
+The house rules this skill now follows (neutral controls, color only in data, no one-sided
+accent bars) come from the 2026-11-21 owner A/B tests and the site survey, both recorded in
+the codexclaw devlog `261121_visual_skill_refresh`. `dev-design` owns those rules.
 
 ## How the synthesis fits together
 

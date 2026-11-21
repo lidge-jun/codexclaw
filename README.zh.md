@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C879-brightgreen" alt="3,879 tests">
-  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
+  <img src="https://img.shields.io/badge/tests-3%2C899-brightgreen" alt="3,899 tests">
+  <img src="https://img.shields.io/badge/skills-30-blue" alt="30 skills">
   <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
@@ -28,7 +28,7 @@ codexclaw 将 Codex 运行时转变为规范化的开发环境。它不提供独
 
 ## 功能
 
-**Dev Skill Family** — 由规范父级 `dev` 统一管理的 12 个特定领域路由器（`dev-architecture`、`dev-backend`、`dev-frontend`、`dev-testing`、`dev-security`、`dev-debugging`、`dev-data`、`dev-devops`、`dev-code-reviewer`、`dev-scaffolding`、`dev-visualizer`、`dev-uiux-design`）。所有路由器都继承父级的规则分类、验证门和安全规则。共包含 155 个唯一规则 ID。
+**Dev Skill Family** — 由规范父级 `dev` 统一管理的 12 个特定领域路由器（`dev-architecture`、`dev-backend`、`dev-design`、`dev-testing`、`dev-security`、`dev-debugging`、`dev-data`、`dev-devops`、`dev-code-reviewer`、`dev-scaffolding`、`dev-visualizer`、`dev-design`）。所有路由器都继承父级的规则分类、验证门和安全规则。共包含 155 个唯一规则 ID。
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done，基于文件驱动的 FSM 实现，并通过证明材料控制阶段转换。各阶段通过 `cxc orchestrate` 命令推进，每次转换都携带结构化证据。持久化 goalplan 账本可跨多个周期跟踪工作阶段、成功标准和已收集的证据。
 
@@ -207,9 +207,9 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 | Surface | Router | Also loads |
 |---------|--------|------------|
 | Backend / API | `dev-backend` | `dev-security` for auth |
-| Frontend / UI | `dev-frontend` | `dev-uiux-design` for direction |
+| Frontend / UI / design | `dev-design` | direction, copy, build and audit modes in one skill |
 | Database / data | `dev-data` | `dev-backend` for migrations |
-| Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
+| Tests / QA | `dev-testing` | `dev-design` for browser QA |
 | Security | `dev-security` | surface-specific router |
 | Architecture | `dev-architecture` | `dev-scaffolding` for structure |
 | Debugging | `dev-debugging` | surface-specific router |
@@ -220,7 +220,7 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 
 每个路由器都有独立的模块化参考资料，仅在需要时加载，不会预加载；同时继承父级的验证门、规则分类和安全规则。
 
-**前端 skill 下游。** `dev-frontend` 与 `dev-uiux-design` 的参考资料通过固定的改写规则（[rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs)）镜像到 [noslopdesign](https://github.com/lidge-jun/noslopdesign)。这两个 skill 内引用其他 skill 时只能使用 `dev-frontend`、`dev-uiux-design`（原样、加 `cxc-` 前缀或写成 `../../dev-*/` 链接）、`` `dev-backend` ``、`` `dev-testing` ``、`` `dev-security` ``、`` `dev-devops` ``，以及 `` `dev` §0.2 ``、`§0.4`。`Source:` 与 `Adapted from` 行须位于行首，两个目录不得改名。列表之外的写法大多会被残留引用检查拦下，阻断该仓库的每周同步并在那里开 issue。
+**设计 skill 下游。** `dev-design` 的参考资料通过固定的改写规则（[rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs)）镜像到 [noslopdesign](https://github.com/lidge-jun/noslopdesign) 的 `noslop-design`。`dev-design` 内的跨 skill 引用只使用 `dev-design`（裸名或带 `cxc-` 前缀）、`` `dev-backend` ``、`` `dev-testing` ``、`` `dev-security` ``、`` `dev-devops` `` 以及 `` `dev` §0.2 `` / `§0.4`；指向 `loop`、`qa`、`dev-visualizer` 或 `kwrite` 的链接需要在那边补一条改写规则。`Source:` 与 `Adapted from` 行保持在行首，且不要重命名该文件夹。此列表之外的写法大多会被遗留检查拦下，阻止该仓库的每周同步并开 issue。
 
 **Visualizer 维护 — 先修复 codexclaw，再移植到 Aside。** 共享功能先在 codexclaw 中修复并验证，再移植到 `aside-visualizer`。只有下游移植合并到交付分支且验收条件得到验证后，才能关闭 Aside issue；保留 Aside 适配器、独立安装和无系统 Chrome 的 PDF 路径。详见[移植流程](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)。普通产物请求不授权仓库维护、安装、发布或独立循环；按产物选择 `draft`、`standard` 或 `publication` 验证档位。
 
@@ -247,7 +247,7 @@ codexclaw 是参考实现。其方法论和 skills 已移植到以下项目中�
 | [pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative) | Methodology spec + docs-site + agent-neutral skill set |
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
-| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-frontend` + `dev-uiux-design` as `noslop-frontend` / `noslop-uiux`, synced weekly from here |
+| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-design` as `noslop-design` (0.3; `noslop-frontend` / `noslop-uiux` are redirects), synced weekly from here |
 
 ## 文档
 

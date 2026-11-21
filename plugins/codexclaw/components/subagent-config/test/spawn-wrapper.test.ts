@@ -272,7 +272,7 @@ test("WP1: buildSkillMentionBlock dedupes excluded folders and empties out", asy
     excludeFolders: ["dev"],
   });
   assert.doesNotMatch(partial, /\[\$cxc-dev\]\(/);
-  assert.match(partial, /\[\$cxc-dev-frontend\]\(/);
+  assert.match(partial, /\[\$cxc-dev-design\]\(/);
 
   const empty = buildSkillMentionBlock({
     role: "explorer",
@@ -304,7 +304,7 @@ test("020/dev2: routeDispatch('red-team', frontend) prepends role and surface me
   assert.ok(!("items" in out), "dev2: dispatcher output is v2-shaped (no items)");
   assert.equal(out.fork_turns, "none");
   assert.match(out.task_name, /^reviewer_[a-z0-9_]+$/);
-  for (const name of ["cxc-dev", "cxc-dev-code-reviewer", "cxc-search", "cxc-dev-frontend"]) {
+  for (const name of ["cxc-dev", "cxc-dev-code-reviewer", "cxc-search", "cxc-dev-design"]) {
     assert.ok(out.message.includes(`$${name}`), `${name} mention present`);
   }
   assert.match(out.message, /TASK: red-team this diff$/);

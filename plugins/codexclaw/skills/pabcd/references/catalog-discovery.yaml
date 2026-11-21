@@ -25,14 +25,14 @@ axis_order:
   - {stage: 3, axis: ops,      label_ko: "운영/자동화",    derived: true}
   - {stage: 3, axis: cost,     label_ko: "비용/복잡도",    derived: true}
 
-# Design methodology wiring (from dev-uiux-design). Step 1 = Product-Personality Selection.
+# Design methodology wiring (from dev-design). Step 1 = Product-Personality Selection.
 design_methodology:
   primary: product_personality_selection
-  ref: "skills/dev-uiux-design/SKILL.md"
+  ref: "skills/dev-design/SKILL.md"
   followups:
-    - step: korean_request_translation  # dev-uiux-design §3 — map Korean adjectives to design tokens
-    - step: reference_discovery         # dev-uiux-design §1 Step 6 — anchor with existing product visuals
-    - step: design_read                 # dev-uiux-design §2 — full Design Read for production-ready dials
+    - step: korean_request_translation  # dev-design §3 — map Korean adjectives to design tokens
+    - step: reference_discovery         # dev-design §1 Step 6 — anchor with existing product visuals
+    - step: design_read                 # dev-design §2 — full Design Read for production-ready dials
 
 # ============================================================================
 # STAGE 1 — DESIGN (6 dials, leading). Each is `required` and carries structured

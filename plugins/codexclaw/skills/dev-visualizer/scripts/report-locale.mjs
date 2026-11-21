@@ -473,7 +473,7 @@ export function renderLocalizedExample(example, config) {
     nav { margin: 2rem 0; }
     nav ol { padding-inline-start: 1.4rem; }
     .summary { max-width: 68ch; font-size: 1.08rem; }
-    .claim { border-inline-start: 3px solid #315c9b; padding-inline-start: 1rem; margin: 1.25rem 0; }
+    .claim { padding-inline-start: 1rem; margin: 1.25rem 0; font-weight: 600; }
     figure { margin: 1.5rem 0; break-inside: avoid; }
     figure dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1px; background: #c7ccd4; border: 1px solid #c7ccd4; }
     .metric { background: #fff; padding: 14px; }

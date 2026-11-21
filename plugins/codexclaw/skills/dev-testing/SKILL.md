@@ -13,7 +13,7 @@ Balance: ~40% Backend/API, ~40% Frontend/E2E (Playwright), ~20% Cross-cutting (C
 - This skill owns test adequacy; `dev-code-reviewer` owns finding severity and review process.
 - CI pipeline ownership and deployment verification: see `dev-devops`.
 - Data pipeline testing and ETL validation: see `dev-data`.
-- Design direction context for rendered verification: see `dev-uiux-design`.
+- Design direction context for rendered verification: see `dev-design`.
 This skill activates by change-surface when work needs verification depth, regression coverage, or a reproducible test harness.
 
 Class, fast path, rule authority, proof, and safety: [dev](../dev/SKILL.md). Current/public evidence: [dev routing](../dev/SKILL.md#conditional-routes).

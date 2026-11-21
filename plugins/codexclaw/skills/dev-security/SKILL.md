@@ -24,7 +24,7 @@ Treat security as a build constraint, not a cleanup step.
 This skill is the authoritative source for authentication, authorization, input validation, secrets, headers, rate limiting, supply-chain security policy and evidence requirements, PII handling, and agentic AI safety.
 Validation ownership split: this skill owns **what the validation schema enforces** (content/policy); **placement** (boundary-only validation) is owned by `dev-architecture` §4.
 `dev-backend` delegates here for policy and verification depth.
-`dev-frontend` remains responsible for UI implementation, but frontend security touchpoints such as CSP compliance, CORS behavior, XSS prevention, and dependency auditing are defined here.
+`dev-design` remains responsible for UI implementation, but frontend security touchpoints such as CSP compliance, CORS behavior, XSS prevention, and dependency auditing are defined here.
 This skill activates by change-surface whenever code crosses a trust boundary or changes the blast radius of a failure.
 
 Before security work, read [dev](../dev/SKILL.md) for classification, fast paths, rule authority, family invariants, verification, and safety; current CVEs/public evidence follow its [Conditional Routes](../dev/SKILL.md#conditional-routes).

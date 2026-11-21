@@ -8,7 +8,7 @@ codexclaw ships its discipline as skills. Eight are implicit-visible; the rest l
 ## Implicit vs on-demand
 
 - **Eight skills are implicit.** The shipped implicit set is `dev`, `search`, `interview`,
-  `pabcd`, `recall`, `loop`, `dev-frontend`, and `dev-uiux-design`. `cxc-dev` remains the coding work classifier
+  `pabcd`, `recall`, `loop`, and `dev-design`. `cxc-dev` remains the coding work classifier
   ([C0-C5](/codexclaw/concepts/work-classes/)); the others expose current lookup,
   interview, workflow, recall, work-loop, and design/anti-slop affordances when their triggers match.
 - **Everything else is on-demand.** `dev-backend`, `dev-testing`, `qa`,
@@ -64,8 +64,8 @@ overlays:
 | `threat_model` / `security` | `dev-security` | C4 security/data/tooling risk |
 | `debugging` / `debugging_rca` | `dev-debugging` | Repeated failure needs root cause |
 | `devops` / `infra` / `deploy` | `dev-devops` | Container/K8s/IaC/deploy/SRE |
-| `frontend_ui` | `dev-frontend`, `dev-uiux-design` | UI/design intent or prototype work |
-| `crud_fullstack` | `dev-backend`, `dev-frontend`, `dev-testing` | Full-stack slice with coupled UI + API |
+| `frontend_ui` | `dev-design` | UI/design intent or prototype work |
+| `crud_fullstack` | `dev-backend`, `dev-design`, `dev-testing` | Full-stack slice with coupled UI + API |
 
 ## Search skills
 
@@ -96,8 +96,7 @@ codexclaw currently ships 28 skill directories:
 | `cxc-dev-backend` | `dev-backend` | API, server, database, queues, and backend operations. |
 | `cxc-dev-data` | `dev-data` | Pipelines, ETL/ELT, SQL, schema, backfills, and reports. |
 | `cxc-dev-debugging` | `dev-debugging` | Runtime root-cause debugging method. |
-| `cxc-dev-frontend` | `dev-frontend` | Frontend/UI implementation, responsive layout, WCAG 2.2 AA checks and before/after visual audits. |
-| `cxc-dev-uiux-design` | `dev-uiux-design` | UX direction, states, experience audits (personas, journeys, gap ledger), visual judgment, logos, and typography. |
+| `cxc-dev-design` | `dev-design` | Design direction, UX states, copy, frontend build, WCAG 2.2 AA checks, experience and visual audits, lint. Replaced `cxc-dev-frontend` and `cxc-dev-uiux-design` (2026-11-21). |
 | `cxc-dev-testing` | `dev-testing` | Test strategy, QA, Playwright, contracts, CI, and coverage. |
 | `cxc-qa` | `qa` | Manual surface-driving QA evidence for web, TUI, CLI, API, and desktop GUI surfaces. |
 | `cxc-dev-code-reviewer` | `dev-code-reviewer` | Review verdicts, findings, and risk assessment. |

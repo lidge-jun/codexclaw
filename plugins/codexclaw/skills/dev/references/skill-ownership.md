@@ -5,7 +5,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Rule Area | Canonical Owner | Stub Locations |
 |-----------|----------------|----------------|
 | Circular dependencies | `dev-architecture` | `dev`, `dev-code-reviewer` |
-| Module boundaries / layers | `dev-architecture` | `dev-backend`, `dev-frontend` |
+| Module boundaries / layers | `dev-architecture` | `dev-backend`, `dev-design` |
 | Coupling taxonomy | `dev-architecture` | `dev-code-reviewer` |
 | Barrel / re-export | `dev-architecture` | `dev-scaffolding` |
 | Pre-write search | dev references/development-practice.md (§1.5) | `dev-code-reviewer` |
@@ -19,14 +19,14 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |
 | Boundary-only defense | `dev-architecture` §4 | `dev-backend`, `dev-security` |
 | Process isolation | `dev-backend` references/ | `dev-code-reviewer`, `dev-devops` |
-| Long-lived connections | `dev-backend` §1 app hooks | `dev-frontend`, `dev-devops` operational gates |
+| Long-lived connections | `dev-backend` §1 app hooks | `dev-design`, `dev-devops` operational gates |
 | Async task queue | `dev-backend` §2 app hooks | `dev-devops` operational gates |
 | Debugging methodology | `dev-debugging` | `dev-code-reviewer` |
-| Browse / QA tool routing | `dev/references/browser-routing.md` | `dev`, `dev-testing` §4.7, `search`, `dev-frontend`, `dev-visualizer` |
+| Browse / QA tool routing | `dev/references/browser-routing.md` | `dev`, `dev-testing` §4.7, `search`, `dev-design`, `dev-visualizer` |
 | Data pipeline patterns | `dev-data` | `dev-backend` |
-| Frontend implementation | `dev-frontend` | `dev-uiux-design` |
-| Design intent discovery | `dev-uiux-design` | `dev-frontend` |
-| Design judgment | `dev-uiux-design` | `dev-frontend` |
+| Frontend implementation | `dev-design` (build mode) | `dev-design` direction mode |
+| Design intent discovery | `dev-design` (direction mode) | `dev-design` build mode |
+| Design judgment | `dev-design` (direction mode) | `dev-design` build mode |
 | Visual document composition / diagram and report rendering and delivery mechanics | `dev-visualizer` | `dev`; format-specific document owners retain PDF/DOCX/Slides mechanics |
 | Reader-facing document structure (READER-DOC-*) | `dev/references/reader-documents.md` | `dev` Family Invariants, `dev-visualizer`, `pabcd` plan-output/phase-check/D, `dev-scaffolding` implementation-log, `kwrite`, `search` deep-research |
 | Deep research protocol (SEARCH-DEEP-*) | `search/references/deep-research.md` | `search` Tier 3, `dev` browser-routing |

@@ -42,6 +42,45 @@ Examples of structure that earns its form:
 Keep document narrative in the document. Inline conversation visuals instead obey
 the host's narrower composition contract; do not paste a whole report into a fragment.
 
+## Brand gate (VIZ-BRAND-01, DEFAULT)
+
+Before styling the first artifact in a project, look for an existing visual identity, in
+this order:
+
+1. `DESIGN.md` or `design.md` at the root (YAML tokens plus prose).
+2. Brand or design tokens in the codebase (CSS custom properties, a Tailwind theme, a
+   tokens JSON).
+3. A brand the brief names.
+
+If one exists, use its colors, type and radius and nothing else. If none exists, use this
+skill's neutral defaults and say so once in the delivery note ("no brand tokens found;
+neutral defaults used"). Do not ask again on later artifacts in the same task, and do not
+invent a brand palette.
+
+## House rules
+
+These apply to every artifact unless the brief or the project's brand says otherwise. They
+are owned by `dev-design`; this section restates what an artifact needs so the skill also
+works standalone.
+
+- **Color carries data, controls stay neutral.**
+  - Interactive controls in an artifact (scenario buttons, toggles, print buttons) are ink
+    or outlined neutrals.
+  - The single accent marks the series, number or element that carries the claim; focus
+    and prose links may use it too.
+  - Rule: FE-COLOR-RESTRAINT-01 in `dev-design` (`references/build/color-system.md`) when that skill is installed.
+- **No one-sided accent bars.**
+  - Callouts, notes, scenarios and quotes take a full hairline border, an indent with a
+    run-in bold lead, or nothing. Never a colored or thick left or top stripe.
+  - Rule: FE-SIDE-ACCENT-01 in `dev-design` (`references/build/anti-slop.md`).
+- **Diagram choice and labeling** follow [diagram types](diagram-types.md): one claim per
+  figure, a verb on every edge, a mark for every number, about 9 nodes before splitting.
+- **Korean headings and copy.**
+  - Korean reader-facing headings follow the owner register in
+    `dev-design`'s copy registers (`references/copy/copy-registers.md`).
+  - Reports keep their own register rules in [report writing](report-writing.md), and a
+    report's finding headings are full sentences.
+
 ## Build the smallest complete artifact
 
 Use semantic, editable source. Keep text-bearing HTML in normal responsive Grid/Flex

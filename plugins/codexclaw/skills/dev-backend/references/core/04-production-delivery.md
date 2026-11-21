@@ -78,7 +78,7 @@ possible:
 - Health/readiness endpoint behavior when requested by the deployment surface
 - Graceful-shutdown hooks for drain sequencing
 - Analytical data / ETL / pipeline quality: load `dev-data`.
-- API consumer context / frontend contract alignment: load `dev-frontend`.
+- API consumer context / frontend contract alignment: load `dev-design`.
 - Test strategy / verification harnesses / QA execution: load `dev-testing`.
 - Backend failure RCA methodology: load `dev-debugging`.
 - New project setup / file placement conventions: load `dev-scaffolding`.

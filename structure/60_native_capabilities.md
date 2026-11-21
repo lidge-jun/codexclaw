@@ -96,7 +96,7 @@ if a spawn-level 400 reproduces, the terminal outcome is NEEDS_HUMAN + rollback
 | `exec_command` / `write_stdin` | PTY unified exec: long-lived interactive sessions | `cxc-dev` (already core) |
 | `apply_patch` | unified-diff file edits | `cxc-dev` (already core) |
 | `update_plan` | native plan/milestone tracker the harness renders | `cxc-pabcd` (P/B phases) |
-| `view_image` | read a local image into context | `cxc-dev-testing` QA evidence, `cxc-dev-uiux-design` |
+| `view_image` | read a local image into context | `cxc-dev-testing` QA evidence, `cxc-dev-design` |
 | `request_user_input` | HITL question surface | `cxc-interview` (already used) |
 | `create_goal` / `get_goal` / `update_goal` | host goal lifecycle | `cxc-loop` (already used) |
 | `tool_search` | discover deferred tools (collab, connectors) | ALL dispatching skills |
@@ -235,7 +235,7 @@ Flag states below come from the same 2026-07-02 `codex features list` run (codex
 | `cxc-dev-testing` | no UI/E2E QA protocol; C-phase evidence is command-output-only | computer-use QA protocol + screenshot/view_image evidence (WP-N3) |
 | `cxc-pabcd` / `cxc-dev` | "dispatch spawn_agent" assumes tool visibility | tool_search discovery step + V1 lifecycle (send_input/resume/close) or catalog/flag-selected V2 lifecycle (followup_task/interrupt/list_agents) |
 | `cxc-lunasearch` / `cxc-search` (Tier 3) | serial-ish lane guidance | `multi_tool_use.parallel` + wait_agent multi-target patterns (WP-N4) |
-| `cxc-dev-uiux-design` / `cxc-dev-frontend` | no imagegen / view_image usage | asset-gen + screenshot-read guidance (WP-N5) |
+| `cxc-dev-design` | no imagegen / view_image usage | asset-gen + screenshot-read guidance (WP-N5) |
 | `cxc-skill-hub` | catalog only | plugin discovery/install surfaces (WP-N5) |
 | `config-guard` | manages 4 flags, silent about browser/computer flags | DECIDED (WP-N5): no code change — `browser_use*`/`computer_use` are stable + default-enabled, so there is nothing to toggle and a doctor row would assert a default. Revisit only if a real regression (flag flipped off) is observed. |
 

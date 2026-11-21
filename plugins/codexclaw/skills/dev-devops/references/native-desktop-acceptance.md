@@ -4,7 +4,7 @@ Last reviewed: 2026-09-24
 Applies to: Tauri apps, AppKit/SwiftUI code linked into another host (Swift static library + C ABI), WidgetKit extensions, menu-bar/tray apps, native window materials, embedded runtimes and sidecars, macOS desktop release paths
 When to read: A change touches one of those surfaces, or you are asked for a desktop regression audit or release readiness
 Canonical owner: dev-devops native desktop acceptance
-Non-goals: building a desktop app for the user; iOS/Android (→ `dev-frontend/references/stacks/mobile-native.md`); approval prompts in depth (→ `macos-system-approvals.md`)
+Non-goals: building a desktop app for the user; iOS/Android (→ `dev-design/references/stacks/mobile-native.md`); approval prompts in depth (→ `macos-system-approvals.md`)
 
 ---
 

@@ -145,7 +145,7 @@ Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.
 
 ## Skills Map
 
-codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design}` (`dev` alone carries always-on body discipline). All other `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
+codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, loop, dev-design}` (`dev` alone carries always-on body discipline). All other `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
 
 | Skill display name | Folder | Role |
 |--------------------|--------|------|
@@ -159,8 +159,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-dev-backend` | `skills/dev-backend/` | API/server/database/backend operations guidance |
 | `cxc-dev-data` | `skills/dev-data/` | pipelines, ETL/ELT, SQL, schema/data quality |
 | `cxc-dev-debugging` | `skills/dev-debugging/` | root-cause debugging method |
-| `cxc-dev-frontend` | `skills/dev-frontend/` | UI/frontend implementation, WCAG 2.2 AA verdicts, visual audit loop |
-| `cxc-dev-uiux-design` | `skills/dev-uiux-design/` | design judgment, UX states, experience audits, logos/typography |
+| `cxc-dev-design` | `skills/dev-design/` | design direction, copy, UI/frontend build, WCAG 2.2 AA verdicts, visual audit loop, lint |
 | `cxc-dev-testing` | `skills/dev-testing/` | test strategy, QA, CI gates |
 | `cxc-qa` | `skills/qa/` | manual surface-driving QA gate: evidence matrix, adversarial classes, teardown receipts |
 | `cxc-dev-code-reviewer` | `skills/dev-code-reviewer/` | review verdicts, findings, risk assessment |

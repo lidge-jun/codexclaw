@@ -18,8 +18,7 @@ Load an on-demand skill explicitly by `$name` or SKILL.md path.
 | dev-debugging | `skills/dev-debugging/SKILL.md` | surface | runtime bugs, crashes, flaky tests, root-cause analysis | false | none |
 | dev-backend | `skills/dev-backend/SKILL.md` | surface | API/server/database/queue/observability work | false | none |
 | dev-data | `skills/dev-data/SKILL.md` | surface | data pipelines, ETL, migrations, query/analysis | false | none |
-| dev-frontend | `skills/dev-frontend/SKILL.md` | surface | UI components, CSS, client frameworks, viewport/a11y | false | none |
-| dev-uiux-design | `skills/dev-uiux-design/SKILL.md` | surface | design judgment, UX states, layout/typography/logos | false | none |
+| dev-design | `skills/dev-design/SKILL.md` | surface | design direction, UX states, copy, UI components, CSS, frameworks, viewport/a11y, audits | false | none |
 | dev-testing | `skills/dev-testing/SKILL.md` | surface | test strategy, coverage, E2E, CI, TDD | false | none |
 | qa | `skills/qa/SKILL.md` | capability | manual surface-driving QA after building/changing a user-facing surface (web/TUI/CLI/API/desktop): evidence matrix, adversarial classes, teardown receipts | false | none (rides native browser/CU tools + the resolved evidence root) |
 | dev-code-reviewer | `skills/dev-code-reviewer/SKILL.md` | surface | code review, antipatterns, pre-merge verdicts | false | none |
