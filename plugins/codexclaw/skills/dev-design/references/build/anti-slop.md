@@ -195,6 +195,18 @@ For alternative palettes, see `aesthetics.md § Color & Theme`.
 - Soft 3D miniatures copied from generic icon packs instead of a brand-consistent asset system
 - Giant centered Korean headlines used as decoration rather than hierarchy
 
+### Work-Tool and Board Slop (owner review 2026-11-21)
+The screen can have correct colors and still read as generated. These tells come from a CRM
+dashboard and a personal direction board that the owner called slop:
+- **Airy card dashboard**: every widget a floating card, 14-24px gutters, 56px+ two-line table rows, 24px page title. Fix with FE-DENSITY-01 in [product-density.md](product-density.md): 32-40px rows, 12px gutters, one surface split by hairlines.
+- **Warm greige in a tool**: stone or greige neutrals (`#f5f5f4`, `#e4e4e0`, `#d6d6d1`) behind a cool blue data color read khaki. Use achromatic or cool grays (FE-NEUTRAL-RAMP-01 in [color-system.md](color-system.md)). `ui-lint` warns.
+- **Marketing bento inside an app**: modules stretched to fill leftover height (a 545px decision list holding four rows, a day calendar of empty hours), ragged column bottoms, free spans with no size classes. Fix with FE-BENTO-APP-01 in [layout-discipline.md](layout-discipline.md).
+- **Card inside a card**: a filled, rounded panel nested in another panel. Nest with a hairline or label.
+- **Consumer radius on tool panels**: 14px+ panel radius and 20px+ module titles in a board meant for daily work. Tools use 6-8px.
+- **Alarm-red everywhere**: overdue, warnings and "not checked" all in the same red, so the single urgent thing is invisible. Red for one class; stale is ink-2.
+- **Stock shadcn dark**: `#0a0a0a` page + `#171717` cards + `white/10` borders + Inter + Geist Mono with no departure. Change at least one of type pairing, surface model or density.
+- **Modules that do not earn a cell**: zero-count widgets, sidebar duplicates, connector health with no action. Demote to a status line.
+
 ## AI Tell Patterns (Extended)
 - Version labels in hero (V0.6, BETA, INVITE-ONLY)
 - Section-number eyebrows (001 · Capabilities, 06 · how it works)

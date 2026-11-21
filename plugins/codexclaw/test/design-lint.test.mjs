@@ -92,3 +92,13 @@ test("design-lint --render: hover contrast and rails, or NOT_RUN with exit 3", (
   assert.ok(got.includes("FE-COLOR-CONTRAST-01"), bad.stdout);
   assert.ok(got.includes("FE-SIDE-ACCENT-01"), bad.stdout);
 });
+
+test("design-lint: FE-NEUTRAL-RAMP-01 flags warm neutrals only in work tools", () => {
+  const css = `<style>:root{--bg:#f5f5f4;--line:#e4e4e0;--line-2:#d6d6d1}</style>`;
+  const tool = lintStatic("t.html", css + "<table><tr><td>1</td></tr></table>");
+  assert.ok(tool.some((f) => f.id === "FE-NEUTRAL-RAMP-01"), "warm grays in a table page warn");
+  const page = lintStatic("p.html", css + "<main><p>editorial</p></main>");
+  assert.ok(!page.some((f) => f.id === "FE-NEUTRAL-RAMP-01"), "editorial page is not flagged");
+  const cool = lintStatic("c.html", `<style>:root{--bg:#f3f3f3;--line:#e5e5e5;--line-2:#d0d7de}</style><table></table>`);
+  assert.ok(!cool.some((f) => f.id === "FE-NEUTRAL-RAMP-01"), "achromatic and cool grays pass");
+});

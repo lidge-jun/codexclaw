@@ -88,6 +88,24 @@ style functional highlighted cards as flat solid/pastel tints with border 0-1px
 and little or no shadow; gradients appear only in hero backgrounds and
 illustration mockups.
 
+## Neutral Ramp by Surface (FE-NEUTRAL-RAMP-01, DEFAULT, measured 2026-11-21)
+
+The gray ramp has a temperature, and it reads before any accent does.
+
+- **Work tools (D4-D8: dashboards, CRM, admin, consoles):** achromatic (`oklch(L 0 0)`, e.g.
+  `#f3f3f3` / `#e5e5e5` / `#c9c9c9`) or cool (hue 240-265, chroma up to 0.012, slate-like
+  `#f1f5f9` / `#d0d7de`). Salesforce Lightning and Cloudflare are achromatic; GitHub is cool.
+- **Warm stone or greige (hue 60-110, chroma rising as the gray darkens, e.g. `#f5f5f4`,
+  `#e4e4e0`, `#d6d6d1`)** is for editorial or consumer briefs that ask for warmth. In a work
+  tool it reads as an AI "tasteful default", and next to a cool blue data color it turns
+  khaki. Borders show it first: their chroma is the highest in the ramp.
+- One temperature per product: warm neutrals never sit beside a cool accent, and the reverse.
+- Page background vs panel: white panels on a very light neutral (L 0.96-0.98), or one white
+  surface with hairlines. Do not stack three gray steps to separate blocks.
+
+Check: compute OKLCH for every neutral token; in a work tool, any neutral with hue 40-120 and
+chroma above 0.003 fails.
+
 ## Neutral Controls and Color Budget (FE-COLOR-RESTRAINT-01, DEFAULT, user contract 2026-11-21)
 
 What is clicked stays neutral; what is measured or signalled may carry hue. Reference: a
