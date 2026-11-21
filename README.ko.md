@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C901-brightgreen" alt="3,901 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C902-brightgreen" alt="3,902 tests">
   <img src="https://img.shields.io/badge/skills-30-blue" alt="30 skills">
   <img src="https://img.shields.io/badge/hooks-31-blue" alt="31 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
