@@ -32,7 +32,7 @@ export function segmentsOf(file, src) {
       const s = ln.trim();
       if (!s || /^(voice|pairs|person|never|register)\s*:/i.test(s)) return;
       const h = s.match(/^(#{1,6})\s+(.*)$/);
-      segs.push({ text: h ? h[2] : s.replace(/^[-*>]\s+/, ""), line: i + 1, tag: h ? "h" + h[1].length : "p", md: true });
+      segs.push({ text: h ? h[2] : s.replace(/^[-*>]\s+/, ""), line: i + 1, tag: h ? "h" + h[1].length : /^[-*]\s+/.test(s) ? "li" : "p", md: true });
     });
     return segs;
   }
@@ -45,7 +45,7 @@ export function segmentsOf(file, src) {
   while ((m = re.exec(t))) {
     if (m[4] !== undefined) {
       const text = decode(m[4]).replace(/\s+/g, " ").trim();
-      if (text) segs.push({ text, line: lineAt(src, m.index + (m[4].length - m[4].trimStart().length)), tag: [...stack].reverse().find((x) => /^(h[1-6]|button|a|li|label|title|figcaption|blockquote|footer)$/.test(x)) || "p" });
+      if (text) segs.push({ text, line: lineAt(src, m.index + (m[4].length - m[4].trimStart().length)), tag: [...stack].reverse().find((x) => /^(h[1-6]|button|a|li|dd|dt|td|th|caption|small|label|title|figcaption|blockquote|footer)$/.test(x)) || "p" });
       continue;
     }
     const tag = m[2].toLowerCase();
@@ -65,6 +65,8 @@ const META = /(this section (shows|lists|covers)|below,? you'?ll find|scroll dow
 const CONTRAST = /(\bnot (just |only |merely )?[\w-]+(\s[\w-]+){0,3},? but\b|\brather than\b|\binstead of\b|\bwithout the\b|\bisn'?t just\b|(가|이) 아니라|대신(에)?\s)/gi;
 const TRANSLATIONESE = [/원활한 경험을 제공/, /혁신적인 솔루션/, /처리가 완료되었습니다/, /정상적으로 (조회|처리)되었습니다/, /을 통해 [^.。]{0,20}제공합니다/, /를 통해 [^.。]{0,20}제공합니다/, /에 있어서/, /진행하시겠습니까/, /에 최적화된 솔루션/, /하는 것이 가능합니다/];
 const HONOR = /(께서|으시|하시|십시오|드립니다|님께|으십니다)/g;
+const SPEC_TAGS = /^(dd|dt|td|th|li|caption|figcaption|small)$/;
+const SPEC_VERB_END = /(다|니다|어요|아요|해요|예요|에요|돼요|죠)[.!。]?$/;
 const PROOF = /(trusted by|loved by|used by) (over |more than )?\d|\b(testimonial|고객 후기)\b/i;
 
 export function lintCopy(file, src, { year = new Date().getFullYear() } = {}) {
@@ -99,6 +101,8 @@ export function lintCopy(file, src, { year = new Date().getFullYear() } = {}) {
       if (/[.。]$/.test(t)) add("INFO", "copy-headline-period", s.line, "trailing period on the display headline (owner register drops it)");
       if (ko && t.replace(/\s/g, "").length > 24) add("INFO", "copy-headline-length-ko", s.line, `Korean headline ${t.replace(/\s/g, "").length} chars (owner register median about 14)`);
     }
+    // spec and fact lines (table cells, definition lists, list items, captions) end in nouns
+    if (ko && SPEC_TAGS.test(s.tag) && t.length <= 60 && SPEC_VERB_END.test(t)) add("WARN", "copy-spec-ending-ko", s.line, `spec line ends in a verb: "${t.slice(-24)}"; end in a noun ("512GB 이상 권장", "미지원")`);
     if (s.tag === "button" && /^(click here|submit|확인|ok)$/i.test(t)) add("INFO", "copy-vague-cta", s.line, `task button labelled "${t}"`);
     if (ko) for (const sent of t.split(/(?<=[.!?。])\s+/)) {
       if ((sent.match(HONOR) || []).length >= 2) addOnce("hon" + s.line, "WARN", "copy-honorific-overuse-ko", s.line, `stacked honorifics "${sent.slice(0, 40)}"`);

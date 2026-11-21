@@ -31,6 +31,7 @@ const BAD = {
   "gradient-text.html": ["FE-GRADIENT-TEXT-01", "FE-GRADIENT-02"],
   "transition-all.html": ["FE-AI-TELL-01"],
   "ai-residue-copy.html": ["copy-residue", "copy-default-cast", "copy-invented-figure", "copy-stale-year", "copy-meta", "copy-em-dash", "copy-stock-phrase"],
+  "korean-spec-endings.html": ["copy-spec-ending-ko"],
   "korean-translationese.html": ["copy-translationese-ko", "copy-imperative-chain-ko", "copy-honorific-overuse-ko", "copy-hype-word"],
 };
 

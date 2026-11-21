@@ -43,6 +43,7 @@ lives there. The ids below are the lint ids that implement them.
 | `copy-two-fragment` | WARN | Two-fragment headings "X. Y." / 대구 over budget (more than hero + 2 section headings) | Vary the remaining headings: a name with a claim, a verb and its object |
 | `copy-imperative-chain-ko` | WARN | Three or more consecutive "~하세요" / "~해보세요" sentences or headings | Merge into one sentence or switch to statements |
 | `copy-translationese-ko` | WARN | Translationese and bureaucratic Korean: "원활한 경험을 제공합니다", "혁신적인 솔루션", "처리가 완료되었습니다", "~을 통해", "~에 있어서", "진행하시겠습니까", "~하실 수 있습니다" stacked | Plain spoken Korean: "저장했어요", "다음 단계로 갈까요?" |
+| `copy-spec-ending-ko` | WARN | A Korean spec or fact line (table cell, `dd`/`dt`, list item, caption, `<small>`, 60 characters or less) ending in a verb or copula: "~다", "~합니다", "~해요" | End in a noun: "512GB 이상 권장", "미지원", "최근 출소" ([copy registers](copy-registers.md)) |
 | `copy-honorific-overuse-ko` | WARN | More than one honorific marker per sentence in product UI ("회원님께서는 ~하실 수 있으십니다") | One polite ending ("~할 수 있어요") |
 | `copy-exclaim` | WARN | Exclamation marks in body copy (more than 1 per page) | Period or nothing |
 | `copy-vague-cta` | INFO | "Click here", "Submit", "확인" as the only label on a task button | Name the action in product UI; generic two-word marketing CTAs ("더 알아보기") are fine in the owner register |
