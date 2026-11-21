@@ -2,6 +2,7 @@
 // Good fixtures and the dev-visualizer assets must produce no FAIL; bad fixtures must
 // produce their expected rule ids. Render mode is exercised only when playwright-core can
 // be imported, and then only asserts it never reports a pass when it did not run.
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
@@ -12,8 +13,8 @@ import { spawnSync } from "node:child_process";
 const here = dirname(fileURLToPath(import.meta.url));
 const scripts = join(here, "..", "skills", "dev-design", "scripts");
 const fx = join(scripts, "fixtures");
-const { lintStatic } = await import(join(scripts, "ui-lint.mjs"));
-const { lintCopy } = await import(join(scripts, "copy-lint.mjs"));
+const { lintStatic } = await import(pathToFileURL(join(scripts, "ui-lint.mjs")).href);
+const { lintCopy } = await import(pathToFileURL(join(scripts, "copy-lint.mjs")).href);
 
 const run = (name, file) => {
   const text = readFileSync(file, "utf8");

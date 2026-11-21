@@ -196,7 +196,7 @@ export function lintStatic(file, text) {
 async function loadChromium() {
   const tries = ["playwright-core", "playwright", process.env.PLAYWRIGHT_CORE_PATH].filter(Boolean);
   for (const t of tries) {
-    try { const m = await import(t.startsWith("/") ? pathToFileURL(t).href : t); return (m.default || m).chromium || m.chromium; } catch {}
+    try { const m = await import(/^([a-zA-Z]:[\\/]|\/)/.test(t) ? pathToFileURL(t).href : t); return (m.default || m).chromium || m.chromium; } catch {}
   }
   return null;
 }
