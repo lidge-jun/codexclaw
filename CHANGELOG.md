@@ -6,6 +6,10 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Work-tool and board slop.** `dev-design` gains FE-DENSITY-01 (32-40px rows, 12px gutters, 6-8px radius for dashboards and admin), FE-NEUTRAL-RAMP-01 (achromatic or cool grays in tools; warm greige only on request) and FE-BENTO-APP-01 (size-class modules sized by content, aligned column ends, one nesting level, one red class). `anti-slop.md` lists the matching tells. `ui-lint` warns on warm neutrals in table pages and, with `--render`, on median table rows above 44px.
+
 ## [0.2.47] - 2026-11-21
 
 ### Changed

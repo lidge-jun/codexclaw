@@ -30,6 +30,7 @@ Audit composite convergence tells under FE-CONVERGENCE-01 (`anti-slop.md`): hair
 - Use neutral or intentional color palettes — purple gradients on white are now the old tell; gradient overuse and one-note single-hue themes are the current tell
 - Use asymmetric or purposeful layouts — centered-everything reads as template
 - Vary card sizes, spans, and groupings — equal 3-card grids read as generic
+- **App bento (FE-BENTO-APP-01)** and **work-tool density (FE-DENSITY-01)**: boards and dashboards use size-class modules sized by content, one nesting level, 6-8px radius, 32-40px rows and achromatic or cool neutrals — see `layout-discipline.md § App Bento`, `product-density.md`, `anti-slop.md § Work-Tool and Board Slop`
 - **Bento composition (FE-BENTO-01)**: bento grids must read as one interlocking slab with aligned row edges, a dominant cell, content-weighted spans, and no orphan tail — see `layout-discipline.md § Bento Composition`
 - Avoid oversized bold hero text inside tools, dashboards, admin, finance flows, and public services
 - **Hero composition (FE-HERO-SPLIT-01, FE-HERO-ALIGN-01)**: short heroes centered by default; a left hero needs a counterweight (visual right, full-bleed media, product below); the split tell is only a boxed generic screenshot card showing nothing real — see `layout-discipline.md § Hero Composition Grammar`
