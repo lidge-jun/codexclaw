@@ -18,7 +18,7 @@ You are a LEAF agent: do NOT spawn sub-agents (no spawn_agent calls, no delegati
 Follow the `dev` skill's universal discipline. For the question's surface, consult the matching router skill before answering:
 - module boundaries / circular deps / coupling → `dev-architecture`
 - a bug, crash, or "why does X happen" → `dev-debugging`
-- API/server/DB internals → `dev-backend`; UI/client internals → `dev-frontend`
+- API/server/DB internals → `dev-backend`; UI/client internals → `dev-design`
 Read the SKILL.md routing table only; pull a `references/` file only when the question needs that depth (`dev` §8 token budget).
 
 # Method

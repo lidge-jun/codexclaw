@@ -13,7 +13,7 @@ Turn the reader's question and supplied facts into a useful visual artifact.
 Use `dev`
 for scope, work class and verification; a document request does not automatically
 require a development loop. This skill owns artifact composition and delivery.
-`dev-uiux-design` owns broader design judgment, `dev-frontend` owns frontend
+`dev-design` owns broader design judgment and frontend
 implementation, and available format-specific skills own document mechanics.
 
 ## Select a route; read only what it needs

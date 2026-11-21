@@ -81,7 +81,7 @@ Record event, head SHA, ref/group, run ID and conclusion. A PR-ref concurrency
 key cancels within that PR; unknown cancellation causes remain unknown.
 
 Before judging jobs or merge readiness, apply
-[hosted CI evidence](../references/hosted-ci-evidence.md) (DEV-CI-EVIDENCE-01).
+[hosted CI evidence](hosted-ci-evidence.md) (DEV-CI-EVIDENCE-01).
 For independent task lanes, apply manifest and landing rules in
 [dispatch surfaces](../../pabcd/references/dispatch-surfaces.md)
 (DISPATCH-LANE-MANIFEST-01, DISPATCH-LANE-MERGE-01).

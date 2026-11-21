@@ -1,0 +1,225 @@
+# Color System — Token Implementation Mechanics
+
+Implementation owner for color tokens: layering, modern color functions,
+framework wiring, and contrast verification. Palette GENERATION and judgment
+(hue budget, scales, tools) are owned by
+`dev-design/references/direction/color-system.md` — read it for what colors to
+pick; read this for how to ship them. Runtime theme selection, FOWT
+prevention, and toggle behavior stay in `theme-switching.md`.
+Feature facts below verified 2026-07-07 (MDN/Tailwind/shadcn/W3C, Tier 2).
+
+---
+
+## Token Layering (FE-COLOR-TOKEN-01, DEFAULT)
+
+Three layers, referenced downward only:
+
+1. **Primitive** — raw scale values, no meaning: `--blue-600`, `--gray-100`.
+2. **Semantic** — meaning, theme-switchable: `--background`, `--primary`,
+   `--primary-foreground`, `--border`, `--danger`.
+3. **Component** — scoped knobs derived from semantic: `--button-bg`,
+   `--card-border`.
+
+Rules: components consume SEMANTIC tokens (or their own component tokens),
+never primitives; hardcoded colors in component CSS are a review finding
+(theme-ready enforcement); dark/alt themes redefine SEMANTIC tokens only.
+
+```css
+:root {
+  /* primitives */
+  --gray-950: oklch(0.21 0 0);
+  --blue-600: oklch(0.58 0.22 260);
+  /* semantic: primary is ink; the one hue is the accent (focus, links, data) */
+  --background: oklch(1 0 0);
+  --primary: var(--gray-950);
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: var(--blue-600);
+}
+.dark {
+  --background: oklch(0.145 0 0);
+  --primary: oklch(0.96 0 0);
+  --primary-foreground: oklch(0.18 0 0);
+  --accent: oklch(0.70 0.18 260);
+}
+/* --primary stays ink unless the brief names a brand primary (FE-COLOR-RESTRAINT-01) */
+.button-primary {
+  --button-bg: var(--primary);
+  --button-bg-hover: color-mix(in oklch, var(--primary) 88%, var(--background));
+  background: var(--button-bg);
+  color: var(--primary-foreground);
+}
+```
+
+## Accent Surface Emphasis (FE-COLOR-ACCENT-SURFACE-01, DEFAULT, verified 2026-07-09)
+
+Emphasized/highlighted panels on opaque functional UI use a FLAT emphasis
+channel, never a gradient fill (see `anti-slop.md` FE-GRADIENT-02). Pick exactly
+one channel per surface:
+
+1. **Flat alpha/step tint** — accent at ~4-8% over the surface, or a dedicated
+   low-step token. Radix uses accent steps 3-5 for component backgrounds and
+   6-8 for borders; Primer ships `--bgColor-accent-muted: #ddf4ff` with
+   `--borderColor-accent-muted: #54aeff66`; shadcn defines flat
+   `--accent: oklch(0.97 0 0)` (dark `oklch(0.269 0 0)`) surfaces.
+2. **Border/ring emphasis** — neutral surface, accent moves to the edge:
+   selected -> `border-color: var(--accent-border)` (Geist pattern), or
+   Tailwind-style `ring-2` + shadow for an emphasized tier.
+3. **Elevation** — shadow tokens (`--shadow-resting-*` / `--shadow-floating-*`,
+   Primer pattern) instead of decorative fills.
+4. **Semantic status token** — `background/border/text` role triplets per
+   status (information/success/warning/danger; Atlassian pattern) when the
+   emphasis carries meaning.
+
+One-sided accent bars are not a channel (FE-SIDE-ACCENT-01 in
+[anti-slop.md](anti-slop.md)). These channels are for status and data panels. For authored
+controls (buttons, tabs, nav items, chips) selection stays neutral per FE-COLOR-RESTRAINT-01
+below; an accent ring on a selected control is not allowed, a focus ring is.
+
+```css
+/* flat tint + border, derived from semantic tokens — no wash */
+.panel-emphasis {
+  background: color-mix(in oklch, var(--primary) 6%, var(--background));
+  border: 1px solid color-mix(in oklch, var(--primary) 30%, var(--border));
+}
+```
+
+Field note (live-measured 2026-07-09): Toss/Kakao/Naver/Channel Talk/Daangn all
+style functional highlighted cards as flat solid/pastel tints with border 0-1px
+and little or no shadow; gradients appear only in hero backgrounds and
+illustration mockups.
+
+## Neutral Controls and Color Budget (FE-COLOR-RESTRAINT-01, DEFAULT, user contract 2026-11-21)
+
+What is clicked stays neutral; what is measured or signalled may carry hue. Reference: a
+native macOS utility toolbar (Activity Monitor): borderless monochrome glyphs grouped in a
+neutral capsule, a neutral segmented control whose selected segment is one gray step darker,
+and color only in the CPU chart and the figures that match it. Apple's HIG allows an
+accent-filled prominent button (one or two per view); this house rule is deliberately
+stricter for authored web chrome.
+
+**Scope.** Authored application and marketing chrome: buttons, links styled as buttons, tabs,
+segmented controls, nav items, chips, toolbars, panels, cards and their borders, labels and
+decorative glyphs. Out of scope, never counted against the budget: data encodings (chart
+series, swatches, a diff gutter that FE-SIDE-ACCENT-01 allows), product imagery, photos and
+logos, system or user-chosen colors (native form controls, the OS accent, forced colors),
+and the keyboard focus indicator.
+
+**Color budget.** Zero or one non-semantic accent family across the authored chrome of a view
+(tints, dark-mode variants and opacity steps of that family count as one). Spend it on focus
+and on prose links, which also keep an underline. Semantic status hues appear only where a
+state is shown and always with a label or glyph; decoration is not renamed status. Count uses
+on the rendered view, not declarations. A colorful content area never licenses colorful
+controls around it.
+
+**Buttons.** Primary is theme-relative ink: dark fill with light label on light surfaces,
+light fill with dark label on dark or photographic surfaces. One primary per view, header
+included. Secondary: neutral surface or outline with ink label. Tertiary and toolbar: text or
+glyph on a transparent or neutral ground. Default, hover, pressed, selected, disabled and
+focus states stay distinguishable in light, dark and forced-colors modes; test the real
+foreground/background pairs of each state, not just the presence of a rule.
+
+**Brand-colored primary (the only hue exception).** Allowed only when the brief explicitly
+names a brand-colored action. Then exactly one filled primary in the active view, color on the
+fill only, label and glyph white or ink, no gradient or glow, every other control neutral.
+Logo color alone is not authorization. No row of rival colored actions; no colored chips used
+as actions.
+
+**Destructive.** Name the consequence in the label ("Delete 3 files") and always offer a safe
+exit. Use the danger hue only where loss is unexpected or not the person's explicit choice
+(the confirm button after they chose "Empty Trash" stays neutral). A destructive action is
+never the default primary.
+
+**Icon controls.** Monochrome SVG glyphs from one library or authored set, painted with
+`currentColor` (fill or stroke) so the control's foreground drives them; optical weight
+consistent with the adjacent label. Group related toolbar actions in one shared neutral
+container and leave the glyphs borderless. A standalone icon button may sit in a neutral
+fill (no outline ring). Hit target 44 CSS px by default (dense desktop tools may use 32 to 36
+px with spacing that keeps targets apart); accessible name always; tooltip when the glyph is
+not self-evident.
+
+**Selection.** Tabs, segmented controls, nav items and chips show selection with one neutral
+step plus weight or a filled glyph, and expose the matching programmatic state
+(`aria-selected`, `aria-current`). Focus is not selection. Never a hue tint and never a side
+bar (FE-SIDE-ACCENT-01 in [anti-slop.md](anti-slop.md)).
+
+```css
+:root { color-scheme: light dark;
+  --fg: light-dark(oklch(0.21 0 0), oklch(0.96 0 0));
+  --bg: light-dark(oklch(0.99 0 0), oklch(0.17 0 0));
+  --surface-2: light-dark(oklch(0.955 0 0), oklch(0.23 0 0));
+  --surface-3: light-dark(oklch(0.92 0 0), oklch(0.29 0 0));
+  --line: light-dark(oklch(0.88 0 0), oklch(0.34 0 0));
+  --focus: var(--accent, Highlight); }
+.btn { background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+.btn:hover  { background: var(--surface-2); }
+.btn:active { background: var(--surface-3); }
+.btn.btn-primary        { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn.btn-primary:hover  { background: color-mix(in oklch, var(--fg) 86%, var(--bg)); }
+.btn.btn-primary:active { background: color-mix(in oklch, var(--fg) 76%, var(--bg)); }
+.on-photo .btn.btn-primary { background: oklch(0.99 0 0); color: oklch(0.21 0 0); border-color: transparent; }
+.toolbar-group { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--surface-2); }
+.icon-btn { inline-size: 44px; block-size: 44px; border: 0; border-radius: 999px;
+  display: grid; place-items: center; background: transparent; color: var(--fg); }
+.icon-btn:hover  { background: var(--surface-3); }
+.icon-btn svg    { inline-size: 20px; block-size: 20px; }
+.icon-btn svg [stroke] { stroke: currentColor; }
+.icon-btn svg [fill]:not([fill="none"]) { fill: currentColor; }
+.segmented [aria-selected="true"] { background: var(--surface-3); font-weight: 600; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (forced-colors: active) { .btn, .icon-btn { border: 1px solid ButtonText; } }
+```
+
+Checkable (wp3 lint): a button-like authored element whose resolved fill or label is
+chromatic without a recorded brand-primary exception (FAIL); more than one non-semantic accent
+family in authored chrome (WARN); a primary whose hover or active pair falls under 4.5:1
+(FAIL). Native controls, forced colors and data marks are not failures.
+
+## Modern Color Functions (baseline status 2026-07-07)
+
+- `oklch()` — Baseline 2023. Default authoring space for new palettes:
+  perceptually uniform lightness, predictable scale steps.
+- `color-mix(in oklch, ...)` — Baseline 2023. Derive hover/pressed/disabled
+  states from semantic tokens instead of hardcoding shade variants.
+- `light-dark(<light>, <dark>)` — Baseline 2024; requires `color-scheme:
+  light dark`. Use for BROWSER-controlled two-mode color. For app-controlled
+  or multi-theme systems, use `.dark`/`[data-theme]` semantic redefinition
+  instead (see `theme-switching.md` for the runtime side).
+- `@supports (color: oklch(0.6 0.2 250))` is the feature gate primitive.
+
+## Fallback Discipline (FE-COLOR-FALLBACK-01, DEFAULT)
+
+`var(--token, fallback)` does NOT rescue a declaration whose variable holds an
+unsupported color function — the whole declaration is discarded at
+computed-value time. Gate by feature, not by var fallback:
+
+```css
+:root { --primary: #2563eb; }                       /* universal fallback */
+@supports (color: oklch(0.6 0.2 250)) {
+  :root { --primary: oklch(0.58 0.22 260); }         /* modern override */
+}
+```
+
+Or precompile fallbacks (PostCSS) when the toolchain already does so. Either
+way, the fallback lives at the PRIMITIVE layer so semantic/component layers
+stay function-agnostic.
+
+## Framework Wiring
+
+- **Tailwind v4** — CSS-first tokens via `@theme` (`--color-*` variables);
+  do not reintroduce JS config for colors. Semantic tokens defined in
+  `:root`/`.dark` map into utilities via `@theme inline`.
+- **shadcn/ui** — current convention is semantic CSS variables in OKLCH
+  mapped through `@theme inline`; follow the project's `components.json`
+  tokens; edit themes with tweakcn (see the uiux toolbox) rather than
+  hand-tuning hex.
+
+## Contrast Verification (FE-COLOR-CONTRAST-01, STRICT)
+
+Implementation gate pointing at the §7 accessibility baseline (WCAG AA
+contrast is already STRICT there): every text/background SEMANTIC pair — in
+EVERY theme — is verified against WCAG 2.2 AA (4.5:1 normal, 3:1 large/UI).
+`color-mix()`-derived states count as new pairs; verify them, not just the
+base. APCA/Lc is a useful advisory second check for perceptual readability
+(WCAG 3 is still a Working Draft as of 2026-07-07) — it does not replace the
+WCAG 2.2 gate. Translucent surfaces: worst-case-background rule in
+`liquid-glass.md` FE-LIQUID-A11Y-01 applies.

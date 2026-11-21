@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev-uiux-design"
-  short_description: "UI/UX direction, states, typography and brand identity."
+  short_description: "Deprecated alias for cxc-dev-design."
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

@@ -23,7 +23,7 @@ every `required` entry of all earlier stages is answered. Stage 1 is design (6 d
 lightness, density, shape, typography, motion), all `required: true` — MUST be answered
 before any Stage 2 (domain) or Stage 3 (feature/data/security/ops/cost) question appears.
 
-- *Design methodology* — Product-Personality Selection first (from dev-uiux-design §1): for
+- *Design methodology* — Product-Personality Selection first (from dev-design §1): for
   each design dial show `question_options` (labels + trade-offs) anchored on familiar
   products, then ask. Refine via Korean Request Translation, Reference Discovery, Design Read.
 - *Deriving backend questions* — two paths populate Stage 3: **structural** (chosen Stage-2

@@ -68,7 +68,7 @@ weight to rank, one accent color used only for the series that carries the claim
 and for the ask, tables with top and bottom rules and no fills, a narrow text
 measure (about 36 Korean characters) with full-width exhibits. Decide the face
 pair, the accent and the rule weights before writing (pair with
-`dev-uiux-design` when the brief is open) and use nothing else. Real
+`dev-design` when the brief is open) and use nothing else. Real
 McKinsey/MGI, Bain and Korean securities PDFs inspected 2026-09-09 all follow this
 grammar; `assets/paged-report.html` implements it. Brand assets (logo, palette,
 licensed type) replace the token block; they are not invented.

@@ -17,12 +17,13 @@ still ship as compatibility surfaces.
 - `dev-data/`
 - `dev-debugging/`
 - `dev-devops/`
+- `dev-design/`
 - `dev-diagram-viewer/`
-- `dev-frontend/`
+- `dev-frontend/` (deprecated redirect to dev-design)
 - `dev-scaffolding/`
 - `dev-security/`
 - `dev-testing/`
-- `dev-uiux-design/`
+- `dev-uiux-design/` (deprecated redirect to dev-design)
 - `dev-visualizer/`
 - `goalplan/`
 - `interview/`
@@ -49,10 +50,10 @@ still ship as compatibility surfaces.
   evidence separated) for every report, explainer or visual document a dev skill delivers.
 - `dev-*` — surface routers, each activated by its description matching the change surface:
   `dev-architecture`, `dev-backend`, `dev-code-reviewer`, `dev-data`, `dev-debugging`,
-  `dev-devops`, `dev-frontend`, `dev-scaffolding`, `dev-security`, `dev-testing`,
-  `dev-uiux-design`. `dev-frontend` and `dev-uiux-design` ship
-  `allow_implicit_invocation: true` (implicit-visible, mutually cross-referenced, so
-  anti-slop design grammar reaches every UI-generating session); the rest ship
+  `dev-devops`, `dev-design`, `dev-scaffolding`, `dev-security`, `dev-testing`.
+  `dev-design` ships `allow_implicit_invocation: true` (implicit-visible, so anti-slop
+  design grammar reaches every UI-generating session; it merged dev-frontend and
+  dev-uiux-design on 2026-11-21, whose folders remain as non-implicit redirects); the rest ship
   `agents/openai.yaml` with `allow_implicit_invocation: false`.
 - `dev-visualizer/` — visual documents, reports and diagrams: composes HTML/SVG
   explainers, report documents with cover and contents pages, charts and

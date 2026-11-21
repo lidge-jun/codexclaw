@@ -40,7 +40,7 @@ Apply these via the framework's standard header middleware (Helmet for Express, 
 - Prefer cookies over browser storage for session tokens.
 
 See `../references/owasp-top10.md` A02 and A05.
-See `dev-frontend/SKILL.md` §§5-7 for performance and accessibility guardrails that still apply after security changes.
+See `dev-design/SKILL.md` §§5-7 for performance and accessibility guardrails that still apply after security changes.
 
 ## 6. Rate Limiting
 

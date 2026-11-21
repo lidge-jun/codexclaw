@@ -3,7 +3,7 @@
  *
  * The shared vocabulary every page composes from: Card, Button, Field, states
  * (Loading/Empty/Error), StatusDot, Badge, Toast host. Keeping these in one
- * place is what makes the dashboard read as one system (dev-uiux-design).
+ * place is what makes the dashboard read as one system (dev-design).
  */
 import { useEffect, useRef, type ReactNode } from "react";
 import { Icon, type IconName } from "./icons.tsx";

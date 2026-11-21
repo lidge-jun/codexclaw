@@ -28,7 +28,7 @@ codexclaw turns the Codex runtime into a disciplined development environment. It
 
 ## Features
 
-**Dev Skill Family** — 12 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 155 unique rule IDs across the family.
+**Dev Skill Family** — 12 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-design`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 155 unique rule IDs across the family.
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done, implemented as a file-backed FSM with attestation-gated transitions. Phases advance through `cxc orchestrate` commands; each transition carries structured evidence. A durable goalplan ledger tracks work phases, success criteria, and captured proof across multiple cycles.
 
@@ -248,9 +248,9 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 | Surface | Router | Also loads |
 |---------|--------|------------|
 | Backend / API | `dev-backend` | `dev-security` for auth |
-| Frontend / UI | `dev-frontend` | `dev-uiux-design` for direction |
+| Frontend / UI / design | `dev-design` | direction, copy, build and audit modes in one skill |
 | Database / data | `dev-data` | `dev-backend` for migrations |
-| Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
+| Tests / QA | `dev-testing` | `dev-design` for browser QA |
 | Security | `dev-security` | surface-specific router |
 | Architecture | `dev-architecture` | `dev-scaffolding` for structure |
 | Debugging | `dev-debugging` | surface-specific router |
@@ -261,7 +261,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 
 Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
 
-**Frontend skills downstream.** `dev-frontend` and `dev-uiux-design` references are mirrored to [noslopdesign](https://github.com/lidge-jun/noslopdesign) by a fixed rule table ([rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs)). Inside those two skills, cross-skill references may use only `dev-frontend`, `dev-uiux-design` (bare, `cxc-`-prefixed or as `../../dev-*/` links), `` `dev-backend` ``, `` `dev-testing` ``, `` `dev-security` ``, `` `dev-devops` ``, and `` `dev` §0.2 `` / `§0.4`; keep `Source:` and `Adapted from` lines at line start and do not rename the two folders. Forms outside this list are mostly caught by its leftover check, which blocks that repo's weekly sync and opens an issue there.
+**Frontend skills downstream.** `dev-design` references are mirrored to [noslopdesign](https://github.com/lidge-jun/noslopdesign) by a fixed rule table ([rules.mjs](https://github.com/lidge-jun/noslopdesign/blob/main/scripts/lib/rules.mjs)). Inside those two skills, cross-skill references may use only `dev-design` (bare, `cxc-`-prefixed or as `../../dev-*/` links), `` `dev-backend` ``, `` `dev-testing` ``, `` `dev-security` ``, `` `dev-devops` ``, and `` `dev` §0.2 `` / `§0.4`; keep `Source:` and `Adapted from` lines at line start and do not rename the two folders. Forms outside this list are mostly caught by its leftover check, which blocks that repo's weekly sync and opens an issue there.
 
 **Visualizer maintenance — codexclaw first, Aside follows.** Shared fixes are implemented and verified here before they are ported to `aside-visualizer`; an Aside issue closes only after the downstream port is merged and its acceptance criteria are verified. Preserve Aside’s host adapters and standalone/no-Chrome paths. See the [port workflow](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md). This is a maintenance direction, not permission for independent action: ordinary artifact requests do not authorize repository work, installation, publication or a separate loop. Pick a `draft`, `standard` or `publication` assurance profile for the requested artifact.
 
@@ -288,7 +288,7 @@ codexclaw is the reference implementation. The methodology and skills are ported
 | [pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative) | Methodology spec + docs-site + agent-neutral skill set |
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
-| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-frontend` + `dev-uiux-design` as `noslop-frontend` / `noslop-uiux`, synced weekly from here |
+| [noslopdesign](https://github.com/lidge-jun/noslopdesign) | Standalone `dev-design` as `noslop-frontend` / `noslop-uiux`, synced weekly from here |
 
 ## Documentation
 

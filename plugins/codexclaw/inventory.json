@@ -35,6 +35,10 @@
       "name": "cxc-dev-debugging"
     },
     {
+      "folder": "dev-design",
+      "name": "cxc-dev-design"
+    },
+    {
       "folder": "dev-devops",
       "name": "cxc-dev-devops"
     },

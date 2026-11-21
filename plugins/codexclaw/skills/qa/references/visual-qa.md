@@ -8,10 +8,10 @@ discipline. The tool ladder itself (QA-TOOL-LADDER-01) is canonically owned by
 
 A visual verdict must be grounded in rules, not taste:
 
-- Load `cxc-dev-frontend` for every visual QA pass — its §5 anti-slop rules and
+- Load `cxc-dev-design` for every visual QA pass — its §5 anti-slop rules and
   `references/core/visual-verification.md` checklist (viewport matrix, CJK
   clipping, focus visibility, CTA integrity, containment) ARE the rubric.
-- Load `cxc-dev-uiux-design` ONLY when the verdict judges design DIRECTION
+- Load `cxc-dev-design` ONLY when the verdict judges design DIRECTION
   (personality, layout vocabulary, UX-state meaning) — not for mechanical
   render checks.
 - Every oracle PASS names the rule ids it checked (e.g. FE-HERO-01,
@@ -26,7 +26,7 @@ Capture deterministic evidence BEFORE any subjective verdict — the numbers aim
 the reviewer; they are not the verdict:
 
 1. **Viewport matrix screenshots** — 1440 / 1024 / 768 / 390 px (+320 when
-   text/buttons are dense), per `dev-frontend` visual-verification.md. Read
+   text/buttons are dense), per `dev-design` visual-verification.md. Read
    every screenshot back with `view_image`; a screenshot never inspected is
    not evidence.
 2. **DOM text extraction for text claims** — vision models degrade on dense
