@@ -173,3 +173,19 @@ Evidence:
   border 1px rgb(200,205,211) on all sides, transparent background; `button.primary`
   background rgb(32,37,44) (ink), text white; secondary button neutral with border. Blue
   remains only on the data figures and the range input.
+
+## Revision after review (2026-11-21, see 008 A1, A5 to A7)
+
+- FE-COLOR-RESTRAINT-01 rewritten: scope (authored chrome) and exclusions (data, imagery,
+  logos, system and user colors, focus); theme-relative ink with a light primary on dark or
+  photographic surfaces; exactly one brief-named brand primary with color on the fill only;
+  destructive styling only for unexpected loss; toolbar glyphs borderless inside one shared
+  neutral container; selection exposes programmatic state; checkable lint conditions.
+- CSS sample fixed (hover specificity bug). Verified in headless Chrome with real state
+  pairs: primary 17.31 / 12.32 / 9.06 (light rest/hover/active), 17.12 / 12.06 / 9.24 (dark);
+  secondary at least 12.65.
+- FE-COLOR-ACCENT-SURFACE-01 now limits its tint/ring channels to status and data panels.
+- FE-SIDE-ACCENT-01 rewritten: any side and implementation; explicit non-accents (dividers,
+  gridlines, prose underline, underline-tab indicator, focus perimeter); tighter data-gutter
+  conditions.
+- Gates after the revision: check-prompt-architecture OK, gate.mjs OK.

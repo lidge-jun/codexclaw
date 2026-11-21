@@ -71,7 +71,9 @@ one channel per surface:
    emphasis carries meaning.
 
 One-sided accent bars are not a channel (FE-SIDE-ACCENT-01 in
-[anti-slop.md](anti-slop.md)).
+[anti-slop.md](anti-slop.md)). These channels are for status and data panels. For authored
+controls (buttons, tabs, nav items, chips) selection stays neutral per FE-COLOR-RESTRAINT-01
+below; an accent ring on a selected control is not allowed, a focus ring is.
 
 ```css
 /* flat tint + border, derived from semantic tokens — no wash */
@@ -89,59 +91,88 @@ illustration mockups.
 ## Neutral Controls and Color Budget (FE-COLOR-RESTRAINT-01, DEFAULT, user contract 2026-11-21)
 
 What is clicked stays neutral; what is measured or signalled may carry hue. Reference: a
-native macOS utility toolbar (Activity Monitor). Its actions are monochrome glyphs in neutral
-circles, its view switcher is a neutral segmented control whose selected segment is one gray
-step darker, and color appears only in the CPU chart and the figures that match it.
+native macOS utility toolbar (Activity Monitor): borderless monochrome glyphs grouped in a
+neutral capsule, a neutral segmented control whose selected segment is one gray step darker,
+and color only in the CPU chart and the figures that match it. Apple's HIG allows an
+accent-filled prominent button (one or two per view); this house rule is deliberately
+stricter for authored web chrome.
 
-Color budget per rendered screen:
+**Scope.** Authored application and marketing chrome: buttons, links styled as buttons, tabs,
+segmented controls, nav items, chips, toolbars, panels, cards and their borders, labels and
+decorative glyphs. Out of scope, never counted against the budget: data encodings (chart
+series, swatches, a diff gutter that FE-SIDE-ACCENT-01 allows), product imagery, photos and
+logos, system or user-chosen colors (native form controls, the OS accent, forced colors),
+and the keyboard focus indicator.
 
-- Neutrals: ink, one muted text step, two or three surface/border steps.
-- At most one accent hue, spent on focus rings, links inside prose, the selected data series
-  or the one number that carries the claim.
-- Semantic status hues only where a state is shown, each with a non-color cue.
-- Check: list every distinct non-neutral hue on the rendered screen. More than one
-  non-semantic hue, or a hue that only decorates, fails.
+**Color budget.** Zero or one non-semantic accent family across the authored chrome of a view
+(tints, dark-mode variants and opacity steps of that family count as one). Spend it on focus
+and on prose links, which also keep an underline. Semantic status hues appear only where a
+state is shown and always with a label or glyph; decoration is not renamed status. Count uses
+on the rendered view, not declarations. A colorful content area never licenses colorful
+controls around it.
 
-Buttons:
+**Buttons.** Primary is theme-relative ink: dark fill with light label on light surfaces,
+light fill with dark label on dark or photographic surfaces. One primary per view, header
+included. Secondary: neutral surface or outline with ink label. Tertiary and toolbar: text or
+glyph on a transparent or neutral ground. Default, hover, pressed, selected, disabled and
+focus states stay distinguishable in light, dark and forced-colors modes; test the real
+foreground/background pairs of each state, not just the presence of a rule.
 
-| Tier | Treatment |
-|---|---|
-| Primary, one per view | Ink fill: foreground color as background, background color as text. Not a brand hue. |
-| Secondary | Neutral surface, 1px neutral border, ink text. |
-| Tertiary and toolbar | Glyph or text on a transparent or neutral ground; hover moves one neutral step. |
-| Destructive | Neutral button with an explicit verb ("Delete 3 files"); the danger hue appears only on the confirming control inside the confirmation surface. |
+**Brand-colored primary (the only hue exception).** Allowed only when the brief explicitly
+names a brand-colored action. Then exactly one filled primary in the active view, color on the
+fill only, label and glyph white or ink, no gradient or glow, every other control neutral.
+Logo color alone is not authorization. No row of rival colored actions; no colored chips used
+as actions.
 
-A hue-filled button is allowed only when the brief names a brand-colored primary: then one per
-screen, no gradient, no glow, every other button neutral. Different hues per button and
-colored chips used as actions are not allowed.
+**Destructive.** Name the consequence in the label ("Delete 3 files") and always offer a safe
+exit. Use the danger hue only where loss is unexpected or not the person's explicit choice
+(the confirm button after they chose "Empty Trash" stays neutral). A destructive action is
+never the default primary.
 
-Icon controls:
+**Icon controls.** Monochrome SVG glyphs from one library or authored set, painted with
+`currentColor` (fill or stroke) so the control's foreground drives them; optical weight
+consistent with the adjacent label. Group related toolbar actions in one shared neutral
+container and leave the glyphs borderless. A standalone icon button may sit in a neutral
+fill (no outline ring). Hit target 44 CSS px by default (dense desktop tools may use 32 to 36
+px with spacing that keeps targets apart); accessible name always; tooltip when the glyph is
+not self-evident.
 
-- Monochrome SVG glyphs from one library or one authored set, one stroke weight, painted with
-  `currentColor` so the control's text color drives them. No multicolor icons or emoji as
-  actions.
-- The glyph sits in a neutral shape (circle or rounded square in the chrome's own gray) that
-  moves one neutral step on hover and press; 44x44px target; an accessible name, plus a
-  tooltip when the glyph is not self-evident.
-- Related actions share one neutral capsule instead of separate colored buttons.
-
-Selected and active states (tabs, segmented controls, nav items, chips): one neutral step
-darker (lighter in dark mode) plus weight or a filled glyph. Never a hue tint, never a side bar
-(FE-SIDE-ACCENT-01 in [anti-slop.md](anti-slop.md)).
+**Selection.** Tabs, segmented controls, nav items and chips show selection with one neutral
+step plus weight or a filled glyph, and expose the matching programmatic state
+(`aria-selected`, `aria-current`). Focus is not selection. Never a hue tint and never a side
+bar (FE-SIDE-ACCENT-01 in [anti-slop.md](anti-slop.md)).
 
 ```css
-:root { --fg: oklch(0.21 0 0); --bg: oklch(0.99 0 0); --surface-2: oklch(0.955 0 0);
-        --surface-3: oklch(0.92 0 0); --line: oklch(0.88 0 0); --focus: var(--accent); }
-.btn         { background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
-.btn:hover   { background: var(--surface-2); }
-.btn-primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-.icon-btn    { inline-size: 44px; block-size: 44px; border: 0; border-radius: 999px;
-               display: grid; place-items: center; background: var(--surface-2); color: var(--fg); }
-.icon-btn:hover { background: var(--surface-3); }
-.icon-btn svg   { inline-size: 20px; block-size: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; }
+:root { color-scheme: light dark;
+  --fg: light-dark(oklch(0.21 0 0), oklch(0.96 0 0));
+  --bg: light-dark(oklch(0.99 0 0), oklch(0.17 0 0));
+  --surface-2: light-dark(oklch(0.955 0 0), oklch(0.23 0 0));
+  --surface-3: light-dark(oklch(0.92 0 0), oklch(0.29 0 0));
+  --line: light-dark(oklch(0.88 0 0), oklch(0.34 0 0));
+  --focus: var(--accent, Highlight); }
+.btn { background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+.btn:hover  { background: var(--surface-2); }
+.btn:active { background: var(--surface-3); }
+.btn.btn-primary        { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn.btn-primary:hover  { background: color-mix(in oklch, var(--fg) 86%, var(--bg)); }
+.btn.btn-primary:active { background: color-mix(in oklch, var(--fg) 76%, var(--bg)); }
+.on-photo .btn.btn-primary { background: oklch(0.99 0 0); color: oklch(0.21 0 0); border-color: transparent; }
+.toolbar-group { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--surface-2); }
+.icon-btn { inline-size: 44px; block-size: 44px; border: 0; border-radius: 999px;
+  display: grid; place-items: center; background: transparent; color: var(--fg); }
+.icon-btn:hover  { background: var(--surface-3); }
+.icon-btn svg    { inline-size: 20px; block-size: 20px; }
+.icon-btn svg [stroke] { stroke: currentColor; }
+.icon-btn svg [fill]:not([fill="none"]) { fill: currentColor; }
 .segmented [aria-selected="true"] { background: var(--surface-3); font-weight: 600; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (forced-colors: active) { .btn, .icon-btn { border: 1px solid ButtonText; } }
 ```
+
+Checkable (wp3 lint): a button-like authored element whose resolved fill or label is
+chromatic without a recorded brand-primary exception (FAIL); more than one non-semantic accent
+family in authored chrome (WARN); a primary whose hover or active pair falls under 4.5:1
+(FAIL). Native controls, forced colors and data marks are not failures.
 
 ## Modern Color Functions (baseline status 2026-07-07)
 

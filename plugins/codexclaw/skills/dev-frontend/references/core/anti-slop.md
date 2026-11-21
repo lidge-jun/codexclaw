@@ -103,20 +103,23 @@ recipes.
 
 ## One-Sided Accent Ban (FE-SIDE-ACCENT-01, DEFAULT, user contract 2026-11-21)
 
-No colored or heavier edge on one side of a box to mark emphasis, selection or category:
-cards, callouts, notes, alerts, quotes, pills, chips, nav items, list rows, stat tiles, table
-rows. Every implementation counts: a `border-left` / `border-inline-start` (or any single
-side) wider or more saturated than the others, a one-sided `inset` box-shadow, an absolutely
-positioned `::before` / `::after` bar, a gradient stripe inside `background`. It reads as a
-chatbot answer or a template card, and on a pill it fights the radius.
+Do not attach a contrasting strip to one edge of a pill, chip, card, callout, note, alert,
+quote, list row, tab, nav item or stat tile to show emphasis, selection or a decorative
+category. Any side counts, physical or logical, and any implementation: a thicker border, an
+equal-width border in a different color, an inset box-shadow, a gradient stripe, a `::before`
+/ `::after` bar, a child element or an SVG rail, colored or neutral. It reads as a chatbot
+answer or a template card, and on a pill it fights the radius.
 
-Use one channel instead: a full 1px neutral border, one neutral surface step, a leading glyph
-or run-in label, or weight. Selected states follow FE-COLOR-RESTRAINT-01 in
+Use a neutral surface step or a full 1px perimeter plus an independent cue: a leading glyph,
+a run-in label or weight. Selected states follow FE-COLOR-RESTRAINT-01 in
 [color-system.md](color-system.md).
 
-Narrow exception: a per-row marker that encodes data (a diff gutter, a calendar category) is
-data, not emphasis, and also carries a non-color cue. The only other documented reason to
-deviate is a brief that explicitly asks for a side bar.
+Not accents: dividers between peers, table gridlines and axes, a prose-link underline, the
+neutral underline under the selected label in an underline-style tab row, a full
+keyboard-focus perimeter. A data gutter qualifies only when it encodes a named data
+field independent of selection and focus, survives without color (visible +/- or text, with
+an accessible name), and stands as its own gutter or marker rather than a stripe on a card.
+Any other exception needs the brief to ask for that exact pattern.
 
 ## One-Note Theme Ban (FE-ONENOTE-01, DEFAULT)
 

@@ -34,6 +34,18 @@ Reads visible copy only (skip script/style/svg/code/hidden). Ids from wp2's copy
 English and Korean rule sets selected by `lang` / Hangul ratio. Cross-file mode compares first
 headings across pages for shared phrases.
 
+## Fixtures first (008 B6)
+
+Write PASS / FAIL / UNCERTAIN fixtures before the linters: RTL and logical sides; right and
+bottom edges; equal-width color-only edge; `::before` rail; child-element and SVG rails;
+inset-shadow stripe; table separators and axes (PASS); labelled diff gutter (PASS);
+underline-style tab indicator (PASS); focus ring vs accent selection ring (PASS vs FAIL);
+brief-named brand primary (PASS with recorded exception); two colored CTAs (FAIL); primary
+hover contrast under 4.5:1 (FAIL); multi-series chart (PASS in both frontend and visualizer
+gates); native switch and forced-colors (PASS). Probe v2 from the survey (`cap/capture2.mjs`,
+session tmp) is the starting point for the rendered mode; its false positives in 007 become
+UNCERTAIN fixtures.
+
 ## Fixtures and tests
 
 `dev-frontend/scripts/fixtures/{bad,good}/*.html` with expected findings; `node --test`

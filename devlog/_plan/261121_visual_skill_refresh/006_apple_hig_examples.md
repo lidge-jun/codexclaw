@@ -63,6 +63,36 @@ URL pattern: `https://developer.apple.com/design/human-interface-guidelines/<slu
 4. Icon stroke weight matches the adjacent label weight (HIG icons).
 5. One hue, one meaning (HIG color).
 
+## 4. Corrections after review (008 A5, A8, B4)
+
+- Section 3 item 2 is superseded: the house exception stays at **one** brief-named brand
+  primary. Apple's "one or two prominent" is Apple's platform default, not our allowance.
+- "Reduce toolbar backgrounds and tinted controls" does not make every toolbar item neutral
+  in Apple's own guidance: Apple prescribes one separated, tinted prominent action (Done,
+  Submit) in a toolbar. The house rule keeps it ink by owner directive; record it as a
+  deliberate difference, not as Apple support.
+- "Prefer symbols without borders" means a symbol inside an existing group needs no ring of
+  its own. It is not a ban on standalone control boundaries or focus outlines. The shared
+  capsule is our web adaptation.
+- Icon weight: Apple says match icon and text weight in general; the 1.5 to 2px CSS stroke
+  mapping is ours.
+- Segmented controls: Apple says prefer text or images, not a categorical "no mix".
+- Dark mode: "avoid offering an app-specific appearance setting" is about Apple apps
+  following the system setting; it is not a rule for websites.
+- Alerts: Cancel is required when an alert offers a destructive action; a purely
+  informational single-button alert may use Done or OK.
+- "Same color, different meanings" is local (neighboring colors must not mislead), not a
+  global one-to-one color map across charts, focus and status.
+- Counterexamples Apple itself allows, kept visible: iOS switches are green by default and
+  should change only when needed; macOS sidebar icons follow the user's chosen system accent;
+  multi-series charts use several colors with non-color redundancy. Native and user-chosen
+  colors are outside FE-COLOR-RESTRAINT-01's budget.
+- Missing references to add in wp4: HIG `inspectors`, `split-views`, `pop-up-buttons`,
+  `steppers`, `boxes`, `path-controls`, `token-fields`; real app chrome (Finder toolbar:
+  monochrome capsule, color only on tag dots; Notes inspector; Photos; iOS Health and
+  Stocks: color only in data); and the line between Apple OS chrome (neutral) and apple.com
+  marketing (one Apple Blue `#0071E3` pill CTA per product block, measured by probe v2).
+
 ## Caveat
 
 The HIG governs Apple platforms. Its Liquid Glass sections assume system materials that the

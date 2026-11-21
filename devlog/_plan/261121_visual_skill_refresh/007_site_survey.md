@@ -1,109 +1,139 @@
-# 007 — Site survey: YC P26, Korean companies, foreign startups (2026-11-21)
+# 007 — Site survey: YC P26, Korean companies, foreign startups (2026-11-21, v2)
 
 User request 2026-11-21: "최신 yc 스타트업들 이미지 따서 올해 p26 그리고 한국 대기업들(스타트업) +
 외국 스타트업 공통된 특징을 뽑아서 정리". P26 is YC's Spring 2026 batch (formerly X26; 193
 companies in the directory on 2026-11-21).
 
+v2 replaces the first version after the reviews in [008](008_external_reviews.md). The first
+probe picked Apple's country-banner button as the hero CTA, only looked for thick left
+borders, and mixed two selection stages. Every number below comes from one probe-v2 record
+per site plus a hand check of every selected CTA crop.
+
 ## Method
 
-- YC list: `ycombinator.com/companies?batch=Spring 2026`, all 193 loaded, website read from
-  each company page.
-- Korea: 32 sites (Toss, Toss Bank, Toss Payments, Kakao, KakaoBank, Naver, Daangn,
-  Woowahan, Coupang, Musinsa, Kurly, Ohouse, Channel Talk, Wanted, flex, Socar, Yanolja,
-  Upstage, Rebellions, Wrtn, Liner, Sendbird, Moloco, Remember, Class101, Soomgo, Samsung,
-  LG, SKT, Hyundai, LY, Krafton).
-- Foreign: 33 (Linear, Vercel, Stripe, Raycast, Notion, Figma, Perplexity, Cursor,
-  Anthropic, OpenAI, Dia, Framer, Supabase, Resend, Clerk, Mercury, Ramp, Retool, Granola,
-  Attio, PostHog, Replit, Lovable, ElevenLabs, Mistral, Runway, Browserbase, Modal,
-  Cognition, xAI, Aside, apple.com, apple.com/macbook-pro).
-- Capture: headless Chrome, 1440x900, ko-KR locale, 3.5s after load, first viewport only.
-  The computed-style probe measured the hero headline (font, size, weight, tracking,
-  alignment), the first filled button-like control in the viewport (cookie, chat, language,
-  login and slider controls filtered out), one-sided borders, gradients, emoji, distinct
-  hues, eyebrows above the headline and large media.
-- Excluded 4: LY (404 at the chosen URL), Liner (redirect notice), one blank page, one SSL
-  failure. n = 191 YC / 30 Korea / 33 foreign.
-- Scripts and raw data stay outside the repo (session tmp `cap/`); screenshots appear in
-  the catalog PDF only (third-party pages, not committed).
+- **YC**: all 193 companies of `ycombinator.com/companies?batch=Spring 2026`, with the
+  website taken from each company page.
+- **Korea** (32, hand-picked): Toss, Toss Bank, Toss Payments, Kakao, KakaoBank, Naver
+  (corporate site), Daangn, Woowahan, Coupang (aboutcoupang), Musinsa, Kurly, Ohouse, Channel
+  Talk, Wanted, flex, Socar, Yanolja, Upstage, Rebellions, Wrtn, Liner, Sendbird, Moloco,
+  Remember, Class101, Soomgo, Samsung, LG, SKT, Hyundai, LY, Krafton.
+- **Foreign** (33, hand-picked): Linear, Vercel, Stripe, Raycast, Notion, Figma, Perplexity,
+  Cursor, Anthropic, OpenAI, Dia, Framer, Supabase, Resend, Clerk, Mercury, Ramp, Retool,
+  Granola, Attio, PostHog, Replit, Lovable, ElevenLabs, Mistral, Runway, Browserbase, Modal,
+  Cognition, xAI, Aside, apple.com, apple.com/macbook-pro.
+- **Capture**: headless Chrome, 1440x900, ko-KR locale, 3.5s after load, first viewport only.
+- **Probe v2** (`cap/capture2.mjs`, `version: probe-v2`):
+  - Headline: the largest visible text in the top 760px.
+  - Hero CTA: the first filled control at or below the headline, within 420px. Header,
+    modal and fixed overlays are excluded, and so are cookie, chat, language, carousel,
+    login and search controls.
+  - Header CTA: recorded separately.
+  - Colors: normalized through a canvas, so oklch and display-p3 values count.
+  - One-sided edges: all four sides, equal-width color-only edges, `::before`/`::after`
+    rails and inset shadows.
+  - Hero darkness: measured from the screenshot pixels.
+- **Hand check**: every selected CTA crop (175) was inspected.
+  - 14 were not primary actions: carousel arrows, prompt send buttons, a cookie button, a
+    status pill and a "Backed by Y Combinator" badge.
+  - 8 hue labels were wrong: dark gray or black buttons, a beige button, a white button on
+    navy.
+  - Labels are in `run2/hand_labels.json`.
+- **Excluded**: LY (404 at the chosen URL), Liner (redirect notice), one blank page and one
+  SSL failure. Final n is 191 YC, 30 Korea and 33 foreign.
+- **Storage**: raw data and screenshots stay outside the repo (session `tmp/cap/run2/`). The
+  catalog PDF shows them.
 
 ## Numbers
 
 | Measure | YC P26 | Korea | Foreign |
 |---|---|---|---|
-| Hero CTA present (filled, first viewport) | 139/191 | 16/30 | 22/33 |
-| CTA neutral (ink, white or gray) | **65%** | **75%** | **73%** |
-| CTA hue-filled | 35% (sky/blue 17, red 13, teal 5, orange 5) | 25% | 27% |
-| CTA pill-shaped | 37% | 31% | 45% |
-| CTA contains an SVG glyph | 29% | 31% | 36% |
-| Chromatic one-sided accent bar anywhere in viewport | **0%** | **0%** | **0%** |
-| Distinct accent hues, 1 or fewer | 90% | 90% | 79% |
-| Dark first viewport | 26% | 10% | 21% |
-| Headline centered | 40% | 13% | 39% |
-| Negative tracking on headline | 80% | 33% | 82% |
-| Headline median size / weight | 65px / 500 | 28px / 600 (portals use h1 for logos) | 49px / 425 |
-| Serif display headline | 16% | 0% | 6% |
-| Eyebrow above headline | 47% (uppercase 19%) | 17% | 36% |
-| Emoji in visible text | 12% | 7% | 3% |
-| Large photo/product media in viewport | 65% | 80% | 73% |
-| "Backed by YC" mark visible | 13% | | |
-| Headline mentions AI or agents | 40% | 8% | 44% |
-| Headline ends with a period | 53% | 4% | 34% |
-| Median headline words | 6 | 3 | 6 |
+| Hero CTA found and confirmed by hand | 131/191 | 7/30 | 17/33 |
+| ... neutral (ink, white or gray fill) | **76/131 (58%)** | 4/7 | 11/17 (65%) |
+| ... hue fill | 55/131 (42%) | 3/7 (Toss Payments blue, Rebellions green, Class101 orange) | 6/17 (Stripe, Mercury, Ramp, PostHog, apple.com x2) |
+| Most common CTA hues (YC, probe before hand check) | sky/blue 19, red 11, orange 5, teal 4 | | |
+| Hero CTA pill-shaped | 45/135 (33%) | 6/12 | 13/22 |
+| Median corner radius of non-pill CTAs | 6px | 11px | 8px |
+| CTA carries an SVG glyph | 57/135; glyph colored in 4 | 5/12; 1 colored | 9/22; 0 colored |
+| One-sided accent on a card or callout (hand-checked) | **2/191** (Adialante callout, Silmaril cookie card) | **0/30** | **0/33** |
+| Other one-sided edges detected | header rules, link underlines, page grid lines | text cursor (Upstage), ribbon ornament (Rebellions) | grid lines (Mistral) |
+| At most one accent hue bin in the first viewport | 166/191 (87%) | 27/30 (90%) | 26/33 (79%) |
+| Dark hero (screenshot luminance below 0.35) | 72/191 (38%) | 5/30 (17%) | 7/33 (21%) |
+| Headline centered | 76/191 (40%) | 8/30 | 17/33 |
+| Headline weight 400 to 600 | 150/191 (79%), median 500 | 17/30, median 600 | 28/33 (85%), median 500 |
+| Median headline size | 66px | 40px | 54px |
+| Negative tracking | 157/191 (82%) | 15/30 | 28/33 |
+| Serif display headline | 34/191 (18%) | 0/30 | 1/33 (Anthropic) |
+| Headline of 9 or fewer whitespace units | 176/191 | 27/30 | 30/33 |
+| Headline ends with a period | 72/191 (38%) | 1/30 | 12/33 |
+| Headline names AI or agents | 60/191 (31%) | 3/30 | 11/33 |
+| Gradient on a small UI element (button or chip) | 43/191 | 5/30 | 15/33 |
+| Gradient on a large background (20% or more of the viewport) | 84/191 (44%) | 2/30 | 7/33 |
+| Gradient text | 14/191 | 1/30 | 3/33 |
+| Large media (8% or more of the viewport) | 137/191 (72%) | 24/30 (80%) | 25/33 (76%) |
+| Input embedded in the hero (prompt or email) | 20/191 | 7/30 | 4/33 |
+| Median top-nav links | 5 | 5.5 | 6 |
+| Emoji in visible text | 24/191 | 2/30 | 1/33 |
 
-Top display faces: YC Inter 21, Geist 19, Playfair 5, Manrope 5, Newsreader 5, Archivo 5;
-Korea Pretendard 13 of 30, then house faces (Toss Product Sans, Karrot Sans, KakaoSmall);
-foreign mostly custom house faces (sohne, CursorGothic, anthropicSerif, figmaSans, pplxSans,
-NotionInter, Geist, SF Pro).
+Display faces:
 
-## Common traits (all three groups)
+- **YC**: Inter 20 and Geist 17, then Playfair, Instrument Sans, Newsreader and Archivo at 5
+  each.
+- **Korea**: Pretendard on 14 of 30 sites; the rest use house faces such as Toss Product
+  Sans, Karrot Sans and KakaoBig.
+- **Foreign leaders**: mostly house faces, such as sohne, CursorGothic, figmaSans, pplxSans,
+  NotionInter, SF Pro and Geist.
 
-1. **Controls are neutral.** Two thirds to three quarters of hero CTAs are ink on light or
-   white on dark. Hue on the button is the minority choice everywhere, and YC P26 is where
-   it is most common (a blue or red "Book a demo").
-2. **Nobody uses a colored side bar.** 0 of 254 sites. The pattern lives in AI-generated
-   UIs, not in shipped company sites. wp1's ban matches the market.
-3. **One hue or none.** 79 to 90% of pages show at most one accent hue in the first
-   viewport. Color comes from photography or product imagery (65 to 80% carry large media),
-   not from UI chrome.
-4. **The product or a real photo is the hero.** Korean sites lead with photographs of
-   people and places, foreign ones with product UI; abstract gradient heroes are rare.
-5. **Light by default.** Dark first viewports are a minority (10 to 26%); devtools (Linear,
-   Raycast, Modal, Resend) are the dark cluster.
-6. **Glyph-bearing buttons are common** (about a third of CTAs carry an SVG arrow or
-   download glyph), always monochrome.
+## What the evidence supports
 
-## Where the groups differ
+1. **Neutral CTAs are the majority, but not by much.** 58 to 65% of confirmed hero CTAs are
+   ink, white or gray. Colored CTAs are also common (about 40%), most often blue.
+   FE-COLOR-RESTRAINT-01 is a house choice that the market leans toward, not what everyone
+   does. The colored counterexamples (Toss Payments, Stripe, Ramp, apple.com) stay visible
+   in the catalog.
+2. **One-sided accent bars on cards are almost absent.** There are 2 cases in 254 first
+   viewports, both YC. The other single-side edges were dividers, underlines, grid lines or
+   ornaments, which FE-SIDE-ACCENT-01 does not count as accents.
+3. **Glyphs in buttons are monochrome.** About 4 in 10 CTAs carry an SVG arrow, download or
+   app glyph, and only 5 of 71 glyphs were colored.
+4. **Headlines are medium weight and compact.** About 80% use weight 400 to 600, and most
+   have 9 or fewer whitespace units. This contradicts the anti-slop advice in
+   `aesthetics.md` that favors weight extremes (100-200 vs 800-900); wp4 corrects it.
+5. **The accent palette is narrow.** 79 to 90% of pages show at most one accent hue bin.
+   This counts CSS colors only; color that comes from imagery was not measured.
+6. **Light pages dominate outside YC.** Dark heroes appear on 38% of YC pages and about 20%
+   of the others.
 
-- **Korea**: brand name closes the headline ("동네를 여는 문, 당근", "차가 필요할 땐, 쏘카",
-  "쉽고 빠른 PG 연동 토스페이먼츠"); short headlines (median 3 words), almost no trailing
-  period, little tracking, Pretendard as the common face, left-aligned headlines, AI rarely
-  named in the headline. Portals (Naver, Musinsa, Kurly, Yanolja) are dense commerce grids
-  with service icon rows: color comes from many product photos.
-- **YC P26**: AI or agents in 40% of headlines; "X for Y" noun headlines ("AI Workforce for
-  Biopharma", "Cloud Computers for AI Agents", "Phone numbers for AI Agents"); half end with
-  a period; an eyebrow (often "Backed by Y Combinator") above the headline in 47%; serif
-  display faces in 16% (Playfair, Newsreader, Instrument Serif); Inter and Geist dominate.
-  These are the tells codexclaw's anti-slop list already names, which is evidence that
-  agent-built sites converge.
-- **Foreign leaders**: custom house typefaces, pill CTAs most often (45%), white CTA on dark
-  for devtools; one-line claims about the product's job ("Your shortcut to everything.",
-  "Deploy now").
+## Reviewer-observed traits (Neon, from screenshots; not measured)
 
-## What this changes in the skills
-
-- wp1 confirmed by data: neutral CTA and no side bar are the market default, not an
-  aesthetic preference.
-- wp2 (copy): add the Korean "benefit, brand" headline shape as a positive move; add "X for
-  Y" noun headline, "Backed by" eyebrow and trailing-period headline to the YC-convergence
-  tells, capped not banned.
-- wp4: record "neutral controls, color in content" as an observed direction with these
-  counts and the date.
-- Catalog PDF (artifact) shows the contact sheets and per-site rows.
+- **Shared across groups**:
+  - Product UI "peeking" in at the bottom of the hero (Daangn, Linear, Panacea).
+  - A one-row nav with one or two actions on the right.
+  - A monochrome customer-logo strip.
+  - Warm off-white canvases (Anthropic, Akkari, Panacea).
+  - A two-button pair: a primary plus a quieter secondary.
+  - A split layout for B2B, a centered layout for prompt or brand products.
+- **Korea**:
+  - Full-bleed brand film heroes with no CTA (Toss, KakaoBank), which is why 17 of 30
+    Korean pages have no hero CTA.
+  - Quick-menu icon docks on portals (Kurly, Wanted).
+  - 3D clay illustration (Toss Bank).
+  - A floating chat button.
+  - Headlines shaped as "benefit, brand" ("동네를 여는 문, 당근", "차가 필요할 땐, 쏘카").
+- **YC P26 convergence package**:
+  - A cream canvas, a serif H1, a "Backed by Y Combinator" pill and cards below.
+  - One or two highlighted, italic or color-swapped words in the H1.
+  - Dark cinematic stock-photo heroes.
+  - "A. B. C." and "Don't X, Y" frames.
+  - "The AI-native [X] for [Y]".
+  - wp2 treats these as capped tells shown with counterexamples, not as bans (008 C2).
 
 ## Limits
 
-First viewport only; one locale; computed styles miss canvas, video and pseudo-element
-paint (a `::before` side bar would be missed; the zero is "no border-based side bar"); "CTA"
-is the first filled control after filtering, so a site whose primary action is a text link
-reads as "none"; Korean headline size is low because portals put logos in h1. Sample: all
-of P26, but a hand-picked 32 Korean and 33 foreign sites.
+- **Coverage**: first viewport only, one desktop size, one locale, anonymous visit.
+- **Sample**: the Korean and foreign lists are hand-picked and mix product pages, corporate
+  sites (Naver, Coupang) and portals.
+- **CTA detection**: a text link used as the primary action reads as "no CTA".
+- **Edge detection**: misses SVG rails and child-element bars.
+- **Gradient counts**: grouped by element role (UI, background, text), not by visual weight.
+- **Hand labels**: one reviewer (the agent).
+- **Scope**: these are dated observations of one batch, not trends or outcome measures.
