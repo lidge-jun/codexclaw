@@ -1,6 +1,6 @@
 {
   "name": "codexclaw",
-  "version": "0.2.47+codex.20261121140000",
+  "version": "0.2.48+codex.20261121145900",
   "description": "cli-jaw-style dev discipline (dev skills + PABCD) and multi-model subagents for the OpenAI Codex runtime, with optional opencodex provider routing.",
   "author": {
     "name": "lidge-jun",
