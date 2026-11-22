@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reading notes</title>
+<style>
+html { scroll-padding-top: 64px; overflow-x: clip; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+.site-header { position: sticky; top: 0; background: #fff; }
+.progress { position: fixed; inset: 0 0 auto; height: 3px; background: #16161a; transform-origin: 0 50%; }
+@keyframes grow { from { scale: 0 1; } }
+@keyframes rise { from { opacity: 0; translate: 0 1.5rem; } }
+@supports (animation-timeline: scroll()) {
+  .progress { animation: grow linear both; animation-timeline: scroll(root block); }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { animation: rise linear both; animation-timeline: view(); animation-range: entry 10% cover 30%; }
+  }
+}
+</style></head><body>
+<div class="progress" aria-hidden="true"></div>
+<header class="site-header"><nav><a href="#notes">Notes</a></nav></header>
+<main><h1>Reading notes</h1><section id="notes" class="reveal"><p>Three chapters on soil, water and light.</p></section></main>
+<script>
+const io = new IntersectionObserver((es) => es.forEach((e) => e.target.toggleAttribute('data-seen', e.isIntersecting)));
+document.querySelectorAll('section').forEach((s) => io.observe(s));
+addEventListener('scroll', () => {}, { passive: true });
+</script>
+</body></html>

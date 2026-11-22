@@ -12,7 +12,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, extname, resolve, relative } from "node:path";
 import { pathToFileURL } from "node:url";
-import { parseCss, inlineStyleRules, colorIn, isChromatic, hue, lineAt, emit, parseColor, contrast } from "./lint-core.mjs";
+import { parseCss, inlineStyleRules, colorIn, isChromatic, hue, lineAt, emit, parseColor, contrast, keyframesIn } from "./lint-core.mjs";
 
 const EXT = new Set([".html", ".htm", ".css", ".jsx", ".tsx", ".vue", ".svelte"]);
 const BUTTONISH = /(^|[\s>+~,(])(button|\.btn[\w-]*|\.button[\w-]*|\.cta[\w-]*|\[role=["']?button["']?\]|input\[type=["']?(submit|button)["']?\]|a\.(btn|button|cta)[\w-]*)(?=$|[\s.:#[>+~,)])/i;
@@ -206,9 +206,82 @@ export function lintStatic(file, text) {
       open.push({ tag: m[2].toLowerCase(), card });
     });
   }
+  scrollChecks(text, rules, isMarkup, add);
   const tells = new Set(findings.filter((f) => f.level !== "INFO").map((f) => f.id + f.message.slice(0, 18)));
   if (tells.size >= 3) add("INFO", "FE-SLOP-CONSENSUS-01", 1, `${tells.size} distinct tells in one file; three or more in a section means redesign it, not patch`);
   return findings;
+}
+
+// FE-SCROLL-* (scroll-interaction.md). Advisory by design: only objective breakage is FAIL
+// (a timeline reset by declaration order here; content that never becomes visible in --render).
+// Snap, smooth scroll, pinning and guards are craft choices and report INFO/WARN.
+const LAYOUT_PROPS = /(^|[;{\s])(height|width|top|left|right|bottom|margin[\w-]*|padding[\w-]*|font-size|box-shadow|background-position)\s*:/;
+function scrollChecks(text, rules, isMarkup, add) {
+  const css = isMarkup ? [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join("\n") : text;
+  const kf = keyframesIn(css);
+  const reduceKills = /prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{[\s\S]{0,600}?(animation(-name)?\s*:\s*none|animation-timeline\s*:\s*none)/i.test(css);
+  const inNoPref = (r) => r.at.some((a) => /prefers-reduced-motion\s*:\s*no-preference/i.test(a));
+  const timed = rules.filter((r) => r.decls["animation-timeline"] && !/^(auto|none)$/i.test(r.decls["animation-timeline"].trim()));
+  const timedSel = new Set(timed.map((r) => r.selector.trim()));
+  let usesView = false;
+  for (const r of timed) {
+    const sel = r.selector.slice(0, 60), tl = r.decls["animation-timeline"];
+    if (/view\(|--/.test(tl)) usesView = true;
+    if (/^0(\.0+)?$/.test((r.decls.opacity || "").trim()) || /hidden/.test(r.decls.visibility || ""))
+      add("WARN", "FE-SCROLL-BASE-01", r.line, `\`${sel}\` hides its base state (opacity 0 / visibility hidden) next to a scroll timeline; put hidden values only in the \`from\` keyframe`);
+    const sh = r.body.search(/(^|[;\s])animation\s*:/), lh = r.body.search(/animation-timeline\s*:/);
+    if (sh >= 0 && lh >= 0 && lh < sh)
+      add("FAIL", "FE-SCROLL-GUARD-01", r.line, `\`${sel}\` declares animation-timeline before the \`animation\` shorthand, which resets it to auto (runs on the clock)`);
+    if (!r.at.some((a) => /@supports[^{]*(animation-timeline|scroll\(|view\()/i.test(a)) && !r.inline)
+      add("INFO", "FE-SCROLL-GUARD-01", r.line, `scroll timeline on \`${sel}\` outside @supports (animation-timeline: ...); old browsers run the shorthand once at load`);
+    const state = /progress|shadow|stuck|header|scroll-?hint/i.test(r.selector);
+    if (!state && !inNoPref(r) && !reduceKills)
+      add("INFO", "FE-SCROLL-GUARD-01", r.line, `scroll animation on \`${sel}\` not inside @media (prefers-reduced-motion: no-preference); duration overrides do not stop scroll timelines`);
+    if (/view\(/.test(tl) && /^\s*-?\d/.test(r.decls["animation-range"] || ""))
+      add("INFO", "FE-SCROLL-GUARD-01", r.line, `bare percentage animation-range on a view() timeline (\`${r.decls["animation-range"]}\`); write range names (entry/cover/contain)`);
+    const names = (r.decls["animation-name"] || r.decls.animation || "").split(/[\s,]+/).filter((n) => kf[n]);
+    for (const n of names) if (LAYOUT_PROPS.test(kf[n]))
+      add("INFO", "FE-SCROLL-PERF-01", r.line, `scroll-linked keyframes \`${n}\` animate layout/paint properties; use transform/opacity/clip-path`);
+  }
+  for (const r of rules) {
+    const sel = r.selector.trim();
+    if (timedSel.has(sel) && !r.decls["animation-timeline"] && (/^0(\.0+)?$/.test((r.decls.opacity || "").trim()) || /hidden/.test(r.decls.visibility || "")))
+      add("WARN", "FE-SCROLL-BASE-01", r.line, `\`${sel.slice(0, 60)}\` is hidden in its base rule and only revealed by a scroll timeline; print, reduced motion and unsupported browsers will never show it`);
+    const hiddenX = (r.decls["overflow-x"] || "").trim() === "hidden" || (r.decls.overflow || "").trim().split(/\s+/)[0] === "hidden";
+    if (usesView && hiddenX && /(^|,|\s)(html|body|main|:root|\.(wrapper|page|site|app|container|layout)[\w-]*)\s*$/i.test(sel))
+      add("WARN", "FE-SCROLL-GUARD-01", r.line, `\`overflow: hidden\` on \`${sel.slice(0, 40)}\` becomes the scroller of every view() inside it and freezes them; use overflow-x: clip`);
+    const snap = (r.decls["scroll-snap-type"] || "").toLowerCase();
+    if (/(y|block|both)\s+mandatory/.test(snap) && /(^|,|\s)(html|body|:root|main)\s*$/i.test(sel))
+      add("INFO", "FE-SCROLL-NATIVE-01", r.line, `page-level \`scroll-snap-type: ${snap}\` on \`${sel}\` is a deliberate choice; fine for decks and stories, consider proximity for reading pages`);
+    if (/smooth/i.test(r.decls["scroll-behavior"] || "") && !inNoPref(r))
+      add("INFO", "FE-SCROLL-NATIVE-01", r.line, `\`scroll-behavior: smooth\` on \`${sel.slice(0, 40)}\` outside @media (prefers-reduced-motion: no-preference)`);
+  }
+  // sticky/fixed header + in-page anchors without an offset
+  const stickyHeader = rules.some((r) => /sticky|fixed/.test(r.decls.position || "") && /(^|[\s,.#])(header|nav|topbar|top-bar|site-header|navbar)\b/i.test(r.selector));
+  const anchors = isMarkup && /href=["']#[\w-]+/.test(text);
+  const offset = rules.some((r) => r.decls["scroll-padding-top"] || r.decls["scroll-padding"] || r.decls["scroll-padding-block"] || r.decls["scroll-padding-block-start"] || r.decls["scroll-margin-top"] || r.decls["scroll-margin-block-start"] || r.decls["scroll-margin"]) || /scroll-(pt|mt)-/.test(text);
+  if (stickyHeader && anchors && !offset)
+    add("INFO", "FE-SCROLL-ANCHOR-01", 1, "sticky/fixed header with in-page #anchors but no scroll-padding-top / scroll-margin-top; targets and focus land under the header");
+  if (isMarkup) {
+    const js = [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    for (const m of js) {
+      const src = m[1], base = m.index + m[0].indexOf(src);
+      const at = (i) => lineAt(text, base + i);
+      const call = (i) => { const rest = src.slice(i, i + 700); const end = rest.search(/\)\s*;|\)\s*\n\s*(?:\w|\}|$)/); return end > 0 ? rest.slice(0, end + 1) : rest; };
+      for (const h of src.matchAll(/addEventListener\(\s*["'](wheel|mousewheel|touchmove|DOMMouseScroll)["']/g)) {
+        const c = call(h.index);
+        if (/preventDefault/.test(c) || /passive\s*:\s*false/.test(c)) add("WARN", "FE-SCROLL-NATIVE-01", at(h.index), `\`${h[1]}\` listener that cancels native scrolling (scroll hijack)`);
+      }
+      for (const h of src.matchAll(/addEventListener\(\s*["']scroll["']/g)) {
+        const c = call(h.index);
+        if (!/passive\s*:\s*true/.test(c)) add("INFO", "FE-SCROLL-PERF-01", at(h.index), "scroll listener without { passive: true }");
+        if (/getBoundingClientRect|offsetTop|offsetHeight|scrollHeight/.test(c)) add("WARN", "FE-SCROLL-PERF-01", at(h.index), "layout read inside a scroll listener; use IntersectionObserver, scroll timelines or rAF-batched reads");
+      }
+      const lib = src.match(/new\s+Lenis\s*\(|ScrollSmoother\.create|new\s+LocomotiveScroll/);
+      if (lib && !/prefers-reduced-motion/.test(src)) add("INFO", "FE-SCROLL-NATIVE-01", at(lib.index), `smooth-scroll library (${lib[0].replace(/\s+|\(/g, "")}) without a prefers-reduced-motion branch; fine when it serves the concept, add the reduced-motion branch`);
+      else if (lib) add("INFO", "FE-SCROLL-NATIVE-01", at(lib.index), "smooth-scroll library present: verify anchors, keyboard scrolling and nested scrollers");
+    }
+  }
 }
 
 async function loadChromium() {
@@ -271,6 +344,35 @@ function pageProbe(vw) {
       if (pw >= 2 && pw <= 8 && ph >= r.height * 0.6 && bg.a > 0.3) out.push({ kind: "side", msg: `${ps} rail ${pw}px on ${desc(el)}` });
     }
   }
+  // FE-SLOP-CONSENSUS-01 blank-ground landing + FE-HERO-ALIGN-01 text|video split (owner 2026-11-22).
+  if (vw >= 1024 && !document.body.hasAttribute("data-typographic")) {
+    const h1 = document.querySelector("h1"), W = document.documentElement.clientWidth, H = document.documentElement.scrollHeight;
+    const words = (document.querySelector("article")?.innerText || "").split(/\s+/).length;
+    const hero = h1 && h1.getBoundingClientRect().top < innerHeight && document.querySelector("a.btn,a[class*=button],a[class*=cta],button,[role=button]") && H >= innerHeight * 1.4;
+    const tool = [...document.forms].some((f) => f.querySelectorAll("input,select,textarea").length >= 3) || words > 600 || (!hero && document.querySelector("table,pre,[role=grid]"));
+    if (hero && !tool) {
+      const media = [...document.querySelectorAll("img,video,canvas,svg,iframe,picture,section,div,figure,header")].filter((el) => {
+        if (el.closest("nav,footer,button,a,table,[role=grid]") || el.closest("svg svg")) return false;
+        const r = el.getBoundingClientRect(); if (r.width < 64 || r.height < 64) return false;
+        if (/^(IMG|VIDEO|CANVAS|SVG|IFRAME|PICTURE)$/i.test(el.tagName)) return true;
+        return /url\(/.test(getComputedStyle(el).backgroundImage);
+      });
+      let first = 0, total = 0;
+      for (const el of media) {
+        const r = el.getBoundingClientRect(), top = r.top + scrollY;
+        total += r.width * r.height;
+        first += Math.max(0, Math.min(top + r.height, innerHeight) - Math.max(top, 0)) * Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0));
+      }
+      const f = Math.min(1, first / (W * innerHeight)), t = Math.min(1, total / (W * H));
+      if (f < 0.35) out.push({ kind: "textonly", msg: `blank-ground landing: media covers ${Math.round(f * 100)}% of the first viewport (${Math.round(t * 100)}% of the page); let a full-bleed scene carry the first screen with the copy in it (or mark <body data-typographic> when type is the concept)` });
+    }
+    for (const v of document.querySelectorAll("video,canvas")) {
+      const r = v.getBoundingClientRect(); if (r.height < 240 || r.width < W * 0.25 || r.width > W * 0.7) continue;
+      const scope = v.closest("section,header,main") || document.body;
+      const side = [...scope.querySelectorAll("h1,h2,h3,p")].find((t) => { const q = t.getBoundingClientRect(); if ((t.innerText || "").trim().length < 12 || q.width < 120) return false; const vo = Math.min(q.bottom, r.bottom) - Math.max(q.top, r.top); return vo > q.height * 0.5 && (q.right <= r.left + 4 || q.left >= r.right - 4); });
+      if (side) { out.push({ kind: "split", msg: `text | ${v.tagName.toLowerCase()} split: a ${Math.round(r.width)}px ${v.tagName.toLowerCase()} column beside "${side.innerText.trim().slice(0, 30)}"; put motion full-bleed behind or around the copy` }); break; }
+    }
+  }
   const brand = !!document.querySelector("[data-brand-primary]") || /brand-primary\s*:/.test([...document.querySelectorAll("style")].map((s) => s.textContent).join(""));
   const buttons = [...document.querySelectorAll("button,[role=button],input[type=submit],a")].filter(vis).filter((b) => { const cs = getComputedStyle(b); const bg = norm(cs.backgroundColor); const r = b.getBoundingClientRect(); return bg.a > 0.3 && r.height >= 24 && r.height <= 88 && parseFloat(cs.paddingLeft) >= 6; });
   const hues = new Set();
@@ -281,6 +383,22 @@ function pageProbe(vw) {
   if (brand && hues.size > 1) out.push({ kind: "btnhue", msg: `${hues.size} hue families on buttons with a brand-primary opt-in` });
   const texty = buttons.filter((b) => (b.innerText || "").trim().length >= 2 && inView(b.getBoundingClientRect()) && b.getBoundingClientRect().top < innerHeight);
   return { out, buttons: texty.slice(0, 12).map((b, i) => { b.setAttribute("data-uilint-btn", String(i)); return i; }) };
+}
+
+/** Runs in the page (synchronous, so it also works with JavaScript disabled): text that has a
+ *  layout box but stays invisible (effective opacity < 0.1 or visibility hidden). */
+function hiddenTextProbe() {
+  const skip = "script,style,noscript,template,[aria-hidden=true],[hidden],dialog:not([open]),details:not([open]) > :not(summary),[role=tooltip],[role=tabpanel],[aria-roledescription=slide],[popover]:not(:popover-open),.sr-only,.visually-hidden,[inert]";
+  const bad = [];
+  for (const el of document.querySelectorAll("body *")) {
+    if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 1)) continue;
+    if (el.closest(skip) || !el.getClientRects().length) continue;
+    let op = 1, n = el, hid = false;
+    while (n && n.nodeType === 1) { const cs = getComputedStyle(n); op *= +cs.opacity; if (cs.visibility === "hidden" && n === el) hid = true; n = n.parentElement; }
+    if (op < 0.1 || hid) bad.push(el);
+  }
+  const desc = (el) => el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : "");
+  return bad.length ? { count: bad.length, ex: `${desc(bad[0])} "${bad[0].textContent.trim().slice(0, 40)}"` } : null;
 }
 
 function effectiveContrastProbe() {
@@ -304,7 +422,7 @@ export async function lintRender(targets) {
   try { browser = await chromium.launch(process.platform === "darwin" && existsSync(exe) ? { executablePath: exe } : {}); }
   catch (e) { try { browser = await chromium.launch(); } catch (e2) { return { notRun: "could not launch a browser: " + String(e2.message).slice(0, 100), findings: [] }; } }
   const findings = [];
-  const ID = { density: ["WARN", "FE-DENSITY-01"], overflow: ["FAIL", "FE-VISUAL-AUDIT-02"], overflowWarn: ["WARN", "FE-VISUAL-AUDIT-02"], small: ["WARN", "FE-TYPO-FLOOR-01"], overlap: ["WARN", "FE-VISUAL-AUDIT-02"], side: ["FAIL", "FE-SIDE-ACCENT-01"], btnhue: ["FAIL", "FE-COLOR-RESTRAINT-01"] };
+  const ID = { density: ["WARN", "FE-DENSITY-01"], overflow: ["FAIL", "FE-VISUAL-AUDIT-02"], overflowWarn: ["WARN", "FE-VISUAL-AUDIT-02"], small: ["WARN", "FE-TYPO-FLOOR-01"], overlap: ["WARN", "FE-VISUAL-AUDIT-02"], side: ["FAIL", "FE-SIDE-ACCENT-01"], btnhue: ["FAIL", "FE-COLOR-RESTRAINT-01"], textonly: ["WARN", "FE-SLOP-CONSENSUS-01"], split: ["WARN", "FE-HERO-ALIGN-01"] };
   for (const t of targets) {
     const url = /^https?:/.test(t) ? t : pathToFileURL(resolve(t)).href;
     for (const vw of [390, 1280]) {
@@ -327,6 +445,21 @@ export async function lintRender(targets) {
         }
       } catch (e) { findings.push({ level: "WARN", id: "FE-VISUAL-AUDIT-02", file: t, line: 0, message: `@${vw}px could not render: ${String(e.message).slice(0, 80)}` }); }
       await page.close();
+    }
+    // FE-SCROLL-BASE-01: content must stay readable when motion is reduced and when JS is off.
+    for (const [label, opts] of [["reduced motion", { reducedMotion: "reduce" }], ["JavaScript off", { javaScriptEnabled: false }]]) {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, ...opts });
+      const page = await ctx.newPage();
+      try {
+        page.setDefaultTimeout(10000);
+        await page.goto(url, { waitUntil: "load", timeout: 30000 });
+        const height = Math.min(await page.evaluate("document.documentElement.scrollHeight"), 40000);
+        for (let y = 0; y <= height; y += 700) { await page.mouse.wheel(0, 700); await page.waitForTimeout(40); }
+        await page.waitForTimeout(400);
+        const h = await page.evaluate(`(${hiddenTextProbe.toString()})()`).catch(() => null);
+        if (h) findings.push({ level: "FAIL", id: "FE-SCROLL-BASE-01", file: t, line: 0, message: `@1280px ${label}: ${h.count} text elements stay invisible after scrolling the page, e.g. ${h.ex}; the base state must be the visible state` });
+      } catch {}
+      await ctx.close();
     }
   }
   await browser.close();

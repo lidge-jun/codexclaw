@@ -130,6 +130,7 @@
   "scripts": [
     "skills/dev-design/scripts/copy-lint.mjs",
     "skills/dev-design/scripts/lint-core.mjs",
+    "skills/dev-design/scripts/seo-lint.mjs",
     "skills/dev-design/scripts/ui-lint.mjs",
     "skills/dev-devops/scripts/verify-lipo-command.mjs",
     "skills/dev-visualizer/scripts/exhibit-contract.mjs",

@@ -28,7 +28,7 @@ Mode boundaries and handoffs: [direction roles](references/direction/role-bounda
 Owner blind A/B and a 254-site survey back these; details in each rule.
 - Neutral controls, color only in data and focus: FE-COLOR-RESTRAINT-01 in [color system](references/build/color-system.md).
 - No one-sided accent bars: FE-SIDE-ACCENT-01 in [anti-slop](references/build/anti-slop.md).
-- Short heroes are centered; a left-aligned hero needs a counterweight (visual right, full-bleed media or product below), split 50:50: FE-HERO-ALIGN-01 in [layout discipline](references/build/layout-discipline.md).
+- The first viewport is a full-bleed scene with the copy in it, not a white page with a demo box; short heroes centered; no text-left / video-right splits: FE-HERO-ALIGN-01 in [layout discipline](references/build/layout-discipline.md).
 - Korean marketing copy follows the owner register: [copy registers](references/copy/copy-registers.md).
 
 ## References
@@ -47,6 +47,8 @@ Owner blind A/B and a 254-site survey back these; details in each rule.
 | Components, dials, objective/style intake | [Design intake](references/build/design-intake.md) |
 | Typography, color, layout, assets, icons | [Implementation](references/build/implementation.md) |
 | Platform features with Baseline status (anchor, popover, select, text-box) | [Platform 2026](references/build/platform-2026.md) |
+| Any scroll effect, sticky chrome, anchors, snap rails | [Scroll interaction](references/build/scroll-interaction.md) (FE-SCROLL-*), then [motion](references/build/motion.md) recipes |
+| Public pages: search and AI-answer visibility, crawlers, structured data | [SEO and GEO](references/build/seo-baseline.md) (SEO-*/GEO-*), `scripts/seo-lint.mjs` |
 | Performance, accessibility, forms, state, errors | [Platform and runtime](references/build/platform-runtime.md), [WCAG 2.2 AA](references/build/wcag22-aa.md) |
 | API consumption, security UI | [Backend contracts](references/build/backend-contracts.md) |
 | Any render or executable artifact; production C2+ | [Render grounding](references/build/render-grounding.md), [full pre-flight](references/build/preflight-full.md) |

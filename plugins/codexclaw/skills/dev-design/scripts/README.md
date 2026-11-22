@@ -1,6 +1,6 @@
 # Scripts
 
-## Lint: `ui-lint.mjs` and `copy-lint.mjs`
+## Lint: `ui-lint.mjs`, `copy-lint.mjs`, `seo-lint.mjs`
 
 Executable checks for the rules this skill writes down. Zero dependencies, Node 22+. Run them
 before claiming a C2+ visual surface done, and report the result. **Honesty rule:** a check
@@ -10,7 +10,14 @@ exactly that.
 ```bash
 node scripts/ui-lint.mjs page.html src/styles/ [--render] [--json]
 node scripts/copy-lint.mjs page.html draft.md [--json] [--year 2026]
+node scripts/seo-lint.mjs dist/ | page.html | https://site [robots.txt] [sitemap.xml] [--json]
 ```
+
+**Advisory, not a style.** The lints exist to catch breakage, not to narrow the design. FAIL is
+reserved for objective defects (content that never becomes visible, a timeline reset by
+declaration order, no `<title>`, JSON-LD that does not parse, blocked search bots, the color and
+side-accent rules the owner validated). Everything about scroll craft, page shape and SEO polish
+is WARN/INFO: weigh it, keep it when the concept wants it, and say why in the ship note.
 
 Output: `FAIL|WARN|INFO <rule-id> <file>:<line> <message>` (line 0 = rendered finding with no
 source line; the message names the viewport and element). `--json` prints
@@ -38,9 +45,14 @@ macOS it uses installed Google Chrome). Otherwise it prints `NOT_RUN` and exits 
 | FE-GRADIENT-TEXT-01 ([anti-slop](../references/build/anti-slop.md)) | FAIL | `background-clip: text`, `bg-clip-text` | — |
 | FE-GRADIENT-02 ([anti-slop](../references/build/anti-slop.md)) | WARN | Gradient fill on buttons, cards, panels, callouts | — |
 | FE-AI-TELL-01 ([enforcement](../references/build/anti-slop-enforcement.md)) | FAIL / WARN | Emoji used as an icon in buttons, links, headings, list items (FAIL); `transition: all` / `transition-all` (WARN, motion.md) | — |
-| FE-SLOP-CONSENSUS-01 ([slop consensus](../references/build/slop-consensus-2026.md)) | WARN / INFO | Eyebrow above the H1; card nested in a card; orb/bokeh blobs; three or more distinct tells in one file (INFO, stacking) | — |
+| FE-SLOP-CONSENSUS-01 ([slop consensus](../references/build/slop-consensus-2026.md)) | WARN / INFO | Eyebrow above the H1; card nested in a card; orb/bokeh blobs; three or more distinct tells in one file (INFO, stacking) | Blank-ground landing: on a scrolling page with an H1 and CTA in the first viewport (no 3+ input form or long article), media (img, video, canvas, svg, background images; not tables) under 35% of the first viewport (WARN; `<body data-typographic>` opts out) |
+| FE-HERO-ALIGN-01 ([layout discipline](../references/build/layout-discipline.md)) | WARN | — | Text \| video split: a `video`/`canvas` 25-70% of the viewport wide with a heading or paragraph beside it |
 | FE-TYPO-FLOOR-01 ([anti-slop](../references/build/anti-slop.md)) | WARN | — | Visible text under 12px |
 | FE-VISUAL-AUDIT-02 ([visual audit loop](../references/build/visual-audit-loop.md)) | FAIL / WARN | — | Horizontal overflow (FAIL with a responsive viewport meta, WARN without); overlapping text boxes confirmed by hit-testing (WARN) |
+| FE-SCROLL-BASE-01 ([scroll interaction](../references/build/scroll-interaction.md)) | WARN / FAIL | Element hidden (opacity 0 / visibility hidden) in its base rule next to a scroll timeline (WARN) | Scrolls the page at 1280px with reduced motion emulated, then with JavaScript off; FAIL when text stays invisible |
+| FE-SCROLL-GUARD-01 | FAIL / INFO | `animation-timeline` declared before the `animation` shorthand (FAIL, the timeline is reset); no `@supports`, no reduced-motion guard, bare percentage ranges on `view()`, `overflow: hidden` wrapper around `view()` users (INFO) | — |
+| FE-SCROLL-NATIVE-01 | WARN / INFO | `wheel`/`touchmove` listener that cancels scrolling (WARN); root `y mandatory` snap, `scroll-behavior: smooth` outside `no-preference`, smooth-scroll libraries (INFO) | — |
+| FE-SCROLL-ANCHOR-01, FE-SCROLL-PERF-01 | INFO | Sticky header + `#anchors` without `scroll-padding-top`; scroll listener not passive or reading layout; scroll-linked keyframes animating layout/paint | — |
 
 ### copy-lint
 
@@ -57,9 +69,27 @@ a segment's Hangul share is over 30%. Ids and levels are the table in
 "-다.", imperative or contrast headlines, "새로운 기준") are not reported. Client copy quoted
 from the brief is waived by the brief.
 
+### seo-lint
+
+Reads the served HTML as text, which is what a crawler or a live-fetching answer engine sees
+before scripts run. Walks a directory for `.html`; checks a `robots.txt` / `sitemap.xml` next to a
+page or passed explicitly; fetches `/robots.txt` for a URL. Ids are defined in
+[SEO and GEO](../references/build/seo-baseline.md).
+
+| Id | FAIL | WARN / INFO |
+|---|---|---|
+| SEO-META-01 | no `<title>` | no description/viewport/lang/canonical, relative canonical/og:image, `noindex` (WARN); long title/description, missing OG/Twitter (INFO) |
+| SEO-STRUCTURE-01 | — | no `<h1>`, `<img>` without `alt` (WARN); several H1s, skipped levels, no `<main>` (INFO) |
+| SEO-JSONLD-01 | JSON-LD does not parse; FAQPage question not visible | AggregateRating/Review (WARN); FAQPage after the 2026-05-07 rich-result removal, no JSON-LD (INFO) |
+| GEO-VISIBLE-01 | — | under ~40 words of server text plus scripts (client-only shell); JSON-LD name/headline/price not in visible text; `nosnippet`/`noarchive`/`ai-grounding:disallow` |
+| GEO-ANSWER-01 | — | no literal sub line under the H1 (INFO) |
+| GEO-AGENT-01 | — | clickable `div` without role, links without names or `href`, unlabeled inputs |
+| SEO-CRAWL-01 | Googlebot, Bingbot, OAI-SearchBot, Claude-SearchBot or PerplexityBot blocked site-wide | retired `anthropic-ai` / `Claude-Web` tokens (INFO) |
+| SEO-DISCOVERY-01 | — | no `Sitemap:` line, sitemap URLs without `lastmod`; `changefreq`/`priority` (INFO) |
+
 ### Tests and calibration
 
-`plugins/codexclaw/test/design-lint.test.mjs` runs the `fixtures/bad` and `fixtures/good`
+`plugins/codexclaw/test/design-lint.test.mjs` and `seo-lint.test.mjs` run the `fixtures/bad` and `fixtures/good`
 pages, requires the dev-visualizer assets to produce no FAIL, checks that every id exists in
 the references, and exercises `--render` (hover-contrast and rail fixtures) when a browser is
 available. Calibration on 10 Korean company sites (2026-11-21): 0 FE-SIDE-ACCENT-01 FAILs;

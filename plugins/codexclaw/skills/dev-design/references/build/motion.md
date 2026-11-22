@@ -2,7 +2,7 @@
 
 Rules for meaningful, performant animation. One signature moment + a small number of supporting reveals > 10 scattered effects.
 
-Native mechanics first (`@starting-style`, scroll-driven animations in all engines since Firefox 159, view transitions): status and guards in [platform 2026](platform-2026.md).
+Native mechanics first (`@starting-style`, scroll-driven animations in all engines since Firefox 159, view transitions): status and guards in [platform 2026](platform-2026.md). Any scroll effect: [scroll interaction](scroll-interaction.md) first (native scroll, visible base state, verb per moment).
 
 ---
 
@@ -200,48 +200,40 @@ const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
 ### CSS Scroll-Driven Animations (preferred for reveal/progress)
 
-The CSS scroll-driven animations module (MDN, verified 2026-07-07) animates
-along scroll progress on the compositor — it replaces scroll-listener JS
-(and most `useScroll` cases) for reveals, progress bars, and parallax:
+Contract, platform status and lint ids: [scroll interaction](scroll-interaction.md)
+(FE-SCROLL-NATIVE-01, FE-SCROLL-BASE-01, FE-SCROLL-GUARD-01). Read it before writing any
+scroll effect; the recipes below assume it.
 
 ```css
-/* Progress bar tied to document scroll */
-.progress { animation: grow linear; animation-timeline: scroll(root block); }
-@keyframes grow { from { scale: 0 1; } to { scale: 1 1; } }
-
-/* Reveal tied to the element's own viewport entry */
-.reveal-item {
-  animation: fadeUp linear both;
-  animation-timeline: view();
-  animation-range: entry 0% cover 35%;
+/* Progress bar tied to document scroll: state, may stay under reduced motion */
+@keyframes grow { from { scale: 0 1; } }
+@supports (animation-timeline: scroll()) {
+  .progress { transform-origin: 0 50%; animation: grow linear both; animation-timeline: scroll(root block); }
 }
-```
 
-- Key surface: `animation-timeline: scroll(<scroller> <axis>)` / `view(<axis>
-  <inset>)`, `animation-range(-start/-end)`, `scroll-timeline-*`,
-  `view-timeline-*`, `timeline-scope`; JS `ScrollTimeline`/`ViewTimeline`.
-- Support caveat: verify current engine support before shipping
-  (Firefox landed late); provide non-animated final states as fallback
-  (`both` fill + content visible without the animation).
-- Browser support snapshot (Can I Use, 2026-07 research): 83.66%
-  global usage; Chrome/Edge 115+, Safari/iOS Safari 26+, Firefox 155
-  partial/subfeature support. Treat as progressive enhancement.
-- Use `@supports` around scroll timelines and keep the base state usable:
-
-```css
-.reveal { opacity: 1; transform: none; }
-
+/* Reveal tied to the element's own viewport entry. Hidden values only in `from`. */
+@keyframes fadeUp { from { opacity: 0; translate: 0 16px; } }
 @supports (animation-timeline: view()) {
-  .reveal {
-    opacity: 0;
-    transform: translateY(16px);
-    animation: fadeUp linear both;
-    animation-timeline: view();
-    animation-range: entry 15% cover 40%;
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: fadeUp linear both;        /* shorthand first */
+      animation-timeline: view();           /* longhands after */
+      animation-range: entry 15% cover 40%;
+    }
   }
 }
 ```
 
+- Key surface: `animation-timeline: scroll(<scroller> <axis>)` / `view(<axis> <inset>)`,
+  `animation-range(-start/-end)`, `scroll-timeline-*`, `view-timeline-*`. Avoid
+  `timeline-scope`, range names inside `@keyframes`, and JS playback control on scroll
+  animations (uneven across engines, 2026-11).
+- Support (2026-11-22): Chrome/Edge 115+, Safari 26+, Firefox 159+ (2026-10-27), Baseline
+  Newly available. Still progressive enhancement: iOS 18, Firefox ESR, print and inactive
+  timelines show the base state, which must be the visible state.
+- Never put `opacity: 0` on `.reveal` itself (inside or outside `@supports`): print,
+  reduced motion and inactive timelines would leave the content invisible to readers,
+  crawlers and agents.
 - Scroll-linked icon-chip choreography (chips drifting/parallaxing at
   different rates while scrolling) = `view()` timelines with per-chip
   `animation-range` offsets — no JS.
@@ -806,6 +798,9 @@ Need a scroll effect?
   +-- Simple reveal, progress, or parallax?
   |     -> CSS scroll-driven animation + @supports fallback.
   |
+  +-- Steps that advance while the screen holds (3-6 step story)?
+  |     -> Pinned stage, scroll-interaction.md FE-SCROLL-PIN-01.
+  |
   +-- Pinned horizontal campaign story?
   |     -> GSAP ScrollTrigger pin + scrub, isolated from UI component motion.
   |
@@ -986,6 +981,29 @@ ima2 video frame motion.mp4 --last -o lastframe.png
 
 Then use the Frame Sequence Scrolltelling pattern from this document with
 the extracted frames.
+
+### Cutout motion asset (FE-MOTION-CUTOUT-01, DEFAULT)
+
+The vooy.com pattern (inspected 2026-11-22): characters animate **in place** in short
+clips with a transparent background, and code moves them across a static scene. Generate the
+keyframe on a flat background close to the page color ([FE-ASSET-BG-01](asset-requirements.md#asset-background-strategy-fe-asset-bg-01-default)),
+animate with "in place, camera locked, same flat background", key it out, then encode two
+alpha files plus a poster:
+
+```bash
+ffmpeg -i clip.mp4 -vf "colorkey=0xFFFFFF:0.12:0.08,format=yuva420p" -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -an clip.webm
+ffmpeg -i clip.mp4 -vf "colorkey=0xFFFFFF:0.12:0.08,format=bgra" -c:v hevc_videotoolbox -alpha_quality 0.75 -tag:v hvc1 -an clip-hevc.mp4  # macOS
+ffmpeg -c:v libvpx-vp9 -i clip.webm -frames:v 1 clip-poster.webp   # decode with libvpx or alpha is dropped
+```
+
+- Pick by engine, not `canPlayType` alone: Safari/iOS get HEVC-alpha, everything else
+  VP9-alpha (Chrome on Mac decodes HEVC but drops the alpha). Test Chrome on Mac, Safari and
+  iOS; a wrong pick plays with an opaque box.
+- About 2-3 MB per clip, `preload="none"` until near the viewport, at most 2 playing at once,
+  pause offscreen, poster under reduced motion (Video-in-mockup rules below).
+- Moving cutouts get `pointer-events: none` and never pass over text or controls. Despill or
+  match the key color to the page to hide edge fringes.
+- The same clip, cut to frames, can drive a pinned stage (FE-SCROLL-PIN-01).
 
 ### Parallel Video Generation
 

@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>JS reveal</title>
+<style>.fade { opacity: 0; transition: opacity .4s; } .fade.in { opacity: 1; } main { padding: 2rem; } .tall { height: 1500px; }</style></head><body>
+<main><h1>JS reveal</h1><div class="tall"></div><p class="fade">This paragraph only appears after an observer adds a class.</p></main>
+<script>
+const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')));
+document.querySelectorAll('.fade').forEach((el) => io.observe(el));
+</script></body></html>

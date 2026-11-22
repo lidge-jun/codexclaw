@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Sitemap: https://quillmark.example/sitemap.xml
+
+User-agent: GPTBot
+Disallow: /

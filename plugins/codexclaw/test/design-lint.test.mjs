@@ -33,6 +33,7 @@ const BAD = {
   "ai-residue-copy.html": ["copy-residue", "copy-default-cast", "copy-invented-figure", "copy-stale-year", "copy-meta", "copy-em-dash", "copy-stock-phrase"],
   "korean-spec-endings.html": ["copy-spec-ending-ko"],
   "korean-translationese.html": ["copy-translationese-ko", "copy-imperative-chain-ko", "copy-honorific-overuse-ko", "copy-hype-word"],
+  "scroll-hidden-base.html": ["FE-SCROLL-BASE-01", "FE-SCROLL-GUARD-01", "FE-SCROLL-NATIVE-01", "FE-SCROLL-ANCHOR-01", "FE-SCROLL-PERF-01"],
 };
 
 for (const [name, expected] of Object.entries(BAD)) {
@@ -64,7 +65,7 @@ test("design-lint: dev-visualizer assets pass (no FAIL)", () => {
 
 test("design-lint: every reported id is defined in dev-design references", () => {
   const refs = join(here, "..", "skills", "dev-design", "references");
-  const corpus = ["build/anti-slop.md", "build/color-system.md", "build/slop-consensus-2026.md", "build/anti-slop-enforcement.md", "build/visual-audit-loop.md", "copy/copy-tells.md"].map((p) => readFileSync(join(refs, p), "utf8")).join("\n");
+  const corpus = ["build/anti-slop.md", "build/color-system.md", "build/slop-consensus-2026.md", "build/anti-slop-enforcement.md", "build/visual-audit-loop.md", "build/scroll-interaction.md", "copy/copy-tells.md"].map((p) => readFileSync(join(refs, p), "utf8")).join("\n");
   const seen = new Set();
   for (const dir of ["bad", "good"]) for (const n of readdirSync(join(fx, dir))) for (const f of run(n, join(fx, dir, n))) seen.add(f.id);
   for (const id of seen) assert.ok(corpus.includes(id), `undefined rule id ${id}`);
@@ -91,6 +92,25 @@ test("design-lint --render: hover contrast and rails, or NOT_RUN with exit 3", (
   const got = JSON.parse(bad.stdout).findings.filter((f) => f.line === 0).map((f) => f.id);
   assert.ok(got.includes("FE-COLOR-CONTRAST-01"), bad.stdout);
   assert.ok(got.includes("FE-SIDE-ACCENT-01"), bad.stdout);
+  const js = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-js-reveal.html")], { encoding: "utf8", timeout: 120000 });
+  assert.ok(JSON.parse(js.stdout).findings.some((f) => f.id === "FE-SCROLL-BASE-01" && f.line === 0), js.stdout);
+  const tl = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-text-landing.html")], { encoding: "utf8", timeout: 120000 });
+  assert.ok(JSON.parse(tl.stdout).findings.some((f) => f.id === "FE-SLOP-CONSENSUS-01" && /blank-ground landing/.test(f.message) && f.level === "WARN"), tl.stdout);
+  const sp = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-video-split.html")], { encoding: "utf8", timeout: 120000 });
+  assert.ok(JSON.parse(sp.stdout).findings.some((f) => f.id === "FE-HERO-ALIGN-01" && f.level === "WARN"), sp.stdout);
+  const ok = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "good", "scroll-guarded.html")], { encoding: "utf8", timeout: 120000 });
+  assert.ok(!JSON.parse(ok.stdout).findings.some((f) => f.id === "FE-SCROLL-BASE-01"), ok.stdout);
+});
+
+test("design-lint: scroll checks distinguish guarded from unguarded timelines", () => {
+  const guarded = `<style>@keyframes r{from{opacity:0}} @supports (animation-timeline: view()){@media (prefers-reduced-motion: no-preference){.r{animation:r linear both;animation-timeline:view();animation-range:entry 0% cover 30%}}}</style><main><p class="r">x</p></main>`;
+  assert.ok(!lintStatic("g.html", guarded).some((f) => /FE-SCROLL/.test(f.id)), "guarded reveal is clean");
+  const order = lintStatic("o.html", `<style>@supports (animation-timeline: view()){@media (prefers-reduced-motion: no-preference){.r{animation-timeline:view();animation:r linear both}}}</style>`);
+  assert.ok(order.some((f) => f.id === "FE-SCROLL-GUARD-01" && f.level === "FAIL"), "longhand before shorthand fails");
+  const clip = lintStatic("c.html", `<style>body{overflow-x:hidden} @supports (animation-timeline: view()){@media (prefers-reduced-motion: no-preference){.r{animation:r linear both;animation-timeline:view()}}}</style>`);
+  assert.ok(clip.some((f) => f.id === "FE-SCROLL-GUARD-01" && /overflow/.test(f.message)), "overflow hidden wrapper warns");
+  const passive = lintStatic("p.html", `<script>addEventListener('scroll',()=>x(),{passive:true});</script>`);
+  assert.ok(!passive.some((f) => f.id === "FE-SCROLL-PERF-01"), "passive listener is clean");
 });
 
 test("design-lint: FE-NEUTRAL-RAMP-01 flags warm neutrals only in work tools", () => {
