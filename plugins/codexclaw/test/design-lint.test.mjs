@@ -95,7 +95,9 @@ test("design-lint --render: hover contrast and rails, or NOT_RUN with exit 3", (
   const js = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-js-reveal.html")], { encoding: "utf8", timeout: 120000 });
   assert.ok(JSON.parse(js.stdout).findings.some((f) => f.id === "FE-SCROLL-BASE-01" && f.line === 0), js.stdout);
   const tl = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-text-landing.html")], { encoding: "utf8", timeout: 120000 });
-  assert.ok(JSON.parse(tl.stdout).findings.some((f) => f.id === "FE-SLOP-CONSENSUS-01" && /text-only landing/.test(f.message) && f.level === "WARN"), tl.stdout);
+  assert.ok(JSON.parse(tl.stdout).findings.some((f) => f.id === "FE-SLOP-CONSENSUS-01" && /blank-ground landing/.test(f.message) && f.level === "WARN"), tl.stdout);
+  const sp = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-video-split.html")], { encoding: "utf8", timeout: 120000 });
+  assert.ok(JSON.parse(sp.stdout).findings.some((f) => f.id === "FE-HERO-ALIGN-01" && f.level === "WARN"), sp.stdout);
   const ok = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "good", "scroll-guarded.html")], { encoding: "utf8", timeout: 120000 });
   assert.ok(!JSON.parse(ok.stdout).findings.some((f) => f.id === "FE-SCROLL-BASE-01"), ok.stdout);
 });

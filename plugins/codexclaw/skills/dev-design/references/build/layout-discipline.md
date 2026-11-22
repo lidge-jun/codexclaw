@@ -17,15 +17,19 @@
   below it. Owner blind A/B: centered won 4 of 4 head-to-heads (with the product below,
   copy only, same layout with only alignment changed). Survey of 254 first viewports
   (devlog 010c): centered on 58% of foreign leaders, 59% of Korean companies, 45% of YC P26.
-- **Left alignment needs a counterweight.** Use it for longer copy, B2B explanation or
-  when a visual earns the other half, and only with one of: a visual on the right, full-bleed
-  photo or video behind the text, or the product directly below. 90% of left-aligned heroes
-  in the survey carry one (split 43%, full-bleed 28%, product below 19%).
+- **The first viewport is a scene, not a white page with a demo box** (owner, 2026-11-22).
+  A full-bleed visual (artwork, video, frames, photo, rendered world) fills the viewport and
+  the copy sits in it; a product demo, when shown, lives inside or overlaps that scene.
+  A flat white or gray first screen whose only visual is a boxed demo reads as slop.
+- **No text-left / video-right splits** (owner, 2026-11-22). Motion goes full-bleed behind or
+  around the copy, never in a half-width column beside it.
+- **Left alignment needs a counterweight.** Use it for longer copy or B2B explanation, with
+  full-bleed photo or video behind the text (preferred) or the product directly below. A
+  static authored graphic on the right is the fallback, not the default.
 - **Never a left headline alone on an empty right side.** Type-alone left heroes were 10%
   of the survey, all YC P26, none at Korean or foreign leaders.
-- **Split default 50:50.** The owner preferred 50:50 over 55:45 and, on the right side, an
-  authored graphic over a generic boxed screenshot: balance matters more than filling the
-  slot with any product picture.
+- **When a static split is unavoidable, 50:50** with an authored graphic, not a boxed
+  screenshot (owner A/B 2026-11-21).
 - Apps, dashboards and tools do not open with a hero at all (ANTI-HERO-IN-TOOLS in
   [aesthetics](aesthetics.md)).
 

@@ -132,8 +132,11 @@ stacked fallback, keyboard reveal, `will-change`):
 - Budget: about 60-100vh of scroll per step, 400vh total at most, 2 pins per page at most.
 - Visible progress (`2 / 4` or a filling rail) and step chips that are `<a href>` to a
   per-step sentinel with `scroll-margin-top`; no JS offset math, no mandatory snap.
+- The visual is the stage: frames, video or product state fill the pinned viewport
+  edge to edge; step copy sits on it as a centered or bottom caption plate, never as a text
+  column beside a half-width video (FE-HERO-ALIGN-01).
 - Text swaps per step (short crossfade at the threshold, never a half-faded resting state);
-  only the visual (frames, video, product state) scrubs continuously.
+  only the visual scrubs continuously.
 - Every step's copy stays in the DOM and readable; inactive steps dim, never `aria-hidden`.
 - Unpin to a stack under reduced motion, `max-width: 720px` and `max-height: 600px`
   (landscape phones, 200% zoom); size the stage in `svh`. Sticky dies under an

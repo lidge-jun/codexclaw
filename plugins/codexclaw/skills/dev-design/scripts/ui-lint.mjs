@@ -344,28 +344,33 @@ function pageProbe(vw) {
       if (pw >= 2 && pw <= 8 && ph >= r.height * 0.6 && bg.a > 0.3) out.push({ kind: "side", msg: `${ps} rail ${pw}px on ${desc(el)}` });
     }
   }
-  // FE-SLOP-CONSENSUS-01 text-only landing (slop-consensus-2026.md): landing pages only.
+  // FE-SLOP-CONSENSUS-01 blank-ground landing + FE-HERO-ALIGN-01 text|video split (owner 2026-11-22).
   if (vw >= 1024 && !document.body.hasAttribute("data-typographic")) {
+    const h1 = document.querySelector("h1"), W = document.documentElement.clientWidth, H = document.documentElement.scrollHeight;
     const words = (document.querySelector("article")?.innerText || "").split(/\s+/).length;
-    const tool = document.querySelector("table,pre,[role=grid]") || [...document.forms].some((f) => f.querySelectorAll("input,select,textarea").length >= 3) || words > 600;
-    const cta = document.querySelector("h1") && document.querySelector("a.btn,a[class*=button],a[class*=cta],button,[role=button]");
-    if (!tool && cta && document.documentElement.scrollHeight >= innerHeight * 1.4) {
-      const H = document.documentElement.scrollHeight, W = document.documentElement.clientWidth;
-      let first = 0, total = 0;
-      const media = [...document.querySelectorAll("img,video,canvas,svg,iframe,picture,[style*=background],section,div,figure")].filter((el) => {
-        if (el.closest("header,nav,footer,button,a")) return false;
+    const hero = h1 && h1.getBoundingClientRect().top < innerHeight && document.querySelector("a.btn,a[class*=button],a[class*=cta],button,[role=button]") && H >= innerHeight * 1.4;
+    const tool = [...document.forms].some((f) => f.querySelectorAll("input,select,textarea").length >= 3) || words > 600 || (!hero && document.querySelector("table,pre,[role=grid]"));
+    if (hero && !tool) {
+      const media = [...document.querySelectorAll("img,video,canvas,svg,iframe,picture,section,div,figure,header")].filter((el) => {
+        if (el.closest("nav,footer,button,a,table,[role=grid]") || el.closest("svg svg")) return false;
         const r = el.getBoundingClientRect(); if (r.width < 64 || r.height < 64) return false;
-        if (/^(IMG|VIDEO|CANVAS|SVG|IFRAME|PICTURE)$/i.test(el.tagName)) return el.tagName !== "svg" || !el.closest("svg svg");
+        if (/^(IMG|VIDEO|CANVAS|SVG|IFRAME|PICTURE)$/i.test(el.tagName)) return true;
         return /url\(/.test(getComputedStyle(el).backgroundImage);
       });
+      let first = 0, total = 0;
       for (const el of media) {
         const r = el.getBoundingClientRect(), top = r.top + scrollY;
         total += r.width * r.height;
-        const vis = Math.max(0, Math.min(top + r.height, innerHeight) - Math.max(top, 0)) * Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0));
-        first += vis;
+        first += Math.max(0, Math.min(top + r.height, innerHeight) - Math.max(top, 0)) * Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0));
       }
-      const f = first / (W * innerHeight), t = total / (W * H);
-      if (f < 0.1 && t < 0.05) out.push({ kind: "textonly", msg: `text-only landing: media covers ${Math.round(f * 100)}% of the first viewport and ${Math.round(t * 100)}% of the page; give it one rich moment from the product (or mark <body data-typographic> when type is the concept)` });
+      const f = Math.min(1, first / (W * innerHeight)), t = Math.min(1, total / (W * H));
+      if (f < 0.35) out.push({ kind: "textonly", msg: `blank-ground landing: media covers ${Math.round(f * 100)}% of the first viewport (${Math.round(t * 100)}% of the page); let a full-bleed scene carry the first screen with the copy in it (or mark <body data-typographic> when type is the concept)` });
+    }
+    for (const v of document.querySelectorAll("video,canvas")) {
+      const r = v.getBoundingClientRect(); if (r.height < 240 || r.width < W * 0.25 || r.width > W * 0.7) continue;
+      const scope = v.closest("section,header,main") || document.body;
+      const side = [...scope.querySelectorAll("h1,h2,h3,p")].find((t) => { const q = t.getBoundingClientRect(); if ((t.innerText || "").trim().length < 12 || q.width < 120) return false; const vo = Math.min(q.bottom, r.bottom) - Math.max(q.top, r.top); return vo > q.height * 0.5 && (q.right <= r.left + 4 || q.left >= r.right - 4); });
+      if (side) { out.push({ kind: "split", msg: `text | ${v.tagName.toLowerCase()} split: a ${Math.round(r.width)}px ${v.tagName.toLowerCase()} column beside "${side.innerText.trim().slice(0, 30)}"; put motion full-bleed behind or around the copy` }); break; }
     }
   }
   const brand = !!document.querySelector("[data-brand-primary]") || /brand-primary\s*:/.test([...document.querySelectorAll("style")].map((s) => s.textContent).join(""));
@@ -417,7 +422,7 @@ export async function lintRender(targets) {
   try { browser = await chromium.launch(process.platform === "darwin" && existsSync(exe) ? { executablePath: exe } : {}); }
   catch (e) { try { browser = await chromium.launch(); } catch (e2) { return { notRun: "could not launch a browser: " + String(e2.message).slice(0, 100), findings: [] }; } }
   const findings = [];
-  const ID = { density: ["WARN", "FE-DENSITY-01"], overflow: ["FAIL", "FE-VISUAL-AUDIT-02"], overflowWarn: ["WARN", "FE-VISUAL-AUDIT-02"], small: ["WARN", "FE-TYPO-FLOOR-01"], overlap: ["WARN", "FE-VISUAL-AUDIT-02"], side: ["FAIL", "FE-SIDE-ACCENT-01"], btnhue: ["FAIL", "FE-COLOR-RESTRAINT-01"], textonly: ["WARN", "FE-SLOP-CONSENSUS-01"] };
+  const ID = { density: ["WARN", "FE-DENSITY-01"], overflow: ["FAIL", "FE-VISUAL-AUDIT-02"], overflowWarn: ["WARN", "FE-VISUAL-AUDIT-02"], small: ["WARN", "FE-TYPO-FLOOR-01"], overlap: ["WARN", "FE-VISUAL-AUDIT-02"], side: ["FAIL", "FE-SIDE-ACCENT-01"], btnhue: ["FAIL", "FE-COLOR-RESTRAINT-01"], textonly: ["WARN", "FE-SLOP-CONSENSUS-01"], split: ["WARN", "FE-HERO-ALIGN-01"] };
   for (const t of targets) {
     const url = /^https?:/.test(t) ? t : pathToFileURL(resolve(t)).href;
     for (const vw of [390, 1280]) {
