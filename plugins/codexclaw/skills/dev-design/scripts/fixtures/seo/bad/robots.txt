@@ -1,0 +1,8 @@
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: *
+Allow: /

@@ -47,6 +47,8 @@ Owner blind A/B and a 254-site survey back these; details in each rule.
 | Components, dials, objective/style intake | [Design intake](references/build/design-intake.md) |
 | Typography, color, layout, assets, icons | [Implementation](references/build/implementation.md) |
 | Platform features with Baseline status (anchor, popover, select, text-box) | [Platform 2026](references/build/platform-2026.md) |
+| Any scroll effect, sticky chrome, anchors, snap rails | [Scroll interaction](references/build/scroll-interaction.md) (FE-SCROLL-*), then [motion](references/build/motion.md) recipes |
+| Public pages: search and AI-answer visibility, crawlers, structured data | [SEO and GEO](references/build/seo-baseline.md) (SEO-*/GEO-*), `scripts/seo-lint.mjs` |
 | Performance, accessibility, forms, state, errors | [Platform and runtime](references/build/platform-runtime.md), [WCAG 2.2 AA](references/build/wcag22-aa.md) |
 | API consumption, security UI | [Backend contracts](references/build/backend-contracts.md) |
 | Any render or executable artifact; production C2+ | [Render grounding](references/build/render-grounding.md), [full pre-flight](references/build/preflight-full.md) |

@@ -42,7 +42,8 @@ this file is the full launch/audit list. Production surfaces only (`dev` §0.4).
 - [ ] Rendered screenshot check for lone particles/endings ("합니다.", "화.") at target viewports
 
 ## SEO, theme, i18n
-- [ ] SEO meta present for public pages (title, description, canonical, OG) — seo-baseline.md
+- [ ] Public pages: `seo-lint.mjs` run and clean (meta, one H1, visible server-rendered facts, honest JSON-LD, crawler access) — seo-baseline.md
+- [ ] Scroll effects: native scroll, visible base state, guards (`ui-lint --render` FE-SCROLL-*) — scroll-interaction.md
 - [ ] JSON-LD structured data matches page type
 - [ ] Theme toggle works: light/dark/system, no FOWT — theme-switching.md
 - [ ] All colors use CSS custom properties (theme-ready)

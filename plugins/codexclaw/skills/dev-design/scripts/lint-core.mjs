@@ -103,7 +103,8 @@ export function lineAt(text, idx) {
 }
 
 /**
- * Flatten CSS into leaf rules {selector, decls:{prop:value}, line, body}. Handles nested
+ * Flatten CSS into leaf rules {selector, decls:{prop:value}, line, body, at:[prelude...]}.
+ * `at` lists the enclosing @media/@supports/@container/@layer/@scope preludes. Handles nested
  * at-rules by recursing into their bodies; comments are blanked (kept same length so offsets
  * stay valid).
  */
@@ -111,7 +112,7 @@ export function parseCss(css, baseOffset = 0, fullText = null) {
   const src = css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
   const rules = [];
   let i = 0;
-  const walk = (start, end, prefix) => {
+  const walk = (start, end, prefix, at = []) => {
     let j = start, selStart = start;
     while (j < end) {
       const ch = src[j];
@@ -121,13 +122,13 @@ export function parseCss(css, baseOffset = 0, fullText = null) {
         while (k < end && depth) { if (src[k] === "{") depth++; else if (src[k] === "}") depth--; k++; }
         const body = src.slice(j + 1, k - 1);
         if (sel.startsWith("@")) {
-          if (/^@(media|supports|layer|container|scope)/.test(sel)) walk(j + 1, k - 1, prefix);
+          if (/^@(media|supports|layer|container|scope)/.test(sel)) walk(j + 1, k - 1, prefix, [...at, sel.replace(/\s+/g, " ")]);
         } else if (/{/.test(body)) {
-          walk(j + 1, k - 1, sel); // CSS nesting: treat children as their own rules
+          walk(j + 1, k - 1, sel, at); // CSS nesting: treat children as their own rules
           const own = body.replace(/[^;{}]*\{[^{}]*\}/g, "");
-          rules.push(mk(sel, own, selStart));
+          rules.push(mk(sel, own, selStart, at));
         } else {
-          rules.push(mk(prefix && !sel.includes("&") ? `${prefix} ${sel}` : sel.replace(/&/g, prefix || ""), body, selStart));
+          rules.push(mk(prefix && !sel.includes("&") ? `${prefix} ${sel}` : sel.replace(/&/g, prefix || ""), body, selStart, at));
         }
         j = k; selStart = k; continue;
       }
@@ -135,7 +136,7 @@ export function parseCss(css, baseOffset = 0, fullText = null) {
       j++;
     }
   };
-  const mk = (selector, body, at) => {
+  const mk = (selector, body, at, ctx = []) => {
     const decls = {};
     for (const d of body.split(";")) {
       const c = d.indexOf(":");
@@ -144,10 +145,23 @@ export function parseCss(css, baseOffset = 0, fullText = null) {
       if (p) decls[p] = v.replace(/!important/i, "").trim();
     }
     const off = baseOffset + at + (src.slice(at).match(/^\s*/)?.[0].length || 0);
-    return { selector, decls, body, line: fullText ? lineAt(fullText, off) : lineAt(css, at) };
+    return { selector, decls, body, at: ctx, line: fullText ? lineAt(fullText, off) : lineAt(css, at) };
   };
-  walk(i, src.length, "");
+  walk(i, src.length, "", []);
   return rules;
+}
+
+/** @keyframes name -> lowercased text of its body (for property checks). */
+export function keyframesIn(css) {
+  const out = {};
+  const re = /@(?:-webkit-)?keyframes\s+([\w-]+)\s*\{/g;
+  let m;
+  while ((m = re.exec(css))) {
+    let depth = 1, k = re.lastIndex;
+    while (k < css.length && depth) { if (css[k] === "{") depth++; else if (css[k] === "}") depth--; k++; }
+    out[m[1]] = css.slice(re.lastIndex, k - 1).toLowerCase();
+  }
+  return out;
 }
 
 /** Inline style="..." attributes as pseudo-rules. */

@@ -2,7 +2,7 @@
 
 Rules for meaningful, performant animation. One signature moment + a small number of supporting reveals > 10 scattered effects.
 
-Native mechanics first (`@starting-style`, scroll-driven animations in all engines since Firefox 159, view transitions): status and guards in [platform 2026](platform-2026.md).
+Native mechanics first (`@starting-style`, scroll-driven animations in all engines since Firefox 159, view transitions): status and guards in [platform 2026](platform-2026.md). Any scroll effect: [scroll interaction](scroll-interaction.md) first (native scroll, visible base state, verb per moment).
 
 ---
 
@@ -200,48 +200,40 @@ const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
 ### CSS Scroll-Driven Animations (preferred for reveal/progress)
 
-The CSS scroll-driven animations module (MDN, verified 2026-07-07) animates
-along scroll progress on the compositor — it replaces scroll-listener JS
-(and most `useScroll` cases) for reveals, progress bars, and parallax:
+Contract, platform status and lint ids: [scroll interaction](scroll-interaction.md)
+(FE-SCROLL-NATIVE-01, FE-SCROLL-BASE-01, FE-SCROLL-GUARD-01). Read it before writing any
+scroll effect; the recipes below assume it.
 
 ```css
-/* Progress bar tied to document scroll */
-.progress { animation: grow linear; animation-timeline: scroll(root block); }
-@keyframes grow { from { scale: 0 1; } to { scale: 1 1; } }
-
-/* Reveal tied to the element's own viewport entry */
-.reveal-item {
-  animation: fadeUp linear both;
-  animation-timeline: view();
-  animation-range: entry 0% cover 35%;
+/* Progress bar tied to document scroll: state, may stay under reduced motion */
+@keyframes grow { from { scale: 0 1; } }
+@supports (animation-timeline: scroll()) {
+  .progress { transform-origin: 0 50%; animation: grow linear both; animation-timeline: scroll(root block); }
 }
-```
 
-- Key surface: `animation-timeline: scroll(<scroller> <axis>)` / `view(<axis>
-  <inset>)`, `animation-range(-start/-end)`, `scroll-timeline-*`,
-  `view-timeline-*`, `timeline-scope`; JS `ScrollTimeline`/`ViewTimeline`.
-- Support caveat: verify current engine support before shipping
-  (Firefox landed late); provide non-animated final states as fallback
-  (`both` fill + content visible without the animation).
-- Browser support snapshot (Can I Use, 2026-07 research): 83.66%
-  global usage; Chrome/Edge 115+, Safari/iOS Safari 26+, Firefox 155
-  partial/subfeature support. Treat as progressive enhancement.
-- Use `@supports` around scroll timelines and keep the base state usable:
-
-```css
-.reveal { opacity: 1; transform: none; }
-
+/* Reveal tied to the element's own viewport entry. Hidden values only in `from`. */
+@keyframes fadeUp { from { opacity: 0; translate: 0 16px; } }
 @supports (animation-timeline: view()) {
-  .reveal {
-    opacity: 0;
-    transform: translateY(16px);
-    animation: fadeUp linear both;
-    animation-timeline: view();
-    animation-range: entry 15% cover 40%;
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: fadeUp linear both;        /* shorthand first */
+      animation-timeline: view();           /* longhands after */
+      animation-range: entry 15% cover 40%;
+    }
   }
 }
 ```
 
+- Key surface: `animation-timeline: scroll(<scroller> <axis>)` / `view(<axis> <inset>)`,
+  `animation-range(-start/-end)`, `scroll-timeline-*`, `view-timeline-*`. Avoid
+  `timeline-scope`, range names inside `@keyframes`, and JS playback control on scroll
+  animations (uneven across engines, 2026-11).
+- Support (2026-11-22): Chrome/Edge 115+, Safari 26+, Firefox 159+ (2026-10-27), Baseline
+  Newly available. Still progressive enhancement: iOS 18, Firefox ESR, print and inactive
+  timelines show the base state, which must be the visible state.
+- Never put `opacity: 0` on `.reveal` itself (inside or outside `@supports`): print,
+  reduced motion and inactive timelines would leave the content invisible to readers,
+  crawlers and agents.
 - Scroll-linked icon-chip choreography (chips drifting/parallaxing at
   different rates while scrolling) = `view()` timelines with per-chip
   `animation-range` offsets — no JS.

@@ -17,6 +17,7 @@
 | `ux-writing-ko.md`        | Korean UI copy                       | Natural Korean labels, error messages, tone, spacing, punctuation                  |
 | `soft-3d-asset-gates.md`  | 3D/miniature/character-like visuals  | Toss-style soft 3D vs generic cute asset slop, domain gates                        |
 | `motion.md`               | Motion/animation needed              | CSS animations, Framer Motion, CSS scroll-driven timelines, pointer-proximity chip motion (magnetic/dock), View Transitions, domain gates, organic bg + capsule label, product-led hero motion |
+| `scroll-interaction.md`   | Any scroll effect, sticky chrome, anchors, snap rails, pinned story | Native-scroll contract (no hijack), visible base state, guards and declaration order, verb-per-moment chooser, anchors/focus, compositor-only perf, 2026 platform status (FE-SCROLL-*) |
 | `liquid-glass.md`         | Translucent materials, glass chrome, pill-chip surfaces | Liquid Glass layer discipline, named material states (pill-at-top/pill-scrolled/media-overlay/clear), FE-PILL-NEST-01, blur-free pill alternative, perf + a11y gates |
 | `top-bar.md`              | Top/nav bar composition, sticky chrome | Top-bar grammar: geometry, slots, scroll-state contract (FE-TOPBAR-STATE-01), hover-surface contract (FE-TOPBAR-HOVER-01), domain gate, mobile collapse |
 | `iterative-design.md`     | Multi-round design                   | LLM convergence problem, Diverge→Kill→Mutate process, upgrade techniques           |
@@ -31,7 +32,7 @@
 | `consistency-locks.md`    | Any multi-section page               | Color, shape, theme consistency per page                                           |
 | `responsive-viewport.md`  | Layout or breakpoint changes         | Canonical breakpoints, page containment, container queries, responsive images, safe area, split-screen |
 | `mobile-ux.md`            | Consumer/landing pages with mobile traffic | Thumb zone, touch targets, sticky CTA, mobile section composition, bottom sheet, portrait media |
-| `seo-baseline.md`         | Public-facing sites, SSR/SSG         | SEO meta, JSON-LD, robots.txt, GEO strategies, OG/Twitter cards                    |
+| `seo-baseline.md`         | Public-facing sites, SSR/SSG         | SEO meta, GEO evidence vs folklore, visible server-rendered facts, answer-first copy, honest JSON-LD, search vs training crawler matrix, IndexNow, agent-operable pages, OG cards (SEO-*/GEO-*, `seo-lint.mjs`) |
 | `a11y-patterns.md`        | Interactive widgets, modals, forms   | ARIA patterns, focus management, keyboard nav, screen reader testing               |
 | `wcag22-aa.md`            | Accessibility conformance questions or claims | 55 WCAG 2.2 A/AA criteria, axe tag script, manual procedures, the six 2.2 additions, verdict rules |
 | `visual-audit-loop.md`    | Auditing and fixing a rendered UI with evidence | Violation ledger, verifier and pass rule per violation, before/after captures, closure gate, PR section, cxc-loop routing |

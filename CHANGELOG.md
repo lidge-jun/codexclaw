@@ -6,6 +6,12 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Scroll interaction.** New `dev-design` reference `scroll-interaction.md`: 2026 platform status (scroll-driven animations in all engines since Firefox 159; scroll-triggered animations and scroll-state queries Chrome-only), the visible-base-state rule (FE-SCROLL-BASE-01), guards and declaration order, a verb-per-moment chooser, anchors and focus under sticky headers, and compositor-only performance. It opens with an explicit creative-license section: pinning, snapping, smooth scroll and atmosphere are allowed when they serve the concept. `motion.md`'s reveal recipe no longer hides the base state.
+- **SEO and GEO.** `seo-baseline.md` is rewritten from 2026 vendor guidance and studies: GEO means visible, server-rendered facts plus answer-first copy; FAQ rich results ended 2026-05-07; schema shows no measured citation lift; llms.txt is ignored by Google Search; search and training crawlers are separate (OAI-SearchBot / GPTBot, Claude-SearchBot / ClaudeBot, Google-Extended, Bing AI preferences from 2027-02-01); IndexNow and the Search Console / Bing AI performance reports.
+- **Advisory lint.** New `seo-lint.mjs` (meta, structure, JSON-LD honesty, crawler access, sitemap, agent-operable markup) and FE-SCROLL-* checks in `ui-lint.mjs`, including a `--render` pass that fails text left invisible with reduced motion or JavaScript off. FAIL is reserved for objective breakage; scroll craft and SEO polish report WARN/INFO.
+
 ## [0.2.48] - 2026-11-21
 
 ### Added
