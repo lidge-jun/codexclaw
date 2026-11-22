@@ -798,6 +798,9 @@ Need a scroll effect?
   +-- Simple reveal, progress, or parallax?
   |     -> CSS scroll-driven animation + @supports fallback.
   |
+  +-- Steps that advance while the screen holds (3-6 step story)?
+  |     -> Pinned stage, scroll-interaction.md FE-SCROLL-PIN-01.
+  |
   +-- Pinned horizontal campaign story?
   |     -> GSAP ScrollTrigger pin + scrub, isolated from UI component motion.
   |
@@ -978,6 +981,29 @@ ima2 video frame motion.mp4 --last -o lastframe.png
 
 Then use the Frame Sequence Scrolltelling pattern from this document with
 the extracted frames.
+
+### Cutout motion asset (FE-MOTION-CUTOUT-01, DEFAULT)
+
+The vooy.com pattern (inspected 2026-11-22): characters animate **in place** in short
+clips with a transparent background, and code moves them across a static scene. Generate the
+keyframe on a flat background close to the page color ([FE-ASSET-BG-01](asset-requirements.md#asset-background-strategy-fe-asset-bg-01-default)),
+animate with "in place, camera locked, same flat background", key it out, then encode two
+alpha files plus a poster:
+
+```bash
+ffmpeg -i clip.mp4 -vf "colorkey=0xFFFFFF:0.12:0.08,format=yuva420p" -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -an clip.webm
+ffmpeg -i clip.mp4 -vf "colorkey=0xFFFFFF:0.12:0.08,format=bgra" -c:v hevc_videotoolbox -alpha_quality 0.75 -tag:v hvc1 -an clip-hevc.mp4  # macOS
+ffmpeg -c:v libvpx-vp9 -i clip.webm -frames:v 1 clip-poster.webp   # decode with libvpx or alpha is dropped
+```
+
+- Pick by engine, not `canPlayType` alone: Safari/iOS get HEVC-alpha, everything else
+  VP9-alpha (Chrome on Mac decodes HEVC but drops the alpha). Test Chrome on Mac, Safari and
+  iOS; a wrong pick plays with an opaque box.
+- About 2-3 MB per clip, `preload="none"` until near the viewport, at most 2 playing at once,
+  pause offscreen, poster under reduced motion (Video-in-mockup rules below).
+- Moving cutouts get `pointer-events: none` and never pass over text or controls. Despill or
+  match the key color to the page to hide edge fringes.
+- The same clip, cut to frames, can drive a pinned stage (FE-SCROLL-PIN-01).
 
 ### Parallel Video Generation
 

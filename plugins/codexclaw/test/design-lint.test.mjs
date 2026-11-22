@@ -94,6 +94,8 @@ test("design-lint --render: hover contrast and rails, or NOT_RUN with exit 3", (
   assert.ok(got.includes("FE-SIDE-ACCENT-01"), bad.stdout);
   const js = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-js-reveal.html")], { encoding: "utf8", timeout: 120000 });
   assert.ok(JSON.parse(js.stdout).findings.some((f) => f.id === "FE-SCROLL-BASE-01" && f.line === 0), js.stdout);
+  const tl = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "render-only-text-landing.html")], { encoding: "utf8", timeout: 120000 });
+  assert.ok(JSON.parse(tl.stdout).findings.some((f) => f.id === "FE-SLOP-CONSENSUS-01" && /text-only landing/.test(f.message) && f.level === "WARN"), tl.stdout);
   const ok = spawnSync(process.execPath, [ui, "--render", "--json", join(fx, "good", "scroll-guarded.html")], { encoding: "utf8", timeout: 120000 });
   assert.ok(!JSON.parse(ok.stdout).findings.some((f) => f.id === "FE-SCROLL-BASE-01"), ok.stdout);
 });

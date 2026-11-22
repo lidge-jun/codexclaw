@@ -122,14 +122,22 @@ counts as one moment ([motion](motion.md) FE-MOTION-HONESTY-01).
 TOOL surfaces keep scroll-driven motion at 0 (FE-MOTION-BUCKET-01); scroll shadows, sticky
 state and progress for long forms are state, not motion, and are allowed.
 
-### Signature moment recipe (LANDING)
+### Pinned stage (FE-SCROLL-PIN-01, DEFAULT for a 3-6 step story)
 
-One pinned section, 150–250vh tall, with a sticky stage at `top: var(--header-h)`. The
-stage holds a real product panel; its steps are real DOM rows whose state changes as
-`view()` progress crosses each step (CSS ranges per row, or GSAP ScrollTrigger when steps
-need sequencing). Requirements: the full, final state is the base state; a "skip" link
-targets the next section; on `max-width: 720px` or reduced motion the pin is removed and
-the steps render stacked; total scripted listeners: zero (CSS) or one ScrollTrigger.
+The screen holds while steps advance: a tall section with a `position: sticky` stage at
+`top: var(--header-h)`, driven by a `view-timeline` on the section (`animation-range:
+contain`) or one ScrollTrigger pin ([motion](motion.md#gsap-pinned-master-timeline); call
+`refresh()` after images and fonts load). What this adds to the rules above (skip link,
+stacked fallback, keyboard reveal, `will-change`):
+- Budget: about 60-100vh of scroll per step, 400vh total at most, 2 pins per page at most.
+- Visible progress (`2 / 4` or a filling rail) and step chips that are `<a href>` to a
+  per-step sentinel with `scroll-margin-top`; no JS offset math, no mandatory snap.
+- Text swaps per step (short crossfade at the threshold, never a half-faded resting state);
+  only the visual (frames, video, product state) scrubs continuously.
+- Every step's copy stays in the DOM and readable; inactive steps dim, never `aria-hidden`.
+- Unpin to a stack under reduced motion, `max-width: 720px` and `max-height: 600px`
+  (landscape phones, 200% zoom); size the stage in `svh`. Sticky dies under an
+  `overflow: hidden/auto` ancestor, like `view()`.
 
 ## FE-SCROLL-ANCHOR-01 — anchors, restoration, focus (DEFAULT)
 
@@ -190,7 +198,7 @@ no transparent overlays above interactive elements, stable layout, targets of at
 - [ ] No `overflow-x: hidden` wrapper around `view()` users (use `clip`)
 - [ ] Sticky header → `scroll-padding-top` / `scroll-margin-top`; in-page links are `<a href>`
 - [ ] Compositor-only properties; throttled profile run; Firefox and Safari opened
-- [ ] Pinned/horizontal stories have a skip path and stack on mobile and reduced motion
+- [ ] Pinned stage (FE-SCROLL-PIN-01): step budget, visible progress, chip links, stacks on mobile, short screens and reduced motion
 
 Lint (advisory): `ui-lint.mjs` reports FE-SCROLL-BASE-01, FE-SCROLL-GUARD-01,
 FE-SCROLL-NATIVE-01, FE-SCROLL-ANCHOR-01 and FE-SCROLL-PERF-01 ([scripts](../../scripts/README.md)).
